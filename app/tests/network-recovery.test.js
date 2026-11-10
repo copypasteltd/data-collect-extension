@@ -1,6 +1,6 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
-import { recoverPendingRequests } from "../src/network-recovery.js";
+import { recoverPendingRequests, recoverRootSockets } from "../src/network-recovery.js";
 
 const tabs = { 1: { debuggerAttached: true }, 2: { debuggerAttached: true, closed: true }, 3: { debuggerAttached: false } };
 const request = (id, seq, tabId = 1, postData = { status: "empty" }) => ({
@@ -43,4 +43,36 @@ it("重定向和请求标识复用不会混入已结束的请求", () => {
   assert.equal(restored.get(base).response.mimeType, "text/plain");
   events.push(event("network.finished", redirected, 6));
   assert.equal(recoverPendingRequests(events, tabs).size, 0);
+});
+
+it("只恢复当前页面实例中已验证且未关闭的顶层连接", () => {
+  const currentTabs = { 1: { debuggerAttached: true, inScope: true } };
+  const documents = new Map([[1, "doc-a"]]);
+  const snapshot = { kind: "page.snapshot", tabId: 1, frameId: 0, documentId: "doc-a", time: 10, seq: 1, payload: {} };
+  const created = { kind: "network.websocket", tabId: 1, time: 20, seq: 2,
+    payload: { requestId: "1:root:socket", type: "webSocketCreated", url: "ws://example.test/" } };
+  const events = [snapshot, created];
+  assert.equal(recoverRootSockets(events, currentTabs, documents).get("1:root:socket").allowed, true);
+  assert.equal(recoverRootSockets(events, currentTabs, new Map([[1, "doc-b"]])).size, 0);
+  assert.equal(recoverRootSockets(events, { 1: { ...currentTabs[1], inScope: false } }, documents).size, 0);
+  assert.equal(recoverRootSockets(events, { 1: { ...currentTabs[1], closed: true } }, documents).size, 0);
+  assert.equal(recoverRootSockets([created], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([{ ...snapshot, time: 20 }, created], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([snapshot, { ...created, payload: { ...created.payload, requestId: "1:child:socket" } }], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([...events, { ...created, seq: 3, time: 30,
+    payload: { ...created.payload, type: "webSocketClosed" } }], currentTabs, documents).size, 0);
+});
+
+it("导航后或发生时间无法区分时不恢复旧连接", () => {
+  const currentTabs = { 1: { debuggerAttached: true, inScope: true } };
+  const documents = new Map([[1, "doc-a"]]);
+  const snapshot = { kind: "page.snapshot", tabId: 1, frameId: 0, documentId: "doc-a", time: 10, seq: 1, payload: {} };
+  const created = { kind: "network.websocket", tabId: 1, time: 20, seq: 2,
+    payload: { requestId: "1:root:socket", type: "webSocketCreated" } };
+  const nav = { kind: "navigation.committed", tabId: 1, frameId: 0, time: 30, seq: 3,
+    payload: { documentId: "doc-b" } };
+  assert.equal(recoverRootSockets([snapshot, created, nav], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([snapshot, created, { ...nav, time: 20 }], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([snapshot, created, { ...nav, time: 15 }], currentTabs, documents).size, 0);
+  assert.equal(recoverRootSockets([snapshot, created, { ...nav, tabId: 2 }], currentTabs, documents).size, 1);
 });

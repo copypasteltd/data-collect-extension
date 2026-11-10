@@ -1,7 +1,7 @@
 import { all, get, put, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
-import { recoverPendingRequests } from "./network-recovery.js";
+import { recoverPendingRequests, recoverRootSockets } from "./network-recovery.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -190,6 +190,19 @@ async function init() {
         await append("network.requestBody", { requestId: item.requestId, body }, { tabId: item.tabId });
       }
     }
+    const socketTabs = new Set(events.filter((event) => event.kind === "network.websocket" &&
+      event.payload?.type === "webSocketCreated" && event.tabId != null).map((event) => event.tabId));
+    const documents = new Map();
+    await Promise.all([...socketTabs].map(async (tabId) => {
+      const tab = active?.tabs[tabId];
+      if (!tab || tab.closed || !tab.inScope || !tab.debuggerAttached) return;
+      try {
+        const frame = await withDeadline(chrome.webNavigation.getFrame({ tabId, frameId: 0 }), 1500, "页面实例检查");
+        if (frame?.documentId && allowedUrl(frame.url)) documents.set(tabId, frame.documentId);
+      } catch {}
+    }));
+    for (const [key, socket] of recoverRootSockets(events, active.tabs, documents))
+      socketScopes.set(key, socket);
     await warning("录制后台已重新启动，期间的部分事件或连接可能缺失");
   } else {
     for (const session of await all("sessions")) {
