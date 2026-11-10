@@ -51,6 +51,8 @@ npm run build
 停止整理期间若收到重复停止请求，插件会提示等待，原任务继续收尾；实际收尾失败时会标记异常中断。
 
 页面采集消息绑定当前录制，并在本地逐条写入后确认；部分写入失败会计入未确认数量并提示异常中断。若通信在确认前中断，未确认不一定代表全部丢失，也不能保证已经保存。
+
+页面事件按批写入本地事务。每个页面框架的待发送队列上限为 2,000 条或估算 32 MB；超过上限时整批事件不会入队，插件尝试立即提示并在停止后标记记录不完整。体积按 JSON 字符数估算，不代表浏览器的实际内存占用。
 停止时仍在进行的请求会在记录包和采集报告中逐条标记，不能据此认定请求失败；请求已结束但响应内容未完成采集的情况也会单独提示。旧记录可能缺少这些标记。
 查看记录时，报告还会检查已保存的请求是否缺少结束事件，并提供原请求的查看入口。这适用于异常中断及旧记录，但无法判断请求的实际结果，也无法找回未保存的事件。
 
@@ -188,6 +190,7 @@ npm run test:worker-socket-recovery
 npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:event-ack
+npm run test:queue-overflow
 npm run test:archive-roundtrip
 npm run test:archive-concurrency
 npm run test:input-length

@@ -203,7 +203,7 @@ type Ack = { messageId: string; status: 'persisted' | 'rejected'; reason?: strin
 
 消息类型包括 `session.start/stop`、`collector.ready/error`、`events.batch`、`snapshot.chunk`、`screenshot.request/result`、`network.update`、`storage.change`、`archive.progress/result`。接收者按 `messageId` 去重；只有完成事务后才回复 `persisted`。消息重复、端口断开和部分批次失败必须可处理。大 Blob 不放入普通消息假定可靠传输；采用分块并设大小上限，具体通道通过原型验证。
 
-当前实现中，页面采集器先取得本次录制 ID，再发送事件批次；后台拒绝不匹配的录制 ID，并在每条事件的本地事务完成后返回成功与失败数量。页面按确认结果统计未确认事件；通信在确认前断开时，整批结果可能不确定。当前协议尚未实现 `messageId` 去重和自动重试，上述完整协议仍是后续目标。
+当前实现中，页面采集器先取得本次录制 ID，再发送事件批次；后台拒绝不匹配的录制 ID，在同一事务中写入该批事件并返回逐条成功与失败的数量。请求失败可单独计数，事务回滚时整批均未确认。每帧发送队列限制为 2,000 条或估算 32 MB，超限时整批丢弃、尝试告警并标记不完整；体积按 JSON 字符数估算，不等于实际内存。通信在确认前断开时，整批结果可能不确定。当前协议尚未实现 `messageId` 去重和自动重试，上述完整协议仍是后续目标。
 
 ### 8.2 管道及背压
 

@@ -42,10 +42,20 @@ import { encodeDatabaseValue } from "./database-value.js";
       return settings;
     });
   })();
+  let overflowNoticeSent = false;
   const delivery = createEventDelivery(async (events) => {
     const settings = await captureSettings;
     if (!settings || collectorClosed) return { ok: false };
     return chrome.runtime.sendMessage({ type: "EVENTS", events, sessionId: settings.sessionId });
+  }, {
+    onOverflow: () => {
+      if (overflowNoticeSent) return;
+      overflowNoticeSent = true;
+      captureSettings.then((settings) => {
+        if (settings && !collectorClosed)
+          return chrome.runtime.sendMessage({ type: "COLLECTOR_OVERFLOW", sessionId: settings.sessionId });
+      }).catch(() => {});
+    },
   });
   let timer;
   let snapshotTimer;

@@ -34,3 +34,25 @@ it("对部分写入失败只统计未确认的事件，拒绝不一致的确认"
   await delivery.enqueue(["invalid", "unknown"]);
   assert.equal(delivery.failedEvents, 3);
 });
+
+it("限制待发送事件数量及估算体积，并在队列排空后恢复接收", async () => {
+  let release;
+  const notices = [], sent = [];
+  const delivery = createEventDelivery(async (events) => {
+    sent.push(events);
+    if (events[0] === "first") await new Promise((resolve) => { release = resolve; });
+    return { ok: true, value: true };
+  }, { maxEvents: 2, maxBytes: 1000, onOverflow: (count) => notices.push(count) });
+  delivery.enqueue(["first", "second"]);
+  await Promise.resolve();
+  delivery.enqueue(["overflow"]);
+  assert.equal(delivery.failedEvents, 1);
+  assert.deepEqual(notices, [1]);
+  release();
+  await delivery.flush();
+  await delivery.enqueue(["later"]);
+  assert.deepEqual(sent, [["first", "second"], ["later"]]);
+  const small = createEventDelivery(async () => ({ ok: true, value: true }), { maxEvents: 10, maxBytes: 20 });
+  await small.enqueue(["x".repeat(100)]);
+  assert.equal(small.failedEvents, 1);
+});

@@ -1,4 +1,4 @@
-import { all, get, put, removeSession } from "./db.js";
+import { all, get, put, putMany, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
@@ -65,19 +65,29 @@ function withDeadline(promise, milliseconds, label) {
     );
   });
 }
+function recordDroppedEvents(session, count) {
+  if (!count) return;
+  session.droppedEvents = (session.droppedEvents || 0) + count;
+  session.incomplete = true;
+  session.notice = "录制速度超过本机写入能力，部分记录已丢失。";
+  if (session.droppedEvents === count) {
+    chrome.action.setBadgeText({ text: "!" }).catch(() => {});
+    chrome.storage.session.set({ active: session }).catch(() => {});
+  }
+}
+function markEventWriteFailure(sessionId, error) {
+  console.error("事件写入失败", error);
+  if (active?.id === sessionId) {
+    active.storageError = true;
+    active.notice = "本地存储写入失败，部分记录可能丢失，请停止并检查可用空间。";
+    chrome.action.setBadgeText({ text: "!" }).catch(() => {});
+    chrome.storage.session.set({ active }).catch(() => {});
+  }
+}
 function append(kind, payload = {}, extra = {}) {
   if (!active) return Promise.resolve();
-  if (
-    outstandingWrites >= 5000 &&
-    !["warning", "session.stop"].includes(kind)
-  ) {
-    active.droppedEvents = (active.droppedEvents || 0) + 1;
-    active.incomplete = true;
-    active.notice = "录制速度超过本机写入能力，部分记录已丢失。";
-    if (active.droppedEvents === 1) {
-      chrome.action.setBadgeText({ text: "!" }).catch(() => {});
-      chrome.storage.session.set({ active }).catch(() => {});
-    }
+  if (outstandingWrites >= 5000 && !["warning", "session.stop"].includes(kind)) {
+    recordDroppedEvents(active, 1);
     return Promise.resolve(false);
   }
   const event = {
@@ -94,14 +104,7 @@ function append(kind, payload = {}, extra = {}) {
   const handled = task
     .then(() => true)
     .catch((error) => {
-      console.error("事件写入失败", error);
-      if (active?.id === event.sessionId) {
-        active.storageError = true;
-        active.notice =
-          "本地存储写入失败，部分记录可能丢失，请停止并检查可用空间。";
-        chrome.action.setBadgeText({ text: "!" }).catch(() => {});
-        chrome.storage.session.set({ active }).catch(() => {});
-      }
+      markEventWriteFailure(event.sessionId, error);
       return false;
     });
   handled.finally(() => {
@@ -109,6 +112,29 @@ function append(kind, payload = {}, extra = {}) {
   });
   writeChain = handled.then(() => undefined);
   return track(handled);
+}
+function appendPageBatch(items, sender, session) {
+  const capacity = Math.max(0, 5000 - outstandingWrites);
+  const selected = items.slice(0, capacity);
+  recordDroppedEvents(session, items.length - selected.length);
+  const events = selected.map((item) => ({
+    id: uid(), sessionId: session.id, seq: ++sequence, time: item.time,
+    kind: item.kind,
+    payload: scrubEventPayload(item.kind, { ...item.payload, url: cleanUrl(item.payload?.url || sender.url) }),
+    tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId,
+  }));
+  if (!events.length) return Promise.resolve({ events, results: [] });
+  outstandingWrites += events.length;
+  const handled = writeChain.then(() => putMany("events", events)).then((results) => {
+    if (results.some((saved) => !saved)) markEventWriteFailure(session.id, new Error("部分事件写入失败"));
+    return results;
+  }).catch((error) => {
+    markEventWriteFailure(session.id, error);
+    return events.map(() => false);
+  });
+  handled.finally(() => { outstandingWrites -= events.length; });
+  writeChain = handled.then(() => undefined);
+  return track(handled).then((results) => ({ events, results }));
 }
 async function warning(message, details = {}) {
   if (!active) return;
@@ -1141,6 +1167,19 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           !["preparing", "recording"].includes(active.status)) return { enabled: false };
       return { enabled: active.options?.canvasSnapshots === true, sessionId: active.id };
     }
+    if (message.type === "COLLECTOR_OVERFLOW") {
+      if (!active || message.sessionId !== active.id || !active.tabs[sender.tab?.id] ||
+          !allowedUrl(sender.url) || !["preparing", "recording", "stopping"].includes(active.status)) return false;
+      const session = active;
+      if (!session.collectorQueueOverflow) {
+        session.collectorQueueOverflow = true;
+        session.incomplete = true;
+        chrome.action.setBadgeText({ text: "!" }).catch(() => {});
+        await warning("页面事件发送队列已满，部分事件未保存", { tabId: sender.tab.id, frameId: sender.frameId });
+        if (active === session) await chrome.storage.session.set({ active: session }).catch(() => {});
+      }
+      return true;
+    }
     if (message.type === "EVENTS") {
       if (
         !active ||
@@ -1157,37 +1196,15 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         }
       })();
       if (!allowedUrl(origin)) return false;
-      if (!Array.isArray(message.events)) return false;
+      if (!Array.isArray(message.events) || message.events.length > 100) return false;
       const session = active;
-      let accepted = 0, failed = 0;
-      for (const [index, item] of message.events.entries()) {
-        if (active !== session || !["preparing", "recording", "stopping"].includes(session.status)) {
-          failed += message.events.length - index;
-          break;
-        }
-        const eventId = uid();
-        const itemPayload = {
-          ...item.payload,
-          url: cleanUrl(item.payload?.url || sender.url),
-        };
-        const saved = await append(item.kind, itemPayload, {
-          id: eventId,
-          time: item.time,
-          tabId: sender.tab.id,
-          frameId: sender.frameId,
-          documentId: sender.documentId,
-        });
-        if (saved) accepted++; else failed++;
-        if (saved && active === session && item.screenshot && session.options.screenshots)
-          requestScreenshot(
-            eventId,
-            sender.tab.id,
-            sender.frameId,
-            sender.documentId,
-            itemPayload.url,
-          );
-      }
-      return { accepted, failed };
+      const { events, results } = await appendPageBatch(message.events, sender, session);
+      const accepted = results.filter(Boolean).length;
+      if (active === session && session.options.screenshots)
+        for (let index = 0; index < events.length; index++)
+          if (results[index] && message.events[index].screenshot)
+            requestScreenshot(events[index].id, sender.tab.id, sender.frameId, sender.documentId, events[index].payload.url);
+      return { accepted, failed: message.events.length - accepted };
     }
     return null;
   })()

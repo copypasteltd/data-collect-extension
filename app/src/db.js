@@ -94,6 +94,29 @@ export async function put(store, value) {
     tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
   });
 }
+export async function putMany(store, values) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const results = values.map(() => true);
+    const target = tx.objectStore(store);
+    values.forEach((value, index) => {
+      try {
+        const request = target.put(value);
+        request.onerror = (event) => {
+          results[index] = false;
+          event.preventDefault();
+          event.stopPropagation();
+        };
+      } catch {
+        results[index] = false;
+      }
+    });
+    tx.oncomplete = () => resolve(results);
+    tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
+    tx.onerror = () => {};
+  });
+}
 export async function get(store, key) {
   const db = await openDB();
   return new Promise((resolve, reject) => {

@@ -60,6 +60,42 @@ try {
   });
   await page.waitForTimeout(600);
   await worker.evaluate(() => globalThis.restoreEventTestPut());
+  await worker.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    let duplicateId;
+    IDBObjectStore.prototype.put = function (value, ...args) {
+      if (value?.payload?.target?.selector === "#async-first") duplicateId = value.id;
+      if (value?.payload?.target?.selector === "#async-bad") return this.add({ ...value, id: duplicateId });
+      return original.call(this, value, ...args);
+    };
+    globalThis.restoreAsyncTestPut = () => { IDBObjectStore.prototype.put = original; };
+  });
+  const partial = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
+    target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
+      type: "EVENTS", sessionId, events: ["#async-first", "#async-bad", "#async-last"].map((selector) => ({
+        kind: "interaction.click", time: Date.now(), payload: { url: location.href, target: { selector } },
+      })),
+    }),
+  }), { tabId: tab.id, sessionId: first.value.id });
+  assert.deepEqual(partial[0].result.value, { accepted: 2, failed: 1 });
+  await worker.evaluate(() => globalThis.restoreAsyncTestPut());
+  await worker.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, ...args) {
+      if (value?.payload?.target?.selector === "#abort") this.transaction.abort();
+      return original.call(this, value, ...args);
+    };
+    globalThis.restoreAbortTestPut = () => { IDBObjectStore.prototype.put = original; };
+  });
+  const aborted = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
+    target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
+      type: "EVENTS", sessionId, events: ["#abort-before", "#abort", "#abort-after"].map((selector) => ({
+        kind: "interaction.click", time: Date.now(), payload: { url: location.href, target: { selector } },
+      })),
+    }),
+  }), { tabId: tab.id, sessionId: first.value.id });
+  assert.deepEqual(aborted[0].result.value, { accepted: 0, failed: 3 });
+  await worker.evaluate(() => globalThis.restoreAbortTestPut());
   const stopped = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
   assert.equal(stopped.ok, true);
   assert.equal(stopped.value.status, "interrupted");
@@ -67,26 +103,44 @@ try {
   const targets = firstEvents.filter((event) => event.kind === "interaction.click").map((event) => event.payload.target?.selector);
   assert.ok(targets.includes("#good-a") && targets.includes("#good-b"));
   assert.ok(!targets.includes("#bad"));
+  assert.ok(targets.includes("#async-first") && targets.includes("#async-last") && !targets.includes("#async-bad"));
+  assert.ok(!targets.some((target) => target?.startsWith("#abort")), "事务回滚后不能确认任何事件");
   assert.ok(firstEvents.some((event) => event.kind === "warning" && /未确认：1 条/.test(event.payload.error || "")));
   const second = await start();
   assert.equal(second.ok, true);
+  await page.waitForTimeout(400);
+  await worker.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    globalThis.testBatchTransactions = new Set();
+    IDBObjectStore.prototype.put = function (value, ...args) {
+      if (value?.payload?.target?.selector?.startsWith("#bulk-")) globalThis.testBatchTransactions.add(this.transaction);
+      return original.call(this, value, ...args);
+    };
+    globalThis.restoreBatchTestPut = () => { IDBObjectStore.prototype.put = original; };
+  });
   const responses = await panel.evaluate(({ tabId, oldId, newId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [oldId, newId], func: async (oldId, newId) => {
       const event = (name) => ({ kind: "interaction.click", time: Date.now(), payload: { url: location.href, target: { selector: name } } });
       const stale = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: oldId, events: [event("#stale")] });
       const missing = await chrome.runtime.sendMessage({ type: "EVENTS", events: [event("#missing")] });
       const current = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: newId, events: [event("#current")] });
-      return { stale, missing, current };
+      const batch = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: newId,
+        events: Array.from({ length: 20 }, (_, index) => event(`#bulk-${index}`)) });
+      return { stale, missing, current, batch };
     },
   }), { tabId: tab.id, oldId: first.value.id, newId: second.value.id });
   assert.equal(responses[0].result.stale.value, false);
   assert.equal(responses[0].result.missing.value, false);
   assert.deepEqual(responses[0].result.current.value, { accepted: 1, failed: 0 });
+  assert.deepEqual(responses[0].result.batch.value, { accepted: 20, failed: 0 });
+  assert.equal(await worker.evaluate(() => globalThis.testBatchTransactions.size), 1, "同一批事件应在单个事务中写入");
+  await worker.evaluate(() => globalThis.restoreBatchTestPut());
   const secondStop = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
   assert.equal(secondStop.ok, true);
   const secondEvents = await readEvents(second.value.id);
   const secondTargets = secondEvents.filter((event) => event.kind === "interaction.click").map((event) => event.payload.target?.selector);
   assert.ok(secondTargets.includes("#current"));
+  assert.equal(secondTargets.filter((target) => target?.startsWith("#bulk-")).length, 20);
   assert.ok(!secondTargets.includes("#stale") && !secondTargets.includes("#missing"));
   await panel.evaluate((tabId) => chrome.scripting.executeScript({ target: { tabId }, func: () => {
     const original = chrome.runtime.sendMessage;
