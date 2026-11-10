@@ -869,6 +869,10 @@ async function stop(onStopping) {
           event.payload.database?.storesTruncated ||
           event.payload.database?.stores?.some((store) => store.truncated)),
     ).length,
+    cacheGaps: recorded.filter(
+      (event) => event.kind === "cache.snapshot" &&
+        (event.payload.truncated || !["metadata_only", "name_only"].includes(event.payload.status)),
+    ).length,
     initialResourceGaps: recorded.filter(
       (event) => event.kind === "resource.initialSummary" && event.payload.status !== "captured",
     ).length,

@@ -1405,15 +1405,62 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
   }
   async function captureCache(reason) {
+    const deadline = Date.now() + 2500;
+    const withinDeadline = (promise) => {
+      let timer;
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("缓存采集超时")), Math.max(0, deadline - Date.now()));
+        }),
+      ]).finally(() => clearTimeout(timer));
+    };
     try {
-      const names = await caches.keys();
+      const names = await withinDeadline(caches.keys());
+      let remaining = 300;
       for (const name of names.slice(0, 20)) {
-        emit("cache.snapshot", {
-          reason,
-          name: secret.test(name) ? "[已隐藏]" : name,
-          status: "name_only",
-          note: "缓存条目内容未采集",
-        });
+        const safeName = secret.test(name) ? "[已隐藏]" : cleanStored(name);
+        const nameStatus = name.length > 10000 ? "omitted_size" : secret.test(name) ? "redacted" : "captured";
+        if (remaining <= 0) {
+          emit("cache.snapshot", { reason, name: safeName, status: "omitted_limit" });
+          continue;
+        }
+        try {
+          if (Date.now() >= deadline) throw new Error("缓存采集超时");
+          if (!await withinDeadline(caches.has(name)))
+            throw new Error("缓存已不存在");
+          const cache = await withinDeadline(caches.open(name));
+          const requests = await withinDeadline(cache.keys());
+          let unavailableUrls = 0;
+          const entries = requests.slice(0, Math.min(50, remaining)).map((request) => {
+            const url = request.url.length <= 10000 ? safeAttribute("src", request.url) : null;
+            const urlStatus = request.url.length > 10000 ? "omitted_size"
+              : typeof url === "string" && /^https?:\/\//i.test(url) ? "captured" : "unavailable";
+            if (urlStatus !== "captured") unavailableUrls++;
+            return { url: urlStatus === "captured" ? url : null, urlStatus,
+              method: cleanStored(request.method), mode: request.mode };
+          });
+          remaining -= entries.length;
+          emit("cache.snapshot", {
+            reason,
+            name: safeName,
+            nameStatus,
+            status: "metadata_only",
+            total: requests.length,
+            entries,
+            omitted: Math.max(0, requests.length - entries.length),
+            unavailableUrls,
+            truncated: requests.length > entries.length || unavailableUrls > 0 || nameStatus === "omitted_size",
+            note: "缓存请求头及响应内容未采集",
+          });
+        } catch (error) {
+          const timedOut = Date.now() >= deadline;
+          emit("cache.snapshot", {
+            reason, name: safeName, status: timedOut ? "timeout" : "unavailable",
+            error: cleanStored(String(error).slice(0, 10000)),
+          });
+          if (timedOut) break;
+        }
       }
       if (names.length > 20)
         emit("cache.snapshot", {
@@ -1424,8 +1471,8 @@ import { encodeDatabaseValue } from "./database-value.js";
     } catch (error) {
       emit("cache.snapshot", {
         reason,
-        status: "unavailable",
-        error: String(error),
+        status: Date.now() >= deadline ? "timeout" : "unavailable",
+        error: cleanStored(String(error).slice(0, 10000)),
       });
     }
   }

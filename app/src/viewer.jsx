@@ -107,6 +107,17 @@ function databaseIssue(payload) {
     return "数据库部分内容未采集或超过上限";
   return null;
 }
+function cacheIssue(payload) {
+  if (payload.nameStatus === "omitted_size") return "缓存名称超过采集上限";
+  if (payload.unavailableUrls) return "缓存请求地址无法读取或超过采集上限";
+  if (payload.truncated) return "缓存请求数量超过采集上限";
+  return {
+    truncated: "缓存数量超过采集上限",
+    omitted_limit: "缓存请求超过总采集上限",
+    timeout: "缓存请求清单采集超时",
+    unavailable: "缓存请求清单无法读取",
+  }[payload.status] || null;
+}
 function Report({ archive, showEvent }) {
   const events = archive.events;
   const warnings = events.filter(
@@ -137,6 +148,7 @@ function Report({ archive, showEvent }) {
           e.payload.shadow?.truncated ||
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
+      (e.kind === "cache.snapshot" && !!cacheIssue(e.payload)) ||
       e.kind === "storage.unavailable" ||
       (e.kind === "storage.snapshot" && e.payload.coverage &&
         Object.values(e.payload.coverage).some((item) => item?.status !== "captured")) ||
@@ -194,7 +206,7 @@ function Report({ archive, showEvent }) {
         截图未取得：
         {shots.filter((e) => e.payload.status === "unavailable").length}
         ；响应主体未取得或未保留：{unavailableBodies}
-        。开始录制前的请求不可补录；数据库为限量的开始和结束快照，缓存仅记录名称。
+        。开始录制前的请求不可补录；数据库与缓存为限量的开始和结束快照，缓存响应内容未采集。
       </p>
       {archive.manifest.partial && (
         <div className="notice error">
@@ -215,6 +227,7 @@ function Report({ archive, showEvent }) {
               {e.kind === "page.snapshot"
                 ? snapshotIssues(e.payload).join("；")
                 : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
+                (e.kind === "cache.snapshot" ? cacheIssue(e.payload) : null) ||
                 e.payload.message ||
                 e.payload.reason ||
                 e.payload.errorText ||

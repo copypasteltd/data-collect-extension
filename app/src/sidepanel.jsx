@@ -304,6 +304,7 @@ function App() {
                     ? session.coverage?.warnings ||
                       session.coverage?.snapshotGaps ||
                       session.coverage?.databaseGaps ||
+                      session.coverage?.cacheGaps ||
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.inputGaps ||
