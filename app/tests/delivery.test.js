@@ -17,7 +17,7 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
   delivery.enqueue(["first"]);
   delivery.enqueue(["rejected", "also-lost"]);
   delivery.enqueue(["unaccepted"]);
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.deepEqual(sent, ["first"]);
   release({ ok: true, value: true });
   await delivery.flush();
@@ -44,7 +44,7 @@ it("限制待发送事件数量及估算体积，并在队列排空后恢复接�
     return { ok: true, value: true };
   }, { maxEvents: 2, maxBytes: 1000, onOverflow: (count) => notices.push(count) });
   delivery.enqueue(["first", "second"]);
-  await Promise.resolve();
+  await new Promise(setImmediate);
   delivery.enqueue(["overflow"]);
   assert.equal(delivery.failedEvents, 1);
   assert.deepEqual(notices, [1]);
@@ -73,4 +73,43 @@ it("通信异常时使用同一批次标识重试，明确拒绝时不重试", a
   await rejected.enqueue(["event"]);
   assert.equal(attempts, 1);
   assert.equal(rejected.failedEvents, 1);
+});
+
+it("重试期间可接受先前请求迟到的确认", async () => {
+  const pending = [], ids = [];
+  const delivery = createEventDelivery((_events, batchId) => {
+    ids.push(batchId);
+    return new Promise((resolve) => pending.push(resolve));
+  }, { timeoutMs: 15, retryDelay: 0 });
+  const result = delivery.enqueue(["event"]);
+  for (let i = 0; i < 100 && pending.length < 2; i++) await new Promise((resolve) => setTimeout(resolve, 2));
+  assert.equal(pending.length, 2);
+  pending[0]({ ok: true, value: { accepted: 1, failed: 0 } });
+  await result;
+  assert.equal(delivery.failedEvents, 0);
+  assert.equal(new Set(ids).size, 1);
+  pending[1]({ ok: true, value: { accepted: 1, failed: 0 } });
+});
+
+it("无响应请求达到上限时停止新增请求，收到迟到结果后恢复", async () => {
+  const pending = [], notices = [];
+  let calls = 0;
+  const delivery = createEventDelivery((events) => {
+    calls++;
+    if (events[0] === "later") return { ok: true, value: true };
+    return new Promise((resolve) => pending.push(resolve));
+  }, { timeoutMs: 10, retryDelay: 0, onUnresponsive: () => notices.push(true) });
+  await delivery.enqueue(["stalled"]);
+  assert.equal(calls, 3);
+  assert.equal(delivery.failedEvents, 1);
+  assert.equal(notices.length, 1);
+  await delivery.enqueue(["blocked"]);
+  assert.equal(calls, 3);
+  assert.equal(delivery.failedEvents, 2);
+  pending[0]({ ok: true, value: true });
+  await new Promise(setImmediate);
+  await delivery.enqueue(["later"]);
+  assert.equal(calls, 4);
+  assert.equal(delivery.failedEvents, 2);
+  for (const resolve of pending.slice(1)) resolve({ ok: true, value: true });
 });

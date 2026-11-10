@@ -51,11 +51,14 @@ try {
     const button = document.querySelector("#action");
     for (let i = 0; i < 2200; i++) button.click();
   });
-  await panel.waitForFunction(async () => {
-    const state = await chrome.runtime.sendMessage({ type: "GET_STATE" });
-    return state.value?.active?.collectorQueueOverflow === true;
-  }, null, { timeout: 10000 });
-  const during = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
+  const warningDeadline = Date.now() + 10000;
+  let during;
+  do {
+    during = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
+    if (during.value?.active?.collectorQueueOverflow && /发送队列已满/.test(during.value.active.notice || "")) break;
+    await page.waitForTimeout(50);
+  } while (Date.now() < warningDeadline);
+  assert.equal(during.value.active.collectorQueueOverflow, true);
   assert.match(during.value.active.notice, /发送队列已满/);
   assert.equal(during.value.active.incomplete, true);
   await panel.evaluate((tabId) => chrome.scripting.executeScript({ target: { tabId }, func: () => {

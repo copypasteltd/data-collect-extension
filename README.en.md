@@ -50,7 +50,7 @@ After successful validation, the original ZIP is saved in the local recording li
 
 While a recording is being finalized, repeated stop requests return a wait message and the original finalization continues. A genuine finalization failure is marked as interrupted.
 
-Page-collector messages are bound to the active recording and acknowledged after individual local writes. Communication errors trigger up to two retries using a stable batch ID; the background checks saved events to avoid duplicates. Explicit rejections and requests that never return are not retried automatically. The report flags screenshots whose scheduling could not be confirmed after a retry. Partial failures contribute to an unconfirmed-event count and mark the recording as interrupted; an unconfirmed event may or may not have been saved.
+Page-collector messages are bound to the active recording and acknowledged after individual local writes. Communication errors or a roughly two-second timeout trigger up to two retries with a stable batch ID; the background checks saved events to avoid duplicates. Explicit rejections are not retried. At most three unanswered requests are retained; subsequent batches are skipped with a warning until a request settles, and skipped events cannot be recovered. The report flags screenshots whose scheduling could not be confirmed after a retry. An unconfirmed event may or may not have been saved.
 
 Page events are written in batches. Each frame's pending delivery queue is limited to 2,000 events or an estimated 32 MB; a batch exceeding either limit is not queued. The extension attempts an immediate warning and marks the recording incomplete at stop. The estimate uses JSON character count and is not the browser's actual memory usage.
 Requests still in progress at the end are individually marked in the archive and capture report; this does not mean the requests failed. The report also distinguishes requests that completed while response-body capture remained unfinished. Older recordings may lack these markers.
@@ -191,6 +191,7 @@ npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:event-ack
 npm run test:event-retry
+npm run test:event-timeout
 npm run test:queue-overflow
 npm run test:archive-roundtrip
 npm run test:archive-concurrency

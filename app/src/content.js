@@ -43,6 +43,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     });
   })();
   let overflowNoticeSent = false;
+  let unresponsiveNoticeSent = false;
   const delivery = createEventDelivery(async (events, batchId) => {
     const settings = await captureSettings;
     if (!settings || collectorClosed) return { ok: false };
@@ -54,6 +55,14 @@ import { encodeDatabaseValue } from "./database-value.js";
       captureSettings.then((settings) => {
         if (settings && !collectorClosed)
           return chrome.runtime.sendMessage({ type: "COLLECTOR_OVERFLOW", sessionId: settings.sessionId });
+      }).catch(() => {});
+    },
+    onUnresponsive: () => {
+      if (unresponsiveNoticeSent) return;
+      unresponsiveNoticeSent = true;
+      captureSettings.then((settings) => {
+        if (settings && !collectorClosed)
+          return chrome.runtime.sendMessage({ type: "COLLECTOR_UNRESPONSIVE", sessionId: settings.sessionId });
       }).catch(() => {});
     },
   });

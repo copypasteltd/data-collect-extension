@@ -906,7 +906,7 @@ async function stop(onStopping) {
             { type: "FLUSH" },
             { frameId: frame.frameId },
           ),
-          6000,
+          12000,
           "页面状态收尾",
         );
         if (!result?.ok)
@@ -1174,15 +1174,17 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           !["preparing", "recording"].includes(active.status)) return { enabled: false };
       return { enabled: active.options?.canvasSnapshots === true, sessionId: active.id };
     }
-    if (message.type === "COLLECTOR_OVERFLOW") {
+    if (["COLLECTOR_OVERFLOW", "COLLECTOR_UNRESPONSIVE"].includes(message.type)) {
       if (!active || message.sessionId !== active.id || !active.tabs[sender.tab?.id] ||
           !allowedUrl(sender.url) || !["preparing", "recording", "stopping"].includes(active.status)) return false;
       const session = active;
-      if (!session.collectorQueueOverflow) {
-        session.collectorQueueOverflow = true;
+      const overflow = message.type === "COLLECTOR_OVERFLOW";
+      const key = overflow ? "collectorQueueOverflow" : "collectorUnresponsive";
+      if (!session[key]) {
+        session[key] = true;
         session.incomplete = true;
         chrome.action.setBadgeText({ text: "!" }).catch(() => {});
-        await warning("页面事件发送队列已满，部分事件未保存", { tabId: sender.tab.id, frameId: sender.frameId });
+        await warning(overflow ? "页面事件发送队列已满，部分事件未保存" : "页面事件通信未确认，部分记录可能缺失", { tabId: sender.tab.id, frameId: sender.frameId });
         if (active === session) await chrome.storage.session.set({ active: session }).catch(() => {});
       }
       return true;
