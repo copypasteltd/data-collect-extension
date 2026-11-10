@@ -21,21 +21,28 @@ const forbiddenAttr =
   /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-node$)/i;
 
 function inputNode(doc, target) {
+  const unique = (root, selector) => {
+    if (typeof selector !== "string" || !selector || selector.length > 1024) return null;
+    const nodes = root.querySelectorAll(selector);
+    return nodes.length === 1 ? nodes[0] : null;
+  };
   const selector = target?.selector, path = target?.shadowPath;
+  let node;
   if (Array.isArray(path) && path.length >= 2 && path.length <= 21 &&
       path.every((part) => typeof part === "string" && part.length <= 1024)) {
     let root = doc;
     for (const part of path.slice(0, -1)) {
-      const host = root.querySelector(part);
-      const template = host && [...host.children].find((child) => child.matches("template[data-logic-shadow-root]"));
-      if (!template) return null;
-      root = template.content;
+      const host = unique(root, part);
+      const templates = host && [...host.children].filter((child) => child.matches("template[data-logic-shadow-root]"));
+      if (templates?.length !== 1) return null;
+      root = templates[0].content;
     }
-    return root.querySelector(path.at(-1));
-  }
-  return typeof selector === "string" && selector.length <= 1024
-    ? doc.querySelector(selector)
-    : null;
+    node = unique(root, path.at(-1));
+  } else node = unique(doc, selector);
+  if (!node || (target?.tag && node.localName !== target.tag) ||
+      (target?.nodeId && node.getAttribute("data-logic-node") !== target.nodeId) ||
+      (target?.type && String(node.getAttribute("type") || "").toLowerCase() !== String(target.type).toLowerCase())) return null;
+  return node;
 }
 
 export function applyRecordedMutations(doc, events) {
@@ -300,9 +307,13 @@ export function applyRecordedInputs(doc, events) {
     if (value === "[已隐藏]") continue;
     try {
       const node = inputNode(doc, target);
-      if (!node || node.matches('input[type="password"], input[type="file"]'))
+      if (!node) {
+        issues.add("输入或选择的目标无法唯一确认");
         continue;
-      if (node.matches("select") && state?.truncated) {
+      }
+      if (node.matches('input[type="password"], input[type="file"]'))
+        continue;
+      if (node.matches("select") && (state?.truncated || state?.optionsTruncated)) {
         issues.add("部分选项状态超过采集上限");
         continue;
       }
@@ -324,16 +335,43 @@ export function applyRecordedInputs(doc, events) {
         node.checked = state.checked;
         if (state.checked) node.setAttribute("checked", "");
         else node.removeAttribute("checked");
-      } else if (
-        node.matches("select") &&
-        Array.isArray(state?.selectedIndices) &&
-        !state.truncated &&
-        state.selectedIndices.length <= 200 &&
-        state.selectedIndices.every(
-          (index) => Number.isInteger(index) && index >= 0,
-        )
-      ) {
-        const indices = new Set(state.selectedIndices);
+      } else if (node.matches("select")) {
+        let indices;
+        if (Array.isArray(state?.selectedIndices)) {
+          const options = state.options;
+          const signatures = new Map();
+          if (Array.isArray(options) && options.length <= 200) for (const item of options) {
+            const signature = JSON.stringify([item?.label, item?.value]);
+            signatures.set(signature, (signatures.get(signature) || 0) + 1);
+          }
+          const validOptions = Array.isArray(options) && options.length <= 200 && options.length === node.options.length &&
+            (typeof state.multiple !== "boolean" || state.multiple === node.multiple) &&
+            options.every((item, index) => {
+              const option = node.options[index];
+              if (!item || item.uncertain || typeof item.label !== "string" || item.label !== option.label ||
+                  typeof item.value !== "string" || item.value !== option.value) return false;
+              if (typeof item.id === "string" && item.id)
+                return item.id === option.getAttribute("data-logic-node");
+              return signatures.get(JSON.stringify([item.label, item.value])) === 1;
+            });
+          if (!validOptions || state.selectedIndices.length > 200 ||
+              (!node.multiple && state.selectedIndices.length !== 1) ||
+              new Set(state.selectedIndices).size !== state.selectedIndices.length ||
+              !state.selectedIndices.every((index) => Number.isInteger(index) && index >= 0 && index < node.options.length)) {
+            issues.add("选项身份或选择状态无法确认，未还原选择");
+            continue;
+          }
+          indices = new Set(state.selectedIndices);
+        } else {
+          const matches = typeof value === "string" && !node.multiple &&
+            !["redacted", "truncated", "redacted_truncated"].includes(event.payload?.valueStatus)
+            ? [...node.options].flatMap((option, index) => option.value === value ? [index] : []) : [];
+          if (matches.length !== 1) {
+            issues.add("选项身份或选择状态无法确认，未还原选择");
+            continue;
+          }
+          indices = new Set(matches);
+        }
         [...node.options].forEach((option, index) => {
           option.selected = indices.has(index);
           if (indices.has(index)) option.setAttribute("selected", "");
@@ -355,13 +393,8 @@ export function applyRecordedInputs(doc, events) {
           node.textContent = value.slice(0, MAX_INPUT_LENGTH);
         }
       }
-      else if (node.matches("select"))
-        for (const option of node.querySelectorAll("option")) {
-          if (option.value === value) option.setAttribute("selected", "");
-          else option.removeAttribute("selected");
-        }
     } catch {
-      /* A selector from the original page may no longer match. */
+      issues.add("输入或选择的目标无法唯一确认");
     }
   }
   return { issues: [...issues] };

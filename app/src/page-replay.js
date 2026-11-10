@@ -20,6 +20,7 @@ export function resolveReplayTarget(doc, target) {
       node = unique(root, path.at(-1));
     } else node = unique(doc, target?.selector);
     if (!node || (target?.tag && node.localName !== target.tag)) return null;
+    if (target?.nodeId && node.getAttribute("data-logic-node") !== target.nodeId) return null;
     if (target?.type && String(node.getAttribute("type") || "").toLowerCase() !== String(target.type).toLowerCase()) return null;
     return node;
   } catch { return null; }

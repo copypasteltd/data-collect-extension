@@ -318,8 +318,8 @@ try {
   }
   await panel.getByPlaceholder("搜索记录").fill("old-image-finished");
   await panel.locator(".timeline-item").first().click();
-  await panel.getByText("图片资源未取得：1 个").waitFor();
-  if (await panel.frameLocator('iframe[title="页面快照"]').locator("#avatar").getAttribute("src")) throw new Error("刷新后错误显示了旧页面图片");
+  await panel.getByText("请求所属页面快照无法确认").waitFor();
+  if (await panel.locator('iframe[title="页面快照"]').count()) throw new Error("缺少请求页面快照时错误显示了其他页面");
   await panel.getByRole("button", { name: /^流程 \d+$/ }).click();
   const flows = panel.locator(".flow");
   if ((await flows.count()) !== 6 || !(await flows.nth(1).textContent()).includes("刷新后"))

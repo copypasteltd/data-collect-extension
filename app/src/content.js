@@ -129,6 +129,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         : "";
     return {
       tag: el.localName,
+      nodeId: nodeId(el),
       type: el.getAttribute("type"),
       editable: el instanceof HTMLElement && el.isContentEditable,
       role: el.getAttribute("role"),

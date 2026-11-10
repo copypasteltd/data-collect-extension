@@ -31,6 +31,8 @@ function sameTarget(previous, current) {
     sameElement &&
     previous.tabId === current.tabId &&
     previous.frameId === current.frameId &&
+    (!target?.nodeId || !previous.payload?.target?.nodeId ||
+      target.nodeId === previous.payload.target.nodeId) &&
     (!previous.documentId ||
       !current.documentId ||
       previous.documentId === current.documentId) &&

@@ -117,6 +117,15 @@ try {
   await frame.locator("#apply").click();
   await panel.getByText("未取得最后操作后的页面状态").waitFor();
   if (await panel.locator('iframe[title="逐步复现页面"]').count()) throw new Error("关闭标签后错误显示了关闭前的页面");
+  const identitySnapshot = { ...initial, id: "identity-snapshot", payload: { ...initial.payload,
+    html: '<!doctype html><html><body><button id="apply" data-logic-node="101">提交</button></body></html>' } };
+  const replacedTarget = { ...lastClick, id: "replaced-target", payload: { ...lastClick.payload,
+    target: { ...lastClick.payload.target, nodeId: "102" } } };
+  await openScenario([identitySnapshot, replacedTarget], "元素替换测试");
+  await panel.getByText("当前操作的页面元素无法唯一定位").waitFor();
+  await frame.locator("#apply").click({ force: true });
+  if (await panel.getByRole("status").filter({ hasText: "已到达记录末尾" }).count())
+    throw new Error("复现错误匹配了已替换的元素");
   const created = { kind: "tab.created", id: "tab-created", seq: 3, time: 3, payload: { tabId: 2, openerTabId: 1 } };
   const activated = { kind: "tab.activated", id: "tab-activated", seq: 4, time: 4, payload: { tabId: 2 } };
   const childSnapshot = { id: "child-final", seq: 5, time: 5, tabId: 2, frameId: 0, documentId: "child", kind: "page.snapshot", payload: { url: "https://example.test/new-tab", status: "captured", html: '<!doctype html><html><body><div id="new-tab">新标签内容</div></body></html>' } };

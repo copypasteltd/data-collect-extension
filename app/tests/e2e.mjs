@@ -733,6 +733,14 @@ try {
   );
   if (!checkedEvent || !uncheckedEvent || !radioEvent || !multiEvent)
     throw new Error("复选、单选或多选操作状态未记录");
+  const priorMultiSnapshot = events.filter((event) => event.kind === "page.snapshot" &&
+    event.tabId === multiEvent.tabId && event.documentId === multiEvent.documentId &&
+    event.seq < multiEvent.seq && event.payload.html).at(-1);
+  const snapshotNodeId = await panel.evaluate((html) =>
+    new DOMParser().parseFromString(html, "text/html").querySelector("#multi")?.getAttribute("data-logic-node"),
+    priorMultiSnapshot?.payload.html || "");
+  if (!snapshotNodeId || multiEvent.payload.target.nodeId !== snapshotNodeId)
+    throw new Error("表单操作未记录与页面快照对应的元素身份");
   if (
     checkedEvent.payload.target.name !== "确认" ||
     radioEvent.payload.target.name !== "方案 B"

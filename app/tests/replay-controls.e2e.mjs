@@ -280,6 +280,20 @@ try {
   await panel.getByText("事件详情 · #17").waitFor();
   await panel.getByText("请求所属页面快照无法确认").waitFor();
   if (await panel.locator('iframe[title="页面快照"]').count()) throw new Error("嵌入页面请求错误显示了主页面快照");
+  const replaced = ["101", "102"].map((nodeId, index) => ({
+    id: `replacement-${index}`, seq: index + 1, time: index + 1, tabId: 1, frameId: 0, documentId: "same-document",
+    kind: "interaction.input", payload: { url: "https://example.test/", target: { tag: "input", type: "text", selector: "#reused", nodeId }, value: index ? "新值" : "旧值" },
+  }));
+  const replacementManifest = { format: "logic-recorder", version: 2, session: { id: "replacement", title: "同位置元素替换", startedAt: 1 }, eventCount: replaced.length, eventChunks: ["timeline/events-00001.jsonl"] };
+  const replacementFiles = { "manifest.json": strToU8(JSON.stringify(replacementManifest)), "timeline/events-00001.jsonl": strToU8(replaced.map((event) => JSON.stringify(event)).join("\n")) };
+  replacementFiles["integrity.json"] = strToU8(JSON.stringify(Object.entries(replacementFiles).map(([entryPath, bytes]) => ({ path: entryPath, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }))));
+  await panel.locator('.viewer-top input[type="file"]').setInputFiles({ name: "replacement.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync(replacementFiles)) });
+  await panel.getByRole("heading", { name: "同位置元素替换" }).waitFor();
+  await panel.getByRole("button", { name: "复现", exact: true }).click();
+  await panel.getByLabel("输入记录值").fill("旧值");
+  await panel.getByText("步骤 2 / 2").waitFor();
+  if (await panel.getByLabel("输入记录值").inputValue() !== "") throw new Error("元素替换后错误沿用旧元素输入");
+  await panel.getByText("操作前输入值未取得").waitFor();
   console.log("侧边栏表单复现及页面刷新状态隔离通过");
 } finally {
   if (context) await context.close();
