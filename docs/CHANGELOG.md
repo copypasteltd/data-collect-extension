@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.1.2 - 2026-11-10
+
+- 修复普通 HTTP 页面中 `crypto.randomUUID` 不可用造成的重复异常及页面事件丢失；使用浏览器支持的安全随机数生成兼容的 UUID。 / Fix repeated errors and lost page events when `crypto.randomUUID` is unavailable on ordinary HTTP pages; generate compatible UUIDs with browser-provided secure random values.
+- 增加正式版 Chrome 的非安全 HTTP 页面录制、导出及扩展错误列表检查，并验证输入和请求写入记录包。 / Test insecure HTTP recording, export, and the extension error list in official Chrome, including recorded inputs and requests.
+- 更新前已丢失的事件无法恢复，受影响的流程需要重新录制。 / Previously lost events cannot be recovered; affected workflows must be recorded again.
+
 ## 0.1.1 - 2026-11-10
 
 - 修复录制准备期间打开的新标签页可能被遗漏，提前注册采集器并跟踪其后续操作和请求。 / Track tabs opened while recording is preparing and register the collector earlier so subsequent actions and requests can be recorded.

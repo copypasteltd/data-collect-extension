@@ -68,11 +68,33 @@ it("通信异常时使用同一批次标识重试，明确拒绝时不重试", a
   assert.equal(delivery.failedEvents, 0);
   assert.equal(ids.length, 3);
   assert.equal(new Set(ids).size, 1);
+  assert.match(ids[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   let attempts = 0;
   const rejected = createEventDelivery(async () => { attempts++; return { ok: false }; }, { retryDelay: 0 });
   await rejected.enqueue(["event"]);
   assert.equal(attempts, 1);
   assert.equal(rejected.failedEvents, 1);
+});
+
+it("每批使用不同的 UUID，并且不依赖 randomUUID", async () => {
+  const ids = [];
+  const delivery = createEventDelivery(async (_events, id) => {
+    ids.push(id);
+    return { ok: true, value: true };
+  });
+  const original = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+  try {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
+    await delivery.enqueue(["first"]);
+    await delivery.enqueue(["second"]);
+  } finally {
+    if (original) Object.defineProperty(crypto, "randomUUID", original);
+    else delete crypto.randomUUID;
+  }
+  assert.equal(new Set(ids).size, 2);
+  for (const id of ids)
+    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(delivery.failedEvents, 0);
 });
 
 it("重试期间可接受先前请求迟到的确认", async () => {

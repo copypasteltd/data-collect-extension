@@ -4,7 +4,7 @@ Record authorized browser workflows from the Chrome side panel and export a sele
 
 [中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [Changelog](docs/CHANGELOG.md)
 
-> This is a **0.1.1 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
+> This is a **0.1.2 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 
 ## Demo
 
@@ -20,7 +20,7 @@ The demo uses fictional local data in an isolated test browser. The side panel o
 
 ## Install
 
-Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.1.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
+Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.2.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
 
 To build from source instead, you also need Node.js 20 or later and npm:
 
@@ -64,7 +64,7 @@ resources/                    Captured images, fonts, and other resources
 
 The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
 
-Alternatively, download `extension-logic-clone-v0.1.1.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
+Alternatively, download `extension-logic-clone-v0.1.2.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
 
 From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
 
@@ -114,4 +114,4 @@ npm run test:response-encoding
 npm run test:skill
 ```
 
-Browser tests need Playwright Chromium. Run `npx playwright install chromium`, or set `CHROME_BIN` to a compatible Chrome/Chromium executable. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
+Browser tests need Playwright Chromium. Run `npx playwright install chromium`. To check HTTP recording and the extension error list in official Chrome, set `CHROME_BIN` to the Chrome executable and run `npm run test:chrome-errors`. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
