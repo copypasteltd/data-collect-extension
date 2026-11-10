@@ -17,7 +17,7 @@ const forbidden = new Set([
   "foreignobject",
 ]);
 const unsafeAttribute =
-  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-popover-open$)/i;
+  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-popover-open$|data-logic-dialog-modal$)/i;
 export const sanitizeCss = (css) =>
   String(css || "")
     .replace(/@import[^;]*(;|$)/gi, "")

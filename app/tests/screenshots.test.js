@@ -106,7 +106,7 @@ it("截图与操作之间发生变化时不标示近似位置", () => {
   const stable = assessScreenshotTiming([otherTab], step, shot);
   assert.equal(stable.changed, false);
   assert.equal(canPlaceScreenshotTarget(step, shot, stable), true);
-  for (const event of [sameTab, mutation]) {
+  for (const event of [sameTab, mutation, { ...mutation, kind: "page.popover" }, { ...mutation, kind: "page.dialog" }]) {
     const timing = assessScreenshotTiming([event], step, shot);
     assert.equal(timing.changed, true);
     assert.equal(canPlaceScreenshotTarget(step, shot, timing), false);

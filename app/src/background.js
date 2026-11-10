@@ -1001,6 +1001,9 @@ async function stop(onStopping) {
     popoverGaps: recorded.filter((event) =>
       (event.kind === "page.snapshot" && (event.payload.popover?.omitted || event.payload.popover?.unavailable || event.payload.popover?.scanTruncated)) ||
       (event.kind === "page.popover" && event.payload.status === "unavailable")).length,
+    dialogGaps: recorded.filter((event) =>
+      (event.kind === "page.snapshot" && (event.payload.dialog?.omitted || event.payload.dialog?.unavailable || event.payload.dialog?.scanTruncated)) ||
+      (event.kind === "page.dialog" && event.payload.status === "unavailable")).length,
     inputGaps: recorded.filter(
       (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
         (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||

@@ -18,7 +18,7 @@ const forbiddenTags = new Set([
   "foreignobject",
 ]);
 const forbiddenAttr =
-  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-node$|data-logic-popover-open$)/i;
+  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-node$|data-logic-popover-open$|data-logic-dialog-modal$)/i;
 
 function inputNode(doc, target) {
   const unique = (root, selector) => {
@@ -45,7 +45,7 @@ function inputNode(doc, target) {
   return node;
 }
 
-export function applyRecordedMutations(doc, events, popover) {
+export function applyRecordedMutations(doc, events, popover, dialog) {
   const refs = new Map(),
     duplicates = new Set(),
     issues = [],
@@ -87,6 +87,15 @@ export function applyRecordedMutations(doc, events, popover) {
       const node = typeof id === "string" && /^\d{1,16}$/.test(id) && !duplicates.has(id) ? refs.get(id)?.node : null;
       if (!node || node.nodeType !== 1 || !node.hasAttribute("popover")) issues.push("弹出层目标无法确认");
       else node.setAttribute("data-logic-popover-open", "1");
+    }
+  }
+  if (dialog != null) {
+    if (!Array.isArray(dialog.modal) || dialog.modal.length > 100)
+      issues.push("模态对话框状态格式无效或超过上限");
+    for (const id of Array.isArray(dialog.modal) ? dialog.modal.slice(0, 100) : []) {
+      const node = typeof id === "string" && /^\d{1,16}$/.test(id) && !duplicates.has(id) ? refs.get(id)?.node : null;
+      if (!node || node.localName !== "dialog" || !node.hasAttribute("open")) issues.push("模态对话框目标无法确认");
+      else node.setAttribute("data-logic-dialog-modal", "1");
     }
   }
   function present(node) {
@@ -241,6 +250,18 @@ export function applyRecordedMutations(doc, events, popover) {
       else node.removeAttribute("data-logic-popover-open");
       continue;
     }
+    if (event.kind === "page.dialog") {
+      const id = event.payload?.targetNodeId;
+      const node = typeof id === "string" && /^\d{1,16}$/.test(id) && !duplicates.has(id) ? refs.get(id)?.node : null;
+      const { open, modal } = event.payload || {};
+      if (!present(node) || node.localName !== "dialog" || typeof open !== "boolean" ||
+          typeof modal !== "boolean" || (modal && !open)) issues.push("对话框状态无法确认");
+      else {
+        if (open) node.setAttribute("open", ""); else node.removeAttribute("open");
+        if (modal) node.setAttribute("data-logic-dialog-modal", "1"); else node.removeAttribute("data-logic-dialog-modal");
+      }
+      continue;
+    }
     if (["interaction.input", "interaction.change"].includes(event.kind)) {
       if (["truncated", "redacted_truncated"].includes(event.payload?.valueStatus))
         issues.push("输入值超过采集上限，仅还原已记录内容");
@@ -278,6 +299,7 @@ export function applyRecordedMutations(doc, events, popover) {
             /^[a-z_:][a-z0-9_:.-]*$/i.test(name)
           ) {
             if (name.toLowerCase() === "popover") ref.node.removeAttribute("data-logic-popover-open");
+            if (name.toLowerCase() === "open" && ref.node.localName === "dialog") ref.node.removeAttribute("data-logic-dialog-modal");
             if (change.value === null) ref.node.removeAttribute(name);
             else
               ref.node.setAttribute(

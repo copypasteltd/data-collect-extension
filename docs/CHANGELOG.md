@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 记录并恢复原生 `dialog` 的模态状态和可观察变化，包括遮罩及可采集组件内部；对超限、无法确认和多个浮层的叠放顺序给出提示，浮层变化期间不在截图中标示操作位置。 / Capture and restore native `dialog` modal states and observable changes, including backdrops and captured component trees, with warnings for limits, unconfirmed states, and overlay stacking order; suppress screenshot target markers when overlay state changes.
 - 采集原生 `popover` 打开状态及其变化，在侧栏隔离页面中恢复，覆盖可读取组件并提示超限或还原失败；校验导入记录中的节点标识。 / Capture native `popover` open states and changes for isolated side-panel replay, including accessible component trees, with limit and restoration warnings and imported node identity checks.
 - 分别记录数据库与缓存开始、结束采集过程的完成或超时状态；停止时未完成的阶段独立标记，避免误报阶段并在空结果时保留检查记录。 / Record separate initial and final database and cache collection completion or timeout states, identifying unfinished stages independently and preserving evidence of empty collections.
 - 改进操作流程中的候选请求：标识已记录的跳转边界，保留可确认主页面新网址的跳转后请求，并按事件顺序避免关联同毫秒内尚未发生的操作。 / Improve flow request candidates by labeling recorded navigation boundaries, retaining requests on a matching new main-page URL, and respecting event order within the same millisecond.

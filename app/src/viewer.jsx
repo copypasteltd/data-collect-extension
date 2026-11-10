@@ -25,7 +25,7 @@ import { fontMime } from "./font-format.js";
 import { recordedFontFaces, recordedFontMetadata } from "./font-resources.js";
 import { applyRecordedMutations } from "./mutations.js";
 import { recordedScrollState, restoreScrollState } from "./scroll-state.js";
-import { restorePopoverState } from "./popover-state.js";
+import { restoreDialogState, restorePopoverState } from "./popover-state.js";
 import { assessScreenshotTiming } from "./screenshots.js";
 import { findReplayOutcome } from "./replay-outcome.js";
 import { matchesRequestSnapshot, requestSnapshotCursor } from "./request-snapshot.js";
@@ -43,6 +43,7 @@ const labels = {
   "page.snapshot": "页面状态",
   "page.mutation": "页面变化",
   "page.popover": "弹出层状态",
+  "page.dialog": "对话框状态",
   screenshot: "截图",
   "network.request": "请求",
   "network.requestBody": "请求体",
@@ -115,6 +116,8 @@ function snapshotIssues(payload) {
   if (payload.canvas?.scanTruncated) issues.push("画布检查可能不完整");
   if (payload.popover?.omitted) issues.push(`弹出层状态超过采集上限：${payload.popover.omitted} 个`);
   if (payload.popover?.unavailable || payload.popover?.scanTruncated) issues.push("弹出层状态检查不完整");
+  if (payload.dialog?.omitted) issues.push(`模态对话框状态超过采集上限：${payload.dialog.omitted} 个`);
+  if (payload.dialog?.unavailable || payload.dialog?.scanTruncated) issues.push("对话框状态检查不完整");
   return issues;
 }
 function databaseIssue(payload) {
@@ -173,11 +176,13 @@ function Report({ archive, showEvent }) {
           (e.payload.canvas?.total > 0 && (e.payload.canvas.status !== "captured" || e.payload.canvas.omitted > 0 || e.payload.canvas.unavailable > 0 || e.payload.canvas.geometryOmitted > 0)) ||
           e.payload.canvas?.scanTruncated ||
           e.payload.popover?.omitted || e.payload.popover?.unavailable || e.payload.popover?.scanTruncated ||
+          e.payload.dialog?.omitted || e.payload.dialog?.unavailable || e.payload.dialog?.scanTruncated ||
           e.payload.shadow?.roots > 0 ||
           e.payload.shadow?.truncated ||
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
       (e.kind === "page.popover" && e.payload.status === "unavailable") ||
+      (e.kind === "page.dialog" && e.payload.status === "unavailable") ||
       (e.kind === "cache.snapshot" && !!cacheIssue(e.payload)) ||
       (e.kind === "state.capture" && ["timeout", "failed"].includes(e.payload.status)) ||
       e.kind === "storage.unavailable" ||
@@ -269,6 +274,7 @@ function Report({ archive, showEvent }) {
                 : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
                 (e.kind === "cache.snapshot" ? cacheIssue(e.payload) : null) ||
                 (e.kind === "page.popover" ? "弹出层状态无法读取" : null) ||
+                (e.kind === "page.dialog" ? "对话框状态无法读取" : null) ||
                 (e.kind === "state.capture"
                   ? `${e.payload.reason === "initial" ? "开始" : "结束"}时${e.payload.source === "database" ? "数据库" : "缓存"}采集${e.payload.status === "timeout" ? "超时" : "失败"}`
                   : null) ||
@@ -341,6 +347,7 @@ export default function Viewer({ onBack, sessionId }) {
   }, []);
   const [scrollFailed, setScrollFailed] = useState(false);
   const [popoverFailed, setPopoverFailed] = useState(false);
+  const [dialogFailed, setDialogFailed] = useState(false);
   const events = useMemo(
     () =>
       (archive?.events || [])
@@ -454,8 +461,8 @@ export default function Viewer({ onBack, sessionId }) {
     const result = applyRecordedMutations(
       doc,
       related.filter((event) =>
-        ["page.mutation", "page.popover", "interaction.input", "interaction.change"].includes(event.kind),
-      ), snapshotEvent.payload.popover,
+        ["page.mutation", "page.popover", "page.dialog", "interaction.input", "interaction.change"].includes(event.kind),
+      ), snapshotEvent.payload.popover, snapshotEvent.payload.dialog,
     );
     const scrollState = recordedScrollState(snapshotEvent.payload, related);
     result.issues.push(...snapshotIssues(snapshotEvent.payload));
@@ -465,6 +472,9 @@ export default function Viewer({ onBack, sessionId }) {
     for (let i = 0; i < snapshotRoots.length; i++)
       for (const template of snapshotRoots[i].querySelectorAll("template"))
         snapshotRoots.push(template.content);
+    const overlays = snapshotRoots.reduce((count, root) => count +
+      root.querySelectorAll("[data-logic-popover-open], [data-logic-dialog-modal]").length, 0);
+    if (overlays > 1) result.issues.push("多个弹出层或模态对话框的叠放次序可能不同");
     for (const root of snapshotRoots) root
       .querySelectorAll(
         "script, iframe, frame, object, embed, base, meta, link",
@@ -1168,6 +1178,9 @@ export default function Viewer({ onBack, sessionId }) {
                           {popoverFailed && (
                             <div className="notice error">部分弹出层状态无法还原</div>
                           )}
+                          {dialogFailed && (
+                            <div className="notice error">部分模态对话框状态无法还原</div>
+                          )}
                           <iframe
                             key={selected.id}
                             className="snapshot"
@@ -1176,11 +1189,13 @@ export default function Viewer({ onBack, sessionId }) {
                             onLoad={(event) => {
                               try {
                                 setPopoverFailed(!restorePopoverState(event.currentTarget));
+                                setDialogFailed(!restoreDialogState(event.currentTarget));
                                 setScrollFailed(
                                   !restoreScrollState(event.currentTarget, snapshot.scrollState),
                                 );
                               } catch {
                                 setPopoverFailed(true);
+                                setDialogFailed(true);
                                 setScrollFailed(true);
                               }
                             }}

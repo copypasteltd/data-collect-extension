@@ -358,7 +358,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       }
       if (
         /^on/i.test(attr.name) ||
-        /^(src|srcset|href|action|formaction|data-logic-node|data-logic-src|data-logic-popover-open)$/i.test(
+        /^(src|srcset|href|action|formaction|data-logic-node|data-logic-src|data-logic-popover-open|data-logic-dialog-modal)$/i.test(
           attr.name,
         )
       )
@@ -454,7 +454,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
     return truncated;
   }
-  function captureShadowSnapshots(original, clone, fontReferences, captureCanvas, capturePopover) {
+  function captureShadowSnapshots(original, clone, fontReferences, captureCanvas, capturePopover, captureDialog) {
     const result = { roots: 0, captured: 0, omitted: 0, stylesUnavailable: 0, truncated: false, scrollPositions: [] };
     const pending = [[original, clone, false]];
     let visited = 0, shadowNodes = 0;
@@ -464,6 +464,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       if (!(source instanceof Element) || !(copy instanceof Element)) continue;
       if (source instanceof HTMLCanvasElement) captureCanvas(source);
       if (source.hasAttribute("popover")) capturePopover(source);
+      if (source instanceof HTMLDialogElement) captureDialog(source);
       const sourceChildren = [...source.children], copyChildren = [...copy.children];
       for (let i = 0; i < Math.min(sourceChildren.length, copyChildren.length); i++)
         pending.push([sourceChildren[i], copyChildren[i], inShadow]);
@@ -524,6 +525,16 @@ import { encodeDatabaseValue } from "./database-value.js";
     try {
       const canvas = { status: canvasMode === "enabled" ? "captured" : canvasMode, total: 0, captured: 0, omitted: 0, unavailable: 0, reasons: {}, geometryOmitted: 0, geometry: [], items: [] };
       const popover = { total: 0, open: [], omitted: 0, unavailable: 0 };
+      const dialog = { total: 0, modal: [], omitted: 0, unavailable: 0 };
+      const captureDialog = (source) => {
+        dialog.total++;
+        try {
+          if (source.matches(":modal")) {
+            if (dialog.modal.length < 100) dialog.modal.push(nodeId(source));
+            else dialog.omitted++;
+          }
+        } catch { dialog.unavailable++; }
+      };
       const capturePopover = (source) => {
         popover.total++;
         try {
@@ -574,9 +585,10 @@ import { encodeDatabaseValue } from "./database-value.js";
       const clone = inert.importNode(document.documentElement, true);
       markNodes(document.documentElement, clone);
       const fontReferences = new WeakSet();
-      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences, captureCanvas, capturePopover);
+      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences, captureCanvas, capturePopover, captureDialog);
       if (shadow.truncated) canvas.scanTruncated = true;
       if (shadow.truncated) popover.scanTruncated = true;
+      if (shadow.truncated) dialog.scanTruncated = true;
       if (canvasMode === "pending" && canvas.total) canvasPendingSnapshot = true;
       clone.removeAttribute("data-logic-background");
       clone
@@ -709,7 +721,7 @@ import { encodeDatabaseValue } from "./database-value.js";
             el.removeAttribute(attribute.name);
             continue;
           }
-          if (attribute.name.toLowerCase() === "data-logic-popover-open") {
+          if (["data-logic-popover-open", "data-logic-dialog-modal"].includes(attribute.name.toLowerCase())) {
             el.removeAttribute(attribute.name);
             continue;
           }
@@ -782,6 +794,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         shadow,
         canvas,
         popover,
+        dialog,
         styles: {
           captured: stylesCaptured,
           unavailable: stylesUnavailable,
@@ -1174,7 +1187,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       clearTimeout(shadowTimer);
       shadowTimer = setTimeout(refreshShadowListeners, 100);
     }
-    const changes = [],
+    const dialogs = new Set(), changes = [],
       budget = { count: 0, truncated: false };
     for (let index = 0; index < Math.min(records.length, 200); index++) {
       const record = records[index];
@@ -1190,6 +1203,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         continue;
       if (record.type === "attributes") {
         const name = record.attributeName || "";
+        if (name === "open" && record.target instanceof HTMLDialogElement) dialogs.add(record.target);
         if (/^on/i.test(name)) continue;
         const masked =
           secret.test(name) ||
@@ -1275,6 +1289,14 @@ import { encodeDatabaseValue } from "./database-value.js";
         status:
           records.length > 200 || budget.truncated ? "truncated" : "captured",
       });
+    for (const target of dialogs) {
+      try {
+        emit("page.dialog", { url: location.href, targetNodeId: nodeId(target), open: target.open,
+          modal: target.matches(":modal") });
+      } catch {
+        emit("page.dialog", { url: location.href, targetNodeId: nodeId(target), status: "unavailable" });
+      }
+    }
     scheduleSnapshot("mutation");
   }
   observer = new MutationObserver(processMutations);

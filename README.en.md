@@ -152,6 +152,7 @@ When a decoded URL fragment (the part after `#`) matches a common sensitive name
 - Network events are associated with the originating page: the viewer shows available state through the selected event while the page remains unchanged, or falls back to request time after navigation. Missing confirmable snapshots are reported; older records without document identity may still be approximate.
 - Page replay uses isolated snapshots and recorded changes. It does not execute original site scripts or submit replay actions to the original site; it is not a complete site rebuild or a replacement for server-side logic.
 - Native `popover` open states and recorded changes are restored, including in captured component trees. A snapshot retains at most 100 open states; limits and restoration failures are reported. Older recordings cannot recover states they did not save.
+- Native `dialog` modal states and observable changes are also restored, including backdrops and captured component trees, with up to 100 modal states per snapshot. Stacking order may differ when multiple overlays are open; rapidly coalesced changes and older recordings can have gaps.
 - After a final action in an embedded frame, replay attempts to show the resulting main page when it navigates. It reports an unavailable final state when the tab leaves the recording scope or the new page cannot be confirmed. The scope-boundary marker does not save the outside URL; some transitions in older recordings remain uncertain.
 - Screenshots can be shared or unavailable. Images, fonts, styles, rich text, frames, and page changes may be incomplete because of permission, timing, and size limits. Review the side-panel report and individual event statuses.
 - Autofill, file contents, unknown binary data, binary WebSocket frames, intermediate database changes, and cache entries may be unavailable or intentionally omitted. See the [usage guide](docs/插件安装与使用说明.md) for limits.
@@ -171,6 +172,7 @@ npm run test:replay
 npm run test:page-replay
 npm run test:canvas-snapshot
 npm run test:popover
+npm run test:dialog
 npm run test:navigation-outcome
 npm run test:candidate-navigation
 npm run test:screenshot-timing

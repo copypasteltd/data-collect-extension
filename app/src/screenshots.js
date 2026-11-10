@@ -58,7 +58,7 @@ export function assessScreenshotTiming(events, step, shot) {
       )
         return false;
       if (
-        !/^(page\.mutation|interaction\.(click|dblclick|contextmenu|input|change|submit|scroll|pointerdown|keydown)|navigation(?:\..*)?)$/.test(
+        !/^(page\.(mutation|popover|dialog)|interaction\.(click|dblclick|contextmenu|input|change|submit|scroll|pointerdown|keydown)|navigation(?:\..*)?)$/.test(
           event.kind || "",
         )
       )

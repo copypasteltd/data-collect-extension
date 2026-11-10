@@ -31,6 +31,7 @@
     "test:page-replay": "node tests/page-replay.e2e.mjs",
     "test:canvas-snapshot": "node tests/canvas-snapshot.e2e.mjs",
     "test:popover": "node tests/popover.e2e.mjs",
+    "test:dialog": "node tests/dialog.e2e.mjs",
     "test:form-state-identity": "node tests/form-state-identity.e2e.mjs",
     "test:closed-tab-replay": "node tests/closed-tab-replay.e2e.mjs",
     "test:navigation-outcome": "node tests/navigation-outcome.e2e.mjs",

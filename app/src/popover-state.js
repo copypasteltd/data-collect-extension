@@ -22,3 +22,35 @@ export function restorePopoverState(frame) {
   }
   return valid;
 }
+
+export function restoreDialogState(frame) {
+  const doc = frame.contentDocument;
+  if (!doc) return false;
+  const roots = [doc], targets = [];
+  for (let i = 0; i < roots.length; i++) {
+    for (const node of roots[i].querySelectorAll("*")) {
+      if (node.shadowRoot) roots.push(node.shadowRoot);
+      if (node.hasAttribute("data-logic-dialog-modal")) targets.push(node);
+    }
+  }
+  if (targets.length > 100) return false;
+  let valid = true;
+  for (const node of targets) {
+    if (node.localName !== "dialog" || !node.hasAttribute("open") || typeof node.showModal !== "function") {
+      valid = false;
+      continue;
+    }
+    try {
+      if (!node.matches(":modal")) {
+        node.removeAttribute("open");
+        try { node.showModal(); }
+        catch (error) { node.setAttribute("open", ""); throw error; }
+      }
+    } catch { valid = false; }
+  }
+  for (const node of targets) {
+    try { if (!node.matches(":modal")) valid = false; }
+    catch { valid = false; }
+  }
+  return valid;
+}

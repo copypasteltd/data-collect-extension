@@ -320,6 +320,7 @@ function App() {
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.canvasGaps ||
                       session.coverage?.popoverGaps ||
+                      session.coverage?.dialogGaps ||
                       session.coverage?.inputGaps ||
                       session.coverage?.storageGaps ||
                       session.coverage?.styleGaps ||

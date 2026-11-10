@@ -61,7 +61,7 @@ export function findReplayOutcome(events, step) {
   }
   if (later.some(isNavigation)) return null;
   const changes = later.filter((event) =>
-    ["page.mutation", "page.popover", "interaction.input", "interaction.change"].includes(event.kind) &&
+    ["page.mutation", "page.popover", "page.dialog", "interaction.input", "interaction.change"].includes(event.kind) &&
     (!step.documentId || event.documentId === step.documentId) && event.payload?.url === step.payload?.url);
   if (changes.length) return { event: changes.at(-1), label: "后续记录的页面变化" };
   if (["interaction.input", "interaction.change"].includes(step.kind))
