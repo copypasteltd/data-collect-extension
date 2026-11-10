@@ -10,6 +10,7 @@
     "test:e2e": "node tests/e2e.mjs",
     "test:archive-roundtrip": "node tests/archive-roundtrip.e2e.mjs",
     "test:input-length": "node tests/input-length.e2e.mjs",
+    "test:storage-capture": "node tests/storage-capture.e2e.mjs",
     "test:permissions": "node tests/permissions.e2e.mjs",
     "test:replay": "node tests/replay-controls.e2e.mjs",
     "test:page-replay": "node tests/page-replay.e2e.mjs",

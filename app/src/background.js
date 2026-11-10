@@ -8,7 +8,7 @@ import {
   cleanUrl,
   cleanWebSocketFrame,
   redactText,
-  scrub,
+  scrubEventPayload,
 } from "./privacy.js";
 
 const uid = () => crypto.randomUUID();
@@ -73,7 +73,7 @@ function append(kind, payload = {}, extra = {}) {
     seq: ++sequence,
     time: Date.now(),
     kind,
-    payload: scrub(payload),
+    payload: scrubEventPayload(kind, payload),
     ...extra,
   };
   outstandingWrites++;
@@ -851,6 +851,11 @@ async function stop() {
       (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
         (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||
           ["truncated", "redacted_truncated"].includes(event.payload.beforeValueStatus)),
+    ).length,
+    storageGaps: recorded.filter(
+      (event) => event.kind === "storage.unavailable" ||
+        (event.kind === "storage.snapshot" && event.payload.coverage &&
+          Object.values(event.payload.coverage).some((item) => item?.status !== "captured")),
     ).length,
     styleGaps: recorded.filter(
       (event) =>

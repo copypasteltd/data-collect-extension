@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 修复 `sessionStorage` 整体被隐藏及停止前短暂存储变更可能遗漏的问题；分别报告存储不可读、键数量和单值超限，并保留特殊键。 / Preserve non-sensitive `sessionStorage`, sample storage when stopping or leaving a page, report inaccessible and oversized storage, and retain special keys.
 - 普通文本输入及操作前值的上限由 4,000 提升至 10,000 个 UTF-16 代码单元；超限时在采集报告、页面还原和逐步复现中提示，并在录制列表中标记采集提示。 / Increase the ordinary input and prior-value limit from 4,000 to 10,000 UTF-16 code units; report truncation in capture reports, page restoration, step replay, and the recording list.
 - 修复逐步复现在缺少页面快照时无法输入多行文本的问题。 / Fix multiline input during step replay when a page snapshot is unavailable.
 - 修复高度重复的合法页面记录包因压缩比过高而无法导入的问题；仍限制单文件与累计展开大小并校验实际解压量。 / Allow highly compressible legitimate recordings to be imported while retaining per-file and total expanded-size limits and checks on actual output.

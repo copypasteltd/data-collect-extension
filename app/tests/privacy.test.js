@@ -7,9 +7,26 @@ import {
   cleanUrl,
   cleanWebSocketFrame,
   scrub,
+  scrubEventPayload,
 } from "../src/privacy.js";
 
 describe("敏感数据处理", () => {
+  it("保留站点会话存储结构并隐藏其中的敏感字段", () => {
+    const payload = {
+      stores: { sessionStorage: { customer: "C001", token: "private-value" } },
+      coverage: { sessionStorage: { status: "captured", total: 2 } },
+      sessionId: "private-session",
+    };
+    const result = scrubEventPayload("storage.snapshot", payload);
+    assert.equal(result.stores.sessionStorage.customer, "C001");
+    assert.equal(result.stores.sessionStorage.token, "[已隐藏]");
+    assert.equal(result.coverage.sessionStorage.status, "captured");
+    assert.equal(result.sessionId, "[已隐藏]");
+    assert.equal(
+      scrubEventPayload("other", payload).stores.sessionStorage,
+      "[已隐藏]",
+    );
+  });
   it("隐藏 JSON 嵌套字段和认证头", () => {
     const body = cleanBody(
       '{"user":"A","token":"secret","profile":{"password":"x"}}',

@@ -305,6 +305,7 @@ function App() {
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.inputGaps ||
+                      session.coverage?.storageGaps ||
                       session.coverage?.styleGaps ||
                       session.coverage?.responseGaps
                       ? "完成（有采集提示）"

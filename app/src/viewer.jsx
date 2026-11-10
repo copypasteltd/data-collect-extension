@@ -59,6 +59,7 @@ const labels = {
   "cookie.initial": "Cookie 初始状态",
   "cookie.change": "Cookie 变更",
   "storage.snapshot": "站点存储状态",
+  "storage.unavailable": "站点存储不可用",
   "tab.created": "打开标签",
   "tab.closed": "关闭标签",
 };
@@ -118,6 +119,9 @@ function Report({ archive, showEvent }) {
           e.payload.shadow?.truncated ||
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
+      e.kind === "storage.unavailable" ||
+      (e.kind === "storage.snapshot" && e.payload.coverage &&
+        Object.values(e.payload.coverage).some((item) => item?.status !== "captured")) ||
       ((e.kind === "interaction.input" || e.kind === "interaction.change") &&
         (["truncated", "redacted_truncated"].includes(e.payload.valueStatus) ||
           ["truncated", "redacted_truncated"].includes(e.payload.beforeValueStatus) ||
@@ -198,6 +202,8 @@ function Report({ archive, showEvent }) {
                 (e.kind === "resource.initialSummary"
                   ? `已有页面资源未取得：${e.payload.omitted || "数量未知"}`
                   : null) ||
+                (e.kind === "storage.snapshot" ? "站点存储部分内容未取得或超过采集上限" : null) ||
+                (e.kind === "storage.unavailable" ? "站点存储无法读取" : null) ||
                 (["truncated", "redacted_truncated"].includes(e.payload.valueStatus)
                   ? "输入值超过采集上限，仅记录部分内容"
                   : null) ||

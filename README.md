@@ -71,12 +71,13 @@ npm run build
 | 页面与操作 | 点击、输入、选择、提交、键盘、指针、焦点、滚动、拖放及部分剪贴板事件；页面快照和 DOM 变化尽力记录，支持部分开放及关闭式 Shadow DOM。剪贴板内容不保证保存。 |
 | 截图 | 按操作尝试截图并遮挡可识别的敏感区域；记录捕获时序、共享或失败状态。连续操作可能共用截图。 |
 | 网络 | 记录可观察的请求、响应、重定向和部分请求/响应体；WebSocket 文本和 EventSource 消息尽力采集，二进制与超限内容可能不保存。 |
-| 站点状态 | 记录 Cookie 元数据和变化；非认证 Cookie 值需显式开启。`localStorage` / `sessionStorage` 按秒轮询；站点 IndexedDB 仅做有限的开始/结束快照，Cache Storage 仅记录名称。 |
+| 站点状态 | 记录 Cookie 元数据和变化；非认证 Cookie 值需显式开启。`localStorage` / `sessionStorage` 按秒轮询，并在停止或页面离开时补采；站点 IndexedDB 仅做有限的开始/结束快照，Cache Storage 仅记录名称。 |
 | 资源 | 尝试保存录制中收到的图片、WOFF/WOFF2 字体和可取得的样式；录制开始前已加载图片仅尝试生成受跨域限制的静态 PNG 预览。 |
 | 复现与分析 | 截图或隔离页面逐步复现；流程中的候选请求按页面范围和时间推测，可打开证据；OpenAPI 为基于样本的草稿。 |
 
 “当前站点”按协议、主机和端口限定；新标签跨越该来源后不属于这一录制范围。
 普通文本输入及其操作前值最多记录 10,000 个 UTF-16 代码单元；超限时保存前缀并在报告和复现中提示。早期记录可能已在 4,000 个代码单元处截断且没有标记。
+每种网页存储最多读取 200 个键，非敏感值超过 4,000 个 UTF-16 代码单元时不保存原值；超限或不可读会在报告中提示。轮询间的短暂变化仍可能遗漏，旧版记录中被隐藏的会话存储无法恢复。
 
 ### 记录包
 
@@ -139,6 +140,7 @@ npm run test:recovery
 npm run test:browser-restart
 npm run test:archive-roundtrip
 npm run test:input-length
+npm run test:storage-capture
 npm run test:permissions
 npm run test:e2e
 ```

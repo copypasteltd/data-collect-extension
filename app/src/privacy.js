@@ -13,6 +13,17 @@ export function scrub(value, depth = 0) {
     );
   return value;
 }
+export function scrubEventPayload(kind, payload) {
+  const result = scrub(payload);
+  if (kind === "storage.snapshot") {
+    for (const field of ["stores", "coverage"]) {
+      const source = payload?.[field]?.sessionStorage;
+      if (source && typeof source === "object" && !Array.isArray(source) && result?.[field])
+        result[field].sessionStorage = scrub(source);
+    }
+  }
+  return result;
+}
 export function cleanUrl(raw) {
   try {
     const url = new URL(raw);

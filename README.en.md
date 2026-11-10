@@ -71,12 +71,13 @@ Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / 
 | Pages and actions | Best-effort capture of clicks, input, selections, submits, keyboard and pointer events, focus, scroll, drag/drop, some clipboard events, snapshots and DOM changes. Some open and closed Shadow DOM is supported; clipboard content is not guaranteed. |
 | Screenshots | Screenshots are attempted around actions with masking for recognizable sensitive areas. Capture timing, sharing, and failure states are recorded; rapid actions may share an image. |
 | Network | Observable requests, responses, redirects, and some request/response bodies; best-effort WebSocket text and EventSource messages. Binary and oversized content may be omitted. |
-| Site state | Cookie metadata and changes; non-authentication values require explicit opt-in. `localStorage` and `sessionStorage` are polled once per second. Site IndexedDB gets limited start/end snapshots; Cache Storage records names only. |
+| Site state | Cookie metadata and changes; non-authentication values require explicit opt-in. `localStorage` and `sessionStorage` are polled once per second and sampled again when stopping or leaving a page. Site IndexedDB gets limited start/end snapshots; Cache Storage records names only. |
 | Resources | Attempts to preserve observed images, WOFF/WOFF2 fonts, and available styles. Images already loaded at recording start may be captured only as a static PNG preview, subject to cross-origin restrictions. |
 | Replay and analysis | Step through screenshots or an isolated page; candidate requests are inferred from available page context and timing and link to evidence. OpenAPI output is a sample-derived draft. |
 
 The current-site scope is limited to the same scheme, host, and port; a new tab that crosses that origin is outside the scope.
 Ordinary text inputs and their prior values are recorded up to 10,000 UTF-16 code units. Longer values retain their prefix and are flagged in reports and replay. Older recordings may have been truncated at 4,000 code units without a flag.
+Each web storage area is limited to 200 keys; non-sensitive values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
 
 ### Archive Format
 
@@ -139,6 +140,7 @@ npm run test:recovery
 npm run test:browser-restart
 npm run test:archive-roundtrip
 npm run test:input-length
+npm run test:storage-capture
 npm run test:permissions
 npm run test:e2e
 ```

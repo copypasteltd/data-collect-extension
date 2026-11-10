@@ -1038,6 +1038,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
     (event) => {
       flushDeferredEvents();
       flushScrolls();
+      captureStorage("pagehide");
       const records = observer?.takeRecords() || [];
       if (records.length) processMutations(records);
       emit("page.lifecycle", {
@@ -1160,17 +1161,17 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
   observer = new MutationObserver(processMutations);
   observer.observe(document, observerOptions);
   refreshShadowListeners();
-  function captureStorage() {
-    try {
-      const stores = {};
-      for (const [name, store] of [
-        ["localStorage", localStorage],
-        ["sessionStorage", sessionStorage],
-      ]) {
-        stores[name] = {};
-        for (let i = 0; i < store.length && i < 200; i++) {
-          const key = store.key(i),
-            raw = store.getItem(key);
+  function captureStorage(reason = "poll") {
+    const stores = {}, coverage = {}, specialEntries = [];
+    for (const name of ["localStorage", "sessionStorage"]) {
+      try {
+        const store = window[name], entries = Object.create(null);
+        const total = store.length;
+        let oversizedValues = 0;
+        for (let i = 0; i < total && i < 200; i++) {
+          const key = store.key(i);
+          if (key === null) continue;
+          const raw = store.getItem(key);
           let safe = raw;
           if (raw && !secret.test(key) && raw.length <= 4000) {
             try {
@@ -1179,28 +1180,40 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
               safe = cleanStored(raw);
             }
           }
-          stores[name][key] = secret.test(key)
+          if (!secret.test(key) && raw?.length > 4000) oversizedValues++;
+          entries[key] = secret.test(key)
             ? "[已隐藏]"
             : raw?.length > 4000
               ? "[超过大小限制]"
               : safe;
+          if (key === "__proto__")
+            specialEntries.push({ storage: name, key, value: entries[key] });
         }
+        stores[name] = entries;
+        const captured = Object.keys(entries).length;
+        const omittedKeys = Math.max(0, total - captured);
+        coverage[name] = {
+          status: omittedKeys || oversizedValues ? "partial" : "captured",
+          total,
+          captured,
+          omittedKeys,
+          oversizedValues,
+        };
+      } catch {
+        coverage[name] = { status: "unavailable" };
       }
-      const json = JSON.stringify(stores);
-      if (json !== lastStorage) {
-        lastStorage = json;
-        emit("storage.snapshot", {
-          url: location.href,
-          stores,
-          method: "poll",
-          intervalMs: 1000,
-        });
-      }
-    } catch (error) {
-      if (!lastStorage) {
-        lastStorage = "unavailable";
-        emit("storage.unavailable", { error: String(error) });
-      }
+    }
+    const json = JSON.stringify({ stores, coverage, specialEntries });
+    if (json !== lastStorage) {
+      lastStorage = json;
+      emit("storage.snapshot", {
+        url: location.href,
+        stores,
+        coverage,
+        specialEntries,
+        method: reason,
+        intervalMs: 1000,
+      });
     }
   }
   captureStorage();
@@ -1462,6 +1475,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       const records = observer.takeRecords();
       if (records.length) processMutations(records);
       clearTimeout(snapshotTimer);
+      captureStorage("stop");
       snapshot("stop");
       abort.abort();
       observer.disconnect();
