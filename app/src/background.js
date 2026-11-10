@@ -1,7 +1,7 @@
 import { all, get, put, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
-import { recoverPendingRequests, recoverRootSockets } from "./network-recovery.js";
+import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -24,6 +24,7 @@ const pending = new Set();
 const requests = new Map();
 const childScopes = new Map();
 const childTargets = new Map();
+const childDocuments = new Map();
 const socketScopes = new Map();
 const unknownSocketTabs = new Set();
 const unknownRequestTabs = new Set();
@@ -159,6 +160,7 @@ function clearTabContexts(tabId) {
     if (ownerTab !== tabId) continue;
     childScopes.delete(sessionId);
     childTargets.delete(sessionId);
+    childDocuments.delete(sessionId);
     changed = true;
   }
   if (changed) persistChildTargets();
@@ -226,13 +228,18 @@ async function init() {
       try {
         if (!validTabs.has(tabId))
           validTabs.set(tabId, withDeadline(chrome.webNavigation.getFrame({ tabId, frameId: 0 }), 1500, "页面范围检查"));
-        const [top, child] = await Promise.all([
+        const [top, child, tree] = await Promise.all([
           validTabs.get(tabId),
           withDeadline(chrome.debugger.sendCommand({ tabId, sessionId }, "Target.getTargetInfo"), 1500, "框架范围检查"),
+          withDeadline(chrome.debugger.sendCommand({ tabId, sessionId }, "Page.getFrameTree"), 1500, "框架实例检查").catch(() => null),
         ]);
+        const frame = tree?.frameTree?.frame;
         if (top && allowedUrl(top.url) && child?.targetInfo?.type === "iframe" && allowedUrl(child.targetInfo.url)) {
           childScopes.set(sessionId, true);
           childTargets.set(sessionId, tabId);
+          if (frame?.id === child.targetInfo.targetId && allowedUrl(frame.url) &&
+              new URL(child.targetInfo.url).origin === new URL(frame.url).origin)
+            childDocuments.set(sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
         }
       } catch {}
     }));
@@ -256,6 +263,8 @@ async function init() {
       } catch {}
     }));
     for (const [key, socket] of recoverRootSockets(events, active.tabs, documents))
+      socketScopes.set(key, socket);
+    for (const [key, socket] of recoverChildSockets(events, active.tabs, childTargets, childDocuments))
       socketScopes.set(key, socket);
     await warning("录制后台已重新启动，期间的部分事件或连接可能缺失");
   } else {
@@ -998,6 +1007,7 @@ async function stop(onStopping) {
   requests.clear();
   childScopes.clear();
   childTargets.clear();
+  childDocuments.clear();
   socketScopes.clear();
   unknownSocketTabs.clear();
   unknownRequestTabs.clear();
@@ -1039,6 +1049,7 @@ async function clearActiveResources(session) {
   requests.clear();
   childScopes.clear();
   childTargets.clear();
+  childDocuments.clear();
   socketScopes.clear();
   unknownSocketTabs.clear();
   unknownRequestTabs.clear();
@@ -1141,6 +1152,7 @@ chrome.debugger.onEvent.addListener(
     if (!active || !active.tabs[source.tabId]) return;
     if (method === "Target.detachedFromTarget") {
       childScopes.delete(params.sessionId);
+      childDocuments.delete(params.sessionId);
       if (childTargets.delete(params.sessionId)) persistChildTargets();
       dialogScopes.delete(`${source.tabId}:${params.sessionId}`);
       for (const [id, item] of socketScopes)
@@ -1159,6 +1171,7 @@ chrome.debugger.onEvent.addListener(
         );
         return;
       }
+      childDocuments.set(params.sessionId, { frameId: params.targetInfo.targetId, loaderId: null, url: params.targetInfo.url });
       setChildScope(params.sessionId, source.tabId, true);
       const sessionId = active.id;
       const task = (async () => {
@@ -1170,6 +1183,13 @@ chrome.debugger.onEvent.addListener(
           });
           await chrome.debugger.sendCommand(child, "Page.enable");
           await enableChildTargets(child);
+          const before = childDocuments.get(params.sessionId);
+          try {
+            const tree = await withDeadline(chrome.debugger.sendCommand(child, "Page.getFrameTree"), 1500, "框架实例检查");
+            const frame = tree?.frameTree?.frame;
+            if (before && childDocuments.get(params.sessionId) === before && frame?.id === before.frameId)
+              childDocuments.set(params.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
+          } catch {}
           if (active?.id === sessionId)
             await append("frame.attached", {
               tabId: source.tabId,
@@ -1241,6 +1261,12 @@ chrome.debugger.onEvent.addListener(
             { tabId: source.tabId },
           ),
         );
+      return;
+    }
+    if (method === "Page.frameNavigated" && source.sessionId) {
+      const current = childDocuments.get(source.sessionId), frame = params.frame;
+      if (current && frame?.id === current.frameId)
+        childDocuments.set(source.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
       return;
     }
     if (!method.startsWith("Network.")) return;
@@ -1556,6 +1582,7 @@ chrome.debugger.onEvent.addListener(
         url: cleanUrl(params.url || ""),
         createdAt: Date.now(),
         allowed: false,
+        frameDocument: source.sessionId ? childDocuments.get(source.sessionId) : null,
       });
     } else if (method === "Network.webSocketWillSendHandshakeRequest") {
       const socket = socketScopes.get(requestId);
@@ -1579,6 +1606,14 @@ chrome.debugger.onEvent.addListener(
         return;
       }
       socket.allowed = true;
+      const frameDocument = source.sessionId ? childDocuments.get(source.sessionId) : null;
+      let frameContext = {};
+      try {
+        if (frameDocument?.loaderId && frameDocument.loaderId === socket.frameDocument?.loaderId &&
+            frameDocument.frameId === socket.frameDocument.frameId && allowedUrl(frameDocument.url) &&
+            new URL(frameDocument.url).origin === new URL(origin).origin)
+          frameContext = { frameLoaderId: frameDocument.loaderId, frameUrl: cleanUrl(frameDocument.url) };
+      } catch {}
       track(
         append(
           "network.websocket",
@@ -1586,6 +1621,7 @@ chrome.debugger.onEvent.addListener(
             requestId,
             type: "webSocketCreated",
             url: socket.url,
+            ...frameContext,
           },
           { tabId: source.tabId, time: socket.createdAt },
         ),

@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import { unzipSync, strFromU8 } from "fflate";
+import { WebSocketServer } from "ws";
 
 const server = http.createServer((request, response) => {
   if (request.url.startsWith("/api/")) {
@@ -17,6 +18,8 @@ const server = http.createServer((request, response) => {
     response.end(`<!doctype html><title>框架恢复测试</title><iframe src="http://localhost:${server.address().port}/frame"></iframe>`);
   }
 });
+const sockets = new WebSocketServer({ server });
+sockets.on("connection", (socket) => socket.on("message", (data, binary) => socket.send(data, { binary })));
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const frameUrl = `http://localhost:${server.address().port}/frame`;
@@ -87,11 +90,37 @@ try {
   { tabId: tab.id, sessionId: childSession });
   assert.equal(target.targetInfo.type, "iframe");
   assert.equal(target.targetInfo.url, frameUrl);
+  const tree = await worker.evaluate(({ tabId, sessionId }) =>
+    chrome.debugger.sendCommand({ tabId, sessionId }, "Page.getFrameTree"),
+  { tabId: tab.id, sessionId: childSession });
+  assert.ok(tree.frameTree.frame.loaderId, "无法确认框架页面实例");
+  await frame.evaluate(() => new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://localhost:${location.port}/socket`);
+    window.liveSocket = socket;
+    socket.onopen = () => { socket.send("child-before-restart"); resolve(); };
+    socket.onerror = reject;
+  }));
+  const socketDeadline = Date.now() + 5000;
+  let socketId;
+  while (Date.now() < socketDeadline) {
+    const events = await readEvents(started.value.id);
+    const created = events.find((event) => event.kind === "network.websocket" &&
+      event.payload.type === "webSocketCreated" && event.payload.requestId.startsWith(`${tab.id}:${childSession}:`));
+    if (created?.payload.frameLoaderId && events.some((event) => event.kind === "network.websocketFrame" &&
+      event.payload.requestId === created.payload.requestId && event.payload.data?.value === "child-before-restart")) {
+      socketId = created.payload.requestId;
+      assert.equal(created.payload.frameLoaderId, tree.frameTree.frame.loaderId);
+      break;
+    }
+    await page.waitForTimeout(50);
+  }
+  assert.ok(socketId, "连接的框架页面实例未保存");
   const cdp = await context.newCDPSession(panel);
   await cdp.send("ServiceWorker.enable");
   await cdp.send("ServiceWorker.stopAllWorkers");
   const state = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
   assert.equal(state.value.active?.status, "recording");
+  await frame.evaluate(() => window.liveSocket.send("child-after-restart"));
   await frame.evaluate(() => fetch("/api/after").then((response) => response.json()));
   const afterDeadline = Date.now() + 5000;
   let after;
@@ -109,15 +138,27 @@ try {
   assert.ok(after.payload.requestId.startsWith(`${tab.id}:${childSession}:`));
   assert.ok(afterFinished, "后台重启后未记录跨进程框架响应");
   assert.equal(JSON.parse(afterFinished.payload.body.value).path, "/api/after");
+  const frameDeadline = Date.now() + 5000;
+  let recoveredFrames = [];
+  while (Date.now() < frameDeadline) {
+    recoveredFrames = (await readEvents(started.value.id)).filter((event) =>
+      event.kind === "network.websocketFrame" && event.payload.requestId === socketId &&
+      event.payload.data?.value === "child-after-restart");
+    if (recoveredFrames.length >= 2) break;
+    await page.waitForTimeout(50);
+  }
+  assert.deepEqual(recoveredFrames.map((event) => event.payload.direction).sort(), ["received", "sent"]);
   await panel.evaluate(({ owner, tabId }) => chrome.storage.session.set({
     recorderFrames: { owner, entries: [["invalid-session-id", tabId]] },
   }), { owner: started.value.id, tabId: tab.id });
   await cdp.send("ServiceWorker.stopAllWorkers");
   await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
   await frame.evaluate(() => fetch("/api/after-invalid").then((response) => response.json()));
+  await frame.evaluate(() => window.liveSocket.send("invalid-frame-socket"));
   await page.waitForTimeout(500);
   assert.ok(!(await readEvents(started.value.id)).some((event) =>
     event.kind === "network.request" && event.payload.url.endsWith("/api/after-invalid")), "无效框架连接被错误恢复");
+  assert.ok(!JSON.stringify(await readEvents(started.value.id)).includes("invalid-frame-socket"));
   const stopped = await stop();
   assert.equal(stopped.ok, true);
   assert.equal((await panel.evaluate(() => chrome.storage.session.get("recorderFrames"))).recorderFrames, undefined);
@@ -135,6 +176,8 @@ try {
     strFromU8(files[chunk]).split("\n").filter(Boolean).map(JSON.parse));
   assert.ok(exported.some((event) => event.kind === "network.finished" &&
     event.payload.requestId === after.payload.requestId && JSON.parse(event.payload.body.value).path === "/api/after"));
+  assert.equal(exported.filter((event) => event.kind === "network.websocketFrame" &&
+    event.payload.requestId === socketId && event.payload.data?.value === "child-after-restart").length, 2);
   assert.ok(!exported.some((event) => event.kind === "network.request" && event.payload.url.endsWith("/api/after-invalid")));
   await panel.evaluate(() => {
     window.observedFrameTargets = [];
@@ -154,15 +197,23 @@ try {
   await cdp.send("ServiceWorker.stopAllWorkers");
   await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
   await frame.evaluate(() => fetch("/api/excluded").then((response) => response.json()));
+  await frame.evaluate(() => new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://localhost:${location.port}/excluded`);
+    socket.onopen = () => socket.send("outside-frame-socket");
+    socket.onmessage = () => { socket.close(); resolve(); };
+    socket.onerror = reject;
+  }));
   await page.waitForTimeout(500);
   const siteStop = await stop();
   assert.equal(siteStop.ok, true);
   assert.equal((await panel.evaluate(() => chrome.storage.session.get("recorderFrames"))).recorderFrames, undefined);
   assert.ok(!(await readEvents(site.value.id)).some((event) =>
     event.kind === "network.request" && event.payload.url.endsWith("/api/excluded")), "范围外框架请求被记录");
+  assert.ok(!JSON.stringify(await readEvents(site.value.id)).includes("outside-frame-socket"));
   console.log("后台重启后的跨进程框架采集和授权范围通过");
 } finally {
   if (context) await context.close();
+  await new Promise((resolve) => sockets.close(resolve));
   await new Promise((resolve) => server.close(resolve));
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });

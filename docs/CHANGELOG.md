@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 后台重启后，尝试恢复页面实例及来源仍可确认的跨进程框架 WebSocket；已导航、失效或范围外的连接继续跳过。 / Resume cross-process frame WebSockets after worker restart when the document and origin can be verified; continue skipping navigated, invalid, or out-of-scope connections.
 - 后台重启时重新核验已授权的跨进程框架连接和当前网址，继续采集可确认框架的后续网络请求；无效或范围外连接不会恢复。 / Revalidate previously authorized cross-process frame connections and current URLs after a worker restart, resuming eligible network capture while rejecting invalid or out-of-scope connections.
 - 录制后台重启后，尝试恢复此前已授权且页面实例仍可确认的顶层调试会话 WebSocket 消息采集；无法确认来源或页面身份的连接继续跳过。 / Resume WebSocket capture after worker restart for previously authorized root-session connections with a confirmed current document; continue skipping unverified origins or documents.
 - 录制后台重启后尝试恢复已保存的进行中网络请求及响应关联；未完成的请求体读取标记为不可用，并提示重启期间可能缺失的事件。 / Restore saved in-flight network request context after a recording worker restart, mark unfinished request-body reads unavailable, and report potential gaps during the restart.

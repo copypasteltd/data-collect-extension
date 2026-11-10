@@ -1,6 +1,6 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
-import { recoverPendingRequests, recoverRootSockets } from "../src/network-recovery.js";
+import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "../src/network-recovery.js";
 
 const tabs = { 1: { debuggerAttached: true }, 2: { debuggerAttached: true, closed: true }, 3: { debuggerAttached: false } };
 const request = (id, seq, tabId = 1, postData = { status: "empty" }) => ({
@@ -75,4 +75,21 @@ it("导航后或发生时间无法区分时不恢复旧连接", () => {
   assert.equal(recoverRootSockets([snapshot, created, { ...nav, time: 20 }], currentTabs, documents).size, 0);
   assert.equal(recoverRootSockets([snapshot, created, { ...nav, time: 15 }], currentTabs, documents).size, 0);
   assert.equal(recoverRootSockets([snapshot, created, { ...nav, tabId: 2 }], currentTabs, documents).size, 1);
+});
+
+it("仅恢复经过授权且页面实例未变化的跨进程框架连接", () => {
+  const frameTabs = { 1: { debuggerAttached: true, inScope: true } };
+  const targets = new Map([["child", 1]]);
+  const documents = new Map([["child", { loaderId: "loader-a", url: "https://frame.test/current" }]]);
+  const created = { kind: "network.websocket", tabId: 1, time: 10, seq: 1, payload: {
+    requestId: "1:child:socket", type: "webSocketCreated", url: "wss://socket.test/",
+    frameLoaderId: "loader-a", frameUrl: "https://frame.test/initial",
+  } };
+  assert.equal(recoverChildSockets([created], frameTabs, targets, documents).get("1:child:socket").allowed, true);
+  assert.equal(recoverChildSockets([created], frameTabs, targets, new Map([["child", { loaderId: "loader-b", url: "https://frame.test/" }]])).size, 0);
+  assert.equal(recoverChildSockets([created], frameTabs, targets, new Map([["child", { loaderId: "loader-a", url: "https://other.test/" }]])).size, 0);
+  assert.equal(recoverChildSockets([created], frameTabs, new Map([["child", 2]]), documents).size, 0);
+  assert.equal(recoverChildSockets([created], { 1: { ...frameTabs[1], inScope: false } }, targets, documents).size, 0);
+  assert.equal(recoverChildSockets([{ ...created, payload: { ...created.payload, frameLoaderId: undefined } }], frameTabs, targets, documents).size, 0);
+  assert.equal(recoverChildSockets([created, { ...created, seq: 2, payload: { ...created.payload, type: "webSocketClosed" } }], frameTabs, targets, documents).size, 0);
 });

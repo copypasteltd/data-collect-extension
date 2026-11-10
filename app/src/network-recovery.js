@@ -77,3 +77,29 @@ export function recoverRootSockets(events, tabs, documents) {
   }
   return recovered;
 }
+
+export function recoverChildSockets(events, tabs, targets, documents) {
+  const open = new Map();
+  for (const event of [...events].sort((a, b) => (a.seq || 0) - (b.seq || 0))) {
+    if (event.kind !== "network.websocket" || typeof event.payload?.requestId !== "string") continue;
+    const id = event.payload.requestId;
+    if (event.payload.type === "webSocketCreated") open.set(id, event);
+    else if (event.payload.type === "webSocketClosed") open.delete(id);
+  }
+  const recovered = new Map();
+  for (const [id, created] of open) {
+    const tabId = created.tabId, prefix = `${tabId}:`;
+    if (!id.startsWith(prefix)) continue;
+    const suffix = id.slice(prefix.length), separator = suffix.indexOf(":");
+    if (separator <= 0 || separator === suffix.length - 1) continue;
+    const sessionId = suffix.slice(0, separator), tab = tabs?.[tabId], document = documents.get(sessionId);
+    if (sessionId === "root" || !tab || tab.closed || !tab.inScope || !tab.debuggerAttached ||
+        targets.get(sessionId) !== tabId || !document?.loaderId ||
+        created.payload.frameLoaderId !== document.loaderId) continue;
+    try {
+      if (new URL(created.payload.frameUrl).origin !== new URL(document.url).origin) continue;
+    } catch { continue; }
+    recovered.set(id, { tabId, sessionId, url: created.payload.url, createdAt: created.time, allowed: true });
+  }
+  return recovered;
+}
