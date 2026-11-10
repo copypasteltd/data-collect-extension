@@ -31,7 +31,10 @@ export function cleanUrl(raw) {
     if (url.password) url.password = "redacted";
     for (const key of [...url.searchParams.keys()])
       if (isSensitive(key)) url.searchParams.set(key, "[已隐藏]");
-    if (/token|secret|password|credential/i.test(url.hash))
+    const fragment = new URLSearchParams(
+      `value=${url.hash.slice(1).replace(/&/g, "%26")}`,
+    ).get("value");
+    if (isSensitive(fragment))
       url.hash = "#[已隐藏]";
     return url.href;
   } catch {

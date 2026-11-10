@@ -122,6 +122,8 @@ integrity.json                   文件大小与 SHA-256 校验信息
 
 密码、常见认证字段和部分敏感内容会尝试隐藏，截图也会尝试遮挡可识别区域；这些规则**不能保证覆盖所有个人信息、凭据、页面文本、图片或业务数据**。非认证 Cookie 值默认关闭，开启后仍可能包含敏感信息。ZIP 默认不加密，任何拿到文件的人都可能读取；分享前请检查内容并采用适当的保存和传输方式。
 
+录制网址的片段（`#` 后部分）在解码后命中常见敏感名称时会整体隐藏，因此该部分路由可能不可还原；旧记录不会自动重新处理。
+
 ## 能力边界
 
 - 只覆盖授权范围内、录制期间实际观察到的路径；浏览器限制、跨域框架、权限拒绝、后台休眠、站点脚本及调试连接中断都可能造成缺失。
@@ -153,6 +155,7 @@ npm run test:input-length
 npm run test:storage-capture
 npm run test:snapshot-scheduling
 npm run test:large-styles
+npm run test:url-fragment
 npm run test:screenshot-identity
 npm run test:network-origin
 npm run test:response-encoding

@@ -122,6 +122,8 @@ Record only material you are authorized to access and share. Archives are stored
 
 The extension attempts to hide passwords, common authentication fields, and recognizable sensitive regions in screenshots. These rules **cannot guarantee removal of all personal data, credentials, page text, images, or business information**. Non-authentication cookie values are off by default and can still be sensitive if enabled. ZIP files are not encrypted by default: anyone with a copy may be able to read them. Inspect recordings and use appropriate storage and transport controls before sharing.
 
+When a decoded URL fragment (the part after `#`) matches a common sensitive name, the entire fragment is hidden, so that part of the route may not be recoverable. Older recordings are not automatically reprocessed.
+
 ## Limitations
 
 - Only authorized paths actually observed during recording can be captured. Browser restrictions, cross-origin frames, denied permissions, background lifecycle, site code, and debugger disconnects can cause gaps.
@@ -153,6 +155,7 @@ npm run test:input-length
 npm run test:storage-capture
 npm run test:snapshot-scheduling
 npm run test:large-styles
+npm run test:url-fragment
 npm run test:screenshot-identity
 npm run test:network-origin
 npm run test:response-encoding

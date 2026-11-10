@@ -99,6 +99,18 @@ describe("敏感数据处理", () => {
     );
     assert.ok(headers.Location.includes("name=ok"));
   });
+  it("隐藏片段中编码的敏感参数并保留普通业务路由", () => {
+    for (const fragment of [
+      "#/customer?session%5Fid=private-one",
+      "#api%5Fkey=private-two",
+      "#/customer?%74oken=private-three&broken=%ZZ",
+      "#/customer?otp=private-four",
+    ]) {
+      const result = cleanUrl(`https://example.test/${fragment}`);
+      assert.ok(!result.includes("private-"), result);
+    }
+    assert.equal(cleanUrl("https://example.test/#/customer?name=ok"), "https://example.test/#/customer?name=ok");
+  });
   it("按元素语义隐藏 HTML 中的密码和可编辑内容", () => {
     const body = cleanBody(
       '<input type="password" value="one two"><div contenteditable aria-label="密码">three four</div><div contenteditable="plaintext-only" aria-label="验证码">five six</div><input autocomplete="cc-number" value="card value"><p>普通内容</p>',

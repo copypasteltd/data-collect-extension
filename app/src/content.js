@@ -279,7 +279,10 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
         if (url.password) url.password = "redacted";
         for (const key of [...url.searchParams.keys()])
           if (secret.test(key)) url.searchParams.set(key, "[已隐藏]");
-        if (secret.test(url.hash)) url.hash = "#[已隐藏]";
+        const fragment = new URLSearchParams(
+          `value=${url.hash.slice(1).replace(/&/g, "%26")}`,
+        ).get("value");
+        if (secret.test(fragment)) url.hash = "#[已隐藏]";
         return url.href;
       } catch {
         return "[不可读取]";
@@ -649,6 +652,8 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
             /^(src|srcset|href|action|formaction)$/i.test(attribute.name)
           )
             el.removeAttribute(attribute.name);
+          else if (attribute.name.toLowerCase() === "poster")
+            el.setAttribute(attribute.name, safeAttribute(attribute.name, attribute.value));
           else if (secret.test(attribute.name))
             el.setAttribute(attribute.name, "[已隐藏]");
           else {

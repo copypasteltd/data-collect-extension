@@ -13,6 +13,7 @@
     "test:storage-capture": "node tests/storage-capture.e2e.mjs",
     "test:snapshot-scheduling": "node tests/snapshot-scheduling.e2e.mjs",
     "test:large-styles": "node tests/large-styles.e2e.mjs",
+    "test:url-fragment": "node tests/url-fragment.e2e.mjs",
     "test:screenshot-identity": "node tests/screenshot-identity.e2e.mjs",
     "test:network-origin": "node tests/network-origin.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",
