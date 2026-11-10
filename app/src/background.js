@@ -847,6 +847,11 @@ async function stop() {
       (event) =>
         event.kind === "screenshot" && event.payload.status === "unavailable",
     ).length,
+    inputGaps: recorded.filter(
+      (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
+        (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||
+          ["truncated", "redacted_truncated"].includes(event.payload.beforeValueStatus)),
+    ).length,
     styleGaps: recorded.filter(
       (event) =>
         event.kind === "page.snapshot" &&

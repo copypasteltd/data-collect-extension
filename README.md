@@ -76,6 +76,7 @@ npm run build
 | 复现与分析 | 截图或隔离页面逐步复现；流程中的候选请求按页面范围和时间推测，可打开证据；OpenAPI 为基于样本的草稿。 |
 
 “当前站点”按协议、主机和端口限定；新标签跨越该来源后不属于这一录制范围。
+普通文本输入及其操作前值最多记录 10,000 个 UTF-16 代码单元；超限时保存前缀并在报告和复现中提示。早期记录可能已在 4,000 个代码单元处截断且没有标记。
 
 ### 记录包
 
@@ -137,6 +138,7 @@ npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
 npm run test:archive-roundtrip
+npm run test:input-length
 npm run test:permissions
 npm run test:e2e
 ```

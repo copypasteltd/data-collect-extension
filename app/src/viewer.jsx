@@ -119,7 +119,9 @@ function Report({ archive, showEvent }) {
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
       ((e.kind === "interaction.input" || e.kind === "interaction.change") &&
-        (e.payload.formState?.truncated ||
+        (["truncated", "redacted_truncated"].includes(e.payload.valueStatus) ||
+          ["truncated", "redacted_truncated"].includes(e.payload.beforeValueStatus) ||
+          e.payload.formState?.truncated ||
           e.payload.formState?.optionsTruncated)) ||
       (e.kind === "database.snapshot" &&
         (e.payload.status ||
@@ -195,6 +197,12 @@ function Report({ archive, showEvent }) {
                 e.payload.errorText ||
                 (e.kind === "resource.initialSummary"
                   ? `已有页面资源未取得：${e.payload.omitted || "数量未知"}`
+                  : null) ||
+                (["truncated", "redacted_truncated"].includes(e.payload.valueStatus)
+                  ? "输入值超过采集上限，仅记录部分内容"
+                  : null) ||
+                (["truncated", "redacted_truncated"].includes(e.payload.beforeValueStatus)
+                  ? "操作前输入值超过采集上限"
                   : null) ||
                 (e.payload.formState?.truncated
                   ? "选项数量超过采集上限"

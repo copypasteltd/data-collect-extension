@@ -1,4 +1,5 @@
 import { sanitizeCss } from "./snapshot.js";
+import { MAX_INPUT_LENGTH } from "./capture-limits.js";
 const forbiddenTags = new Set([
   "script",
   "noscript",
@@ -175,7 +176,7 @@ export function applyRecordedMutations(doc, events) {
   }
   function structuralMutationMatches(event, index) {
     const expected = event.payload?.value;
-    if (typeof expected !== "string" || expected === "[已隐藏]" || expected.length > 4000 ||
+    if (typeof expected !== "string" || expected === "[已隐藏]" || expected.length > MAX_INPUT_LENGTH ||
         ["input", "textarea", "select"].includes(String(event.payload?.target?.tag || "").toLowerCase())) return false;
     let node;
     try { node = inputNode(doc, event.payload?.target); } catch { return false; }
@@ -212,6 +213,8 @@ export function applyRecordedMutations(doc, events) {
   for (let index = 0; index < events.length; index++) {
     const event = events[index];
     if (["interaction.input", "interaction.change"].includes(event.kind)) {
+      if (["truncated", "redacted_truncated"].includes(event.payload?.valueStatus))
+        issues.push("输入值超过采集上限，仅还原已记录内容");
       if (!textMutationMatches(event, index) && !structuralMutationMatches(event, index))
         issues.push(...applyRecordedInputs(doc, [event]).issues);
       continue;
@@ -338,7 +341,7 @@ export function applyRecordedInputs(doc, events) {
         });
       } else if (typeof value !== "string") continue;
       else if (node.matches("input"))
-        node.setAttribute("value", value.slice(0, 4000));
+        node.setAttribute("value", value.slice(0, MAX_INPUT_LENGTH));
       else if (
         node.matches(
           'textarea, [contenteditable]:not([contenteditable="false"])',
@@ -346,10 +349,10 @@ export function applyRecordedInputs(doc, events) {
       ) {
         const walker = doc.createTreeWalker(node, 4);
         const first = walker.nextNode();
-        if (first && !walker.nextNode()) first.nodeValue = value.slice(0, 4000);
+        if (first && !walker.nextNode()) first.nodeValue = value.slice(0, MAX_INPUT_LENGTH);
         else {
           if (first || node.children.length) issues.add("复杂富文本仅按文本还原");
-          node.textContent = value.slice(0, 4000);
+          node.textContent = value.slice(0, MAX_INPUT_LENGTH);
         }
       }
       else if (node.matches("select"))

@@ -76,6 +76,7 @@ Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / 
 | Replay and analysis | Step through screenshots or an isolated page; candidate requests are inferred from available page context and timing and link to evidence. OpenAPI output is a sample-derived draft. |
 
 The current-site scope is limited to the same scheme, host, and port; a new tab that crosses that origin is outside the scope.
+Ordinary text inputs and their prior values are recorded up to 10,000 UTF-16 code units. Longer values retain their prefix and are flagged in reports and replay. Older recordings may have been truncated at 4,000 code units without a flag.
 
 ### Archive Format
 
@@ -137,6 +138,7 @@ npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
 npm run test:archive-roundtrip
+npm run test:input-length
 npm run test:permissions
 npm run test:e2e
 ```

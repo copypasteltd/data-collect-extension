@@ -184,7 +184,7 @@ try {
   if (noteInput?.payload.beforeValue !== "password=[已隐藏]" || noteInput.payload.beforeValueStatus !== "redacted" || noteInput.payload.value !== "token=[已隐藏]") throw new Error("普通输入内的认证字段未隐藏");
   if (["private-password-value", "private-input-value", "private-initial-value", "private-option-value"].some((value) => eventsText.includes(value))) throw new Error("输入值或操作前值中存在敏感内容");
   const longInput = events.find((event) => event.kind === "interaction.input" && event.payload?.target?.selector === "#long-input");
-  if (longInput?.payload.beforeValue?.length !== 4000 || longInput.payload.beforeValueStatus !== "truncated") throw new Error("过长的操作前值未标记截断");
+  if (longInput?.payload.beforeValue?.length !== 4100 || longInput.payload.beforeValueStatus !== "captured") throw new Error("较长的操作前值未完整保存");
   const scriptedInput = events.find((event) => event.kind === "interaction.input" && event.payload?.target?.selector === "#scripted-input");
   if (!scriptedInput || scriptedInput.payload.beforeValue !== undefined) throw new Error("脚本触发的输入被错误标记为已确认原值");
   const check = events.find((event) => event.kind === "interaction.change" && event.payload?.target?.selector === "#choice-check");

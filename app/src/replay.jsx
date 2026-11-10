@@ -9,6 +9,7 @@ import {
 import { assessScreenshotTiming, canPlaceScreenshotTarget, findStepScreenshots } from "./screenshots.js";
 import { attachPageReplay } from "./page-replay.js";
 import { restoreScrollState } from "./scroll-state.js";
+import { MAX_INPUT_LENGTH } from "./capture-limits.js";
 
 const names = {
   "interaction.click": "点击",
@@ -139,7 +140,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
   }, [choiceInitial]);
   const inputBefore = useMemo(() => {
     if (!step || step.kind !== "interaction.input") return { value: "", status: null };
-    if (typeof step.payload.beforeValue === "string" && step.payload.beforeValue.length <= 4000 && step.payload.beforeValue !== "[已隐藏]") {
+    if (typeof step.payload.beforeValue === "string" && step.payload.beforeValue.length <= MAX_INPUT_LENGTH && step.payload.beforeValue !== "[已隐藏]") {
       const statuses = new Map([
         ["redacted", "操作前输入值已脱敏"],
         ["truncated", "操作前输入值过长，已截断"],
@@ -157,7 +158,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
           sameTarget(item, step),
       );
     const value = previous?.payload.value;
-    return typeof value === "string" && value.length <= 4000 && value !== "[已隐藏]"
+    return typeof value === "string" && value.length <= MAX_INPUT_LENGTH && value !== "[已隐藏]"
       ? { value, status: "显示最近一次记录值，操作前状态未确认" }
       : { value: "", status: "操作前输入值未取得" };
   }, [step, index, steps]);
@@ -240,6 +241,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
       "image",
       "hidden",
     ].includes(String(target.type || "").toLowerCase());
+  const InputControl = target.tag === "textarea" || target.editable ? "textarea" : "input";
   const next = () => {
     if (index >= steps.length - 1) setCompleted(true);
     else setIndex((value) => Math.min(steps.length - 1, value + 1));
@@ -357,7 +359,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
                     style={position}
                   />
                 ) : canType ? (
-                  <input
+                  <InputControl
                     className="replay-input"
                     aria-label="输入记录值"
                     style={position}
@@ -404,6 +406,9 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
           <strong>{String(recordedValue)}</strong>
         </div>
       )}
+      {["truncated", "redacted_truncated"].includes(step.payload.valueStatus) && (
+        <div className="notice error">输入值超过采集上限，仅显示已记录内容</div>
+      )}
       {!completed && canType && inputBefore.status && (
         <div className="replay-meta">{inputBefore.status}</div>
       )}
@@ -411,7 +416,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
         <div className="replay-meta">{choiceInitial.status}</div>
       )}
       {canType && !completed && (display === "page" ? fallbackControls : !canHighlight) && (
-        <input
+        <InputControl
           className="replay-fallback-input"
           aria-label="输入记录值"
           value={inputValue}

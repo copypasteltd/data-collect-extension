@@ -868,6 +868,11 @@ select:focus-visible {
 .replay-value span {
   color: #788782;
 }
+.replay-value strong {
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
 .replay-actions {
   display: flex;
   align-items: center;
@@ -902,6 +907,13 @@ select:focus-visible {
   padding: 9px;
   border: 1px solid #b6cbc1;
   border-radius: 4px;
+}
+textarea.replay-input {
+  resize: none;
+}
+textarea.replay-fallback-input {
+  min-height: 80px;
+  resize: vertical;
 }
 .replay-choice {
   display: flex;

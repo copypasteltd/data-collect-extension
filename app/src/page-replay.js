@@ -1,3 +1,5 @@
+import { MAX_INPUT_LENGTH } from "./capture-limits.js";
+
 function unique(root, selector) {
   if (typeof selector !== "string" || !selector || selector.length > 1024) return null;
   const nodes = root.querySelectorAll(selector);
@@ -50,7 +52,7 @@ export function attachPageReplay(frame, step, options) {
   } else if (control && (node.localName !== "input" || node.type !== control.kind))
     return { ok: false, reason: "页面快照中的控件与操作记录不一致" };
   else if (control && !choiceInitial.status) node.checked = choiceInitial.checked;
-  if (canType && typeof step.payload.beforeValue === "string" && step.payload.beforeValue !== "[已隐藏]" && step.payload.beforeValue.length <= 4000) {
+  if (canType && typeof step.payload.beforeValue === "string" && step.payload.beforeValue !== "[已隐藏]" && step.payload.beforeValue.length <= MAX_INPUT_LENGTH) {
     if (node.isContentEditable) node.textContent = inputBefore.value;
     else if ("value" in node) node.value = inputBefore.value;
   }

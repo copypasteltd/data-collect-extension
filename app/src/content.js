@@ -5,6 +5,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
   if (globalThis.__logicRecorderInstalled) return;
   globalThis.__logicRecorderInstalled = true;
   const abort = new AbortController();
+  const MAX_INPUT_LENGTH = 10000;
   let stopped = false;
   const secret =
     /pass(word|wd)?|pwd|token|secret|auth|cookie|session|credential|api.?key|csrf|xsrf|jwt|验证码|密码|令牌|身份证|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b/i;
@@ -148,16 +149,26 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       sensitive,
     };
   };
-  const value = (el) =>
-    isSensitive(el)
-      ? "[已隐藏]"
-      : el instanceof HTMLInputElement && el.type === "file"
-        ? "[文件内容未采集]"
-        : el instanceof HTMLElement && el.isContentEditable
-          ? cleanStored(el.innerText.slice(0, 4000))
-          : typeof el?.value === "string"
-            ? cleanStored(el.value.slice(0, 4000))
-            : null;
+  function cleanInput(raw) {
+    const limited = raw.slice(0, MAX_INPUT_LENGTH);
+    const redactedValue = cleanStored(limited);
+    return {
+      value: redactedValue.slice(0, MAX_INPUT_LENGTH),
+      redacted: redactedValue !== limited,
+      truncated: raw.length > limited.length || redactedValue.length > MAX_INPUT_LENGTH,
+    };
+  }
+  const value = (el) => {
+    if (isSensitive(el)) return { value: "[已隐藏]" };
+    if (el instanceof HTMLInputElement && el.type === "file")
+      return { value: "[文件内容未采集]" };
+    const raw = el instanceof HTMLElement && el.isContentEditable
+      ? el.innerText : typeof el?.value === "string" ? el.value : null;
+    if (raw === null) return { value: null };
+    const { value: cleaned, redacted, truncated } = cleanInput(raw);
+    return { value: cleaned, valueStatus: redacted && truncated ? "redacted_truncated"
+      : redacted ? "redacted" : truncated ? "truncated" : "captured" };
+  };
   const formState = (el, includeOptions = false) => {
     if (isSensitive(el)) return undefined;
     if (
@@ -363,21 +374,28 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
   }
   function syncFormValue(source, copy) {
     if (!(source instanceof Element) || !(copy instanceof Element)) return;
+    let truncated = false;
     if (isSensitive(source)) {
       copy.removeAttribute("value");
       copy.removeAttribute("checked");
       copy.textContent = "[已隐藏]";
     } else if (source instanceof HTMLInputElement) {
-      if (source.type !== "file") copy.setAttribute("value", source.value.slice(0, 4000));
+      if (source.type !== "file") {
+        truncated = source.value.length > MAX_INPUT_LENGTH;
+        copy.setAttribute("value", source.value.slice(0, MAX_INPUT_LENGTH));
+      }
       if (source.checked) copy.setAttribute("checked", "");
       else copy.removeAttribute("checked");
-    } else if (source instanceof HTMLTextAreaElement)
-      copy.textContent = source.value.slice(0, 4000);
+    } else if (source instanceof HTMLTextAreaElement) {
+      truncated = source.value.length > MAX_INPUT_LENGTH;
+      copy.textContent = source.value.slice(0, MAX_INPUT_LENGTH);
+    }
     else if (source instanceof HTMLSelectElement)
       [...copy.options].forEach((option, index) => {
         if (source.options[index]?.selected) option.setAttribute("selected", "");
         else option.removeAttribute("selected");
       });
+    return truncated;
   }
   function captureFontFaces(sheet, target, fontReferences) {
     const faces = [];
@@ -427,7 +445,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       for (let i = 0; i < Math.min(sourceChildren.length, copyChildren.length); i++)
         pending.push([sourceChildren[i], copyChildren[i], inShadow]);
       if (inShadow) {
-        syncFormValue(source, copy);
+        if (syncFormValue(source, copy)) result.formValuesTruncated = (result.formValuesTruncated || 0) + 1;
         if (source.localName === "style" && source.sheet && captureFontFaces(source.sheet, copy, fontReferences))
           result.stylesTruncated = true;
         if (source.scrollLeft || source.scrollTop)
@@ -538,10 +556,12 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       const copies = clone.querySelectorAll(
         'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
       );
+      let formValuesTruncated = shadow.formValuesTruncated || 0;
+      delete shadow.formValuesTruncated;
       originals.forEach((el, i) => {
         const copy = copies[i];
         if (!copy) return;
-        syncFormValue(el, copy);
+        if (syncFormValue(el, copy)) formValuesTruncated++;
       });
       const stylesheetReferences = new WeakSet();
       const styleSources = document.documentElement.querySelectorAll("style, link[rel]");
@@ -592,7 +612,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
           "script, noscript, iframe, object, embed, base, meta, link",
         )
         .forEach((el) => el.remove());
-      let truncatedNodes = 0;
+      let truncatedNodes = formValuesTruncated;
       for (const root of roots) root.querySelectorAll("*").forEach((el) => {
         if (
           el.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])') &&
@@ -630,19 +650,21 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
           else if (secret.test(attribute.name))
             el.setAttribute(attribute.name, "[已隐藏]");
           else {
-            if (attribute.value.length > 10000) truncatedNodes++;
-            el.setAttribute(attribute.name, cleanStored(attribute.value));
+            const cleaned = cleanStored(attribute.value);
+            if (attribute.value.length > 10000 || cleaned.length > 10000) truncatedNodes++;
+            el.setAttribute(attribute.name, cleaned.slice(0, 10000));
           }
         }
       });
       for (const root of roots) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       while (walker.nextNode()) {
-        if (walker.currentNode.nodeValue.length > 10000) truncatedNodes++;
         const cleaned = cleanStored(walker.currentNode.nodeValue);
+        if (walker.currentNode.nodeValue.length > 10000 || cleaned.length > 10000) truncatedNodes++;
+        const limited = cleaned.slice(0, 10000);
         walker.currentNode.nodeValue = walker.currentNode.parentElement?.localName === "style"
-          ? cleaned.replace(/<\/style/gi, "<\\2f style")
-          : cleaned;
+          ? limited.replace(/<\/style/gi, "<\\2f style")
+          : limited;
       }
       const comments = document.createTreeWalker(
         root,
@@ -811,7 +833,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
             url: location.href,
             target: describe(target),
             viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
-            value: value(target),
+            ...value(target),
             formState: formState(target, type === "change"),
             ...(beforeFormState ? { beforeFormState } : {}),
             files,
@@ -833,10 +855,10 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
     const raw = target instanceof HTMLElement && target.isContentEditable
       ? target.innerText : typeof target.value === "string" ? target.value : null;
     if (typeof raw !== "string") return;
-    const limited = raw.slice(0, 4000), previous = cleanStored(limited);
+    const { value: previous, redacted, truncated } = cleanInput(raw);
     if (previous !== "[已隐藏]")
       inputBefore.set(target, { value: previous, time, inputType: event.inputType,
-        redacted: previous !== limited, truncated: raw.length > limited.length });
+        redacted, truncated });
   });
   recordOnRoots(
     "input",
@@ -852,7 +874,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
           url: location.href,
           target: describe(target),
           viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
-          value: value(target),
+          ...value(target),
           ...(beforeValue !== undefined ? { beforeValue,
             beforeValueStatus: previous.redacted && previous.truncated ? "redacted_truncated"
               : previous.redacted ? "redacted" : previous.truncated ? "truncated" : "captured" } : {}),
