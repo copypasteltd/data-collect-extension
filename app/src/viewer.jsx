@@ -157,6 +157,7 @@ function Report({ archive, showEvent }) {
         e.payload.status !== "captured") ||
       (e.kind === "network.requestBody" &&
         ![
+          "captured",
           "captured_redacted",
           "captured_redacted_best_effort",
           "empty",
@@ -204,6 +205,7 @@ function Report({ archive, showEvent }) {
   const unavailableBodies = network.filter(
     (e) =>
       ![
+        "captured",
         "captured_redacted",
         "captured_redacted_best_effort",
         "captured_asset",

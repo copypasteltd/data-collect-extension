@@ -23,7 +23,7 @@ export function buildStylesheetMap(events, tabId, upTo, assets, files, context) 
       if (asset?.type !== "resource" || asset.mime !== "text/css" || !bytes || bytes.length > 1500000) continue;
       try { save(payload.url, new TextDecoder("utf-8", { fatal: true }).decode(bytes), event); } catch {}
     } else if (event.kind === "network.finished" &&
-      ["captured_redacted", "captured_redacted_best_effort"].includes(payload.body?.status)) {
+      ["captured", "captured_redacted", "captured_redacted_best_effort"].includes(payload.body?.status)) {
       let id = payload.requestId;
       const seen = new Set();
       while (id && !seen.has(id)) {

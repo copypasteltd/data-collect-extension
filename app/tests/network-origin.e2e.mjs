@@ -243,7 +243,7 @@ try {
         !event.payload.removed,
     );
     assert.equal(sharedCookie?.payload.source, "domain_scope_unconfirmed");
-    assert.equal(sharedCookie.payload.value, "[已隐藏]");
+    assert.equal(sharedCookie.payload.value, "fixture");
   }
   console.log("同主机不同端口的嵌入页面网络范围通过");
 } finally {

@@ -25,7 +25,7 @@ The demo uses fictional local customer data and an isolated test browser with th
 - Preserve evidence of an authorized workflow for handoff, troubleshooting, or analysis.
 - Import the ZIP on another machine and inspect the observed pages, actions, requests, and capture warnings.
 - Step through screenshots or interact with the recorded target in an isolated page snapshot.
-- Export an OpenAPI draft inferred from observed requests as a starting point for checking an API contract.
+- Export an OpenAPI draft from observed requests, retaining repeated query parameters and links to multiple samples as a starting point for checking an API contract.
 
 ## Quick Start
 
@@ -41,7 +41,7 @@ npm run build
 1. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 2. Choose **Load unpacked** and select this repository's **`app/dist`** directory. The build generates `dist`; it is not committed to Git.
 3. Open an HTTP or HTTPS page you are authorized to record, then open Logic Recorder from the extension toolbar.
-4. Choose the scope and whether to capture screenshots, static canvas images, or non-authentication cookie values. Confirm the authorization statement, start recording, and approve Chrome's permission request.
+4. Choose the scope and whether to capture screenshots and static canvas images. Confirm the authorization statement, start recording, and approve Chrome's permission request. Accessible cookie values are recorded.
 5. Wait for the recording state, then perform the workflow. To capture initial page requests, refresh or revisit the page after recording starts.
 6. Stop recording and wait for finalization. Open the record from the list or use its download button to export a ZIP.
 7. On the receiving machine, load the same extension and choose **导入记录包** in the side panel. Viewing, replay, and exports stay in the side panel.
@@ -66,9 +66,9 @@ After modifying source and rebuilding, reload the extension in `chrome://extensi
 Authorized pages and frames
   ├─ Content script: actions, DOM snapshots / mutations, scrolling, site storage
   ├─ Chrome Debugger: requests / responses, redirects, WebSocket, EventSource
-  └─ Cookies / screenshot APIs: optional cookie values, masked screenshots
+  └─ Cookies / screenshot APIs: original cookie values and screenshots
                  ↓
-Background coordination, limits and redaction → local extension IndexedDB
+Background coordination and limits → local extension IndexedDB
                  ↓
 Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / replay
 ```
@@ -79,10 +79,10 @@ Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / 
 | --- | --- |
 | Scope | The current site and its new tabs, or authorized HTTP/HTTPS pages across the browser. Restricted pages cannot be recorded. |
 | Pages and actions | Best-effort capture of clicks, input, selections, submits, keyboard and pointer events, focus, scroll, drag/drop, some clipboard events, snapshots and DOM changes. Some open and closed Shadow DOM is supported; clipboard content is not guaranteed. |
-| Screenshots | Screenshots are attempted around actions with masking for recognizable sensitive areas. Capture timing, sharing, and failure states are recorded; rapid actions may share an image. |
-| Canvas | Optionally capture static Canvas images and layout from pages and components. Unreadable, oversized, or recognized sensitive canvases are flagged; animations and later drawing may be incomplete. |
+| Screenshots | Screenshots are attempted around actions without masking. Capture timing, sharing, and failure states are recorded; rapid actions may share an image. |
+| Canvas | Optionally capture static Canvas images and layout from pages and components. Unreadable or oversized canvases are flagged; animations and later drawing may be incomplete. |
 | Network | Observable requests, responses, redirects, and some request/response bodies; best-effort WebSocket text and EventSource messages. Binary and oversized content may be omitted. |
-| Site state | Cookie metadata and changes; non-authentication values require explicit opt-in. `localStorage` and `sessionStorage` are polled once per second and sampled again when stopping or leaving a page. IndexedDB and Cache Storage get limited start/end snapshots; cached request metadata is recorded without response bodies. |
+| Site state | Accessible cookie metadata, original values, and changes. `localStorage` and `sessionStorage` are polled once per second and sampled again when stopping or leaving a page. IndexedDB and Cache Storage get limited start/end snapshots; cached request metadata is recorded without response bodies. |
 | Resources | Attempts to preserve observed images, WOFF/WOFF2 fonts, and available styles. Images already loaded at recording start may be captured only as a static PNG preview, subject to cross-origin restrictions. |
 | Replay and analysis | Step through screenshots or an isolated page; candidate requests are inferred from available page context and timing and link to evidence. OpenAPI output is a sample-derived draft. |
 
@@ -94,7 +94,7 @@ If a tab-switch notification arrives during capture, the screenshot is discarded
 Static canvas capture is enabled by default and can be switched off independently of screenshots. Each page snapshot attempts at most five canvases of up to 500,000 pixels each, with a 150,000-character per-image limit, a 400,000-character total limit, layout for at most 50 canvases, and an approximately 100 ms capture budget. Cross-origin tainting, GPU rendering, page changes, or limits may produce missing or blank images; the viewer reports known gaps. Canvas pixels are not redacted; inspect recordings before sharing. Missing canvas images cannot be recovered from older recordings.
 Network scope follows the originating page: cross-origin API requests made by an in-scope page are captured when available, while requests made by an out-of-scope embedded page are excluded. Requests with an unconfirmed source are skipped and reported. WebSocket connections are checked using their handshake origin; existing connections with an unconfirmed origin may be skipped.
 Browsers share cookies by domain rather than port, and cookie change events do not reliably identify the originating page. Changes from other ports on the same domain may therefore appear. Older recordings may contain data from out-of-scope embedded pages; inspect them before sharing.
-For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default) before redaction. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.
+For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default). Other bodies retain the Base64 content provided by the browser. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.
 After the recording worker restarts, the extension attempts to reconnect already-saved in-flight requests when the debugger remains attached. Pending request-body reads and some events, existing WebSocket messages, or cross-process frame messages may still be missing; the report flags the restart.
 The recorder also attempts to resume previously authorized WebSocket connections when the current document can be confirmed. Cross-process frame connections require a matching recorded frame document. Connections established before recording or with uncertain document identity may not be restored.
 After a worker restart, saved cross-process frame connections and their current URLs are checked again before capturing new in-scope requests. Frames that cannot be verified, have expired, or exceed the recovery limit may be missing.
@@ -104,7 +104,7 @@ Each page snapshot retains up to 500,000 UTF-16 code units per text node, keepin
 Ordinary text inputs and their prior values are recorded up to 10,000 UTF-16 code units. Longer values retain their prefix and are flagged in reports and replay. Older recordings may have been truncated at 4,000 code units without a flag.
 New recordings identify the interacted element within its document. Restoration reports replaced or ambiguous targets and mismatched select options instead of applying an unconfirmed state. Older recordings may lack element or option identity; a legacy single-select value is applied only when it is unredacted and uniquely matches an option.
 Step replay supports range, number, and color inputs. New recordings retain valid numeric bounds and step values; a fallback control is available when the page snapshot has different bounds. Older numeric recordings without bounds use a text input, and unavailable prior values are identified.
-Each web storage area is limited to 200 keys; non-sensitive values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
+Each web storage area is limited to 200 keys; values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
 Database snapshots encode values such as big integers, maps, and sets as type-tagged JSON; dates are stored as ISO strings. Binary contents, circular references, and over-limit data are not preserved in full and are flagged in records and reports. Values missing from older recordings cannot be recovered.
 Cache snapshots retain a limited set of request URLs, methods, and modes, without request headers or response bodies. Listing requests requires opening an existing cache; if it is deleted between the check and open, an empty cache may be recreated. See the [usage guide](docs/插件安装与使用说明.md) for limits.
 
@@ -137,7 +137,7 @@ Deleting a recording from another side panel waits while that recording is being
 | `scripting` | Injects the collector into authorized pages and frames. |
 | `tabs`, `activeTab`, `webNavigation` | Identifies the active tab, navigation, and frame context. |
 | `debugger` | Uses Chrome DevTools Protocol for available network evidence and some screenshots. Chrome may show a debugging indicator. |
-| `cookies` | Reads cookie metadata and changes for authorized sites; values are restricted by default. |
+| `cookies` | Reads cookie metadata, original values, and changes for authorized sites. |
 | `storage`, `unlimitedStorage` | Stores task state and local extension archives. |
 | `downloads` | Downloads ZIP archives and API drafts initiated by the user. |
 | Optional HTTP/HTTPS host permissions | Requested for the chosen scope when recording starts; collection begins only after authorization. |
@@ -146,9 +146,7 @@ Deleting a recording from another side panel waits while that recording is being
 
 Record only material you are authorized to access and share. Archives are stored in local extension data; the extension has no automatic upload service. Exporting and sharing are user-initiated. Uninstalling the extension may remove local records, so export any records you need first.
 
-The extension attempts to hide passwords, common authentication fields, and recognizable sensitive regions in screenshots. These rules **cannot guarantee removal of all personal data, credentials, page text, images, or business information**. Non-authentication cookie values are off by default and can still be sensitive if enabled. ZIP files are not encrypted by default: anyone with a copy may be able to read them. Inspect recordings and use appropriate storage and transport controls before sharing.
-
-When a decoded URL fragment (the part after `#`) matches a common sensitive name, the entire fragment is hidden, so that part of the route may not be recoverable. Older recordings are not automatically reprocessed.
+New recordings retain data provided by the browser, including password input, authentication headers, cookies, URL parameters, page text and unmasked screenshots. ZIP files are not encrypted, and anyone with a copy may be able to read credentials and business data. Store and transfer them within the authorized scope. Values hidden in older recordings cannot be recovered.
 
 ## Limitations
 
@@ -161,7 +159,7 @@ When a decoded URL fragment (the part after `#`) matches a common sensitive name
 - Native `dialog` modal states and observable changes are also restored, including backdrops and captured component trees, with up to 100 modal states per snapshot. Stacking order may differ when multiple overlays are open; rapidly coalesced changes and older recordings can have gaps.
 - After a final action in an embedded frame, replay attempts to show the resulting main page when it navigates. It reports an unavailable final state when the tab leaves the recording scope or the new page cannot be confirmed. The scope-boundary marker does not save the outside URL; some transitions in older recordings remain uncertain.
 - Screenshots can be shared or unavailable. Images, fonts, styles, rich text, frames, and page changes may be incomplete because of permission, timing, and size limits. Review the side-panel report and individual event statuses.
-- Autofill, file contents, unknown binary data, binary WebSocket frames, intermediate database changes, and cache entries may be unavailable or intentionally omitted. See the [usage guide](docs/插件安装与使用说明.md) for limits.
+- Autofill, file contents, some binary bodies, intermediate database changes, and cache entries may be unavailable or omitted. See the [usage guide](docs/插件安装与使用说明.md) for limits.
 - If Chrome exits unexpectedly, successfully written data can be exported as a partial archive; buffered data may be lost.
 
 ## Development and Verification

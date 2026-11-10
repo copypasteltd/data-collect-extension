@@ -166,7 +166,7 @@ async function createArchiveData(id, onProgress) {
       "页面快照不包含站点脚本",
       "数据库和缓存仅采集有限的开始和结束快照，缓存响应内容未采集",
       "部分请求体和响应体可能不可获取",
-      "敏感凭据默认隐藏",
+      "记录包含浏览器提供的原始数据，ZIP 未加密",
     ],
   };
   await addFile("manifest.json", strToU8(JSON.stringify(manifest, null, 2)));

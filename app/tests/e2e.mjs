@@ -259,7 +259,6 @@ try {
     path: path.resolve("test-artifacts/sidepanel.png"),
   });
   await panel.getByLabel("录制范围").selectOption("browser");
-  await panel.getByLabel("保存非认证 Cookie 值（可能含敏感信息）").check();
   await panel.getByText("我有权记录所有打开的网页").click();
   await page.bringToFront();
   await panel.waitForTimeout(2200);
@@ -643,8 +642,8 @@ try {
     if (matching.length !== 1 || matching[0].payload.formState?.selectedIndices?.[0] !== 1 || !Array.isArray(matching[0].payload.target.shadowPath))
       throw new Error(`组件选择未正确记录或重复记录：${label}`);
   }
-  if (JSON.stringify(events).includes("shadow-private-value"))
-    throw new Error("组件内敏感输入未隐藏");
+  if (!JSON.stringify(events).includes("shadow-private-value"))
+    throw new Error("组件内输入原值未记录");
   const richInput = events.find((event) => event.kind === "interaction.input" && event.payload.target?.selector === "#rich-editor" && event.payload.value === "星级会员等级");
   const richMutation = events.find((event) => event.kind === "page.mutation" && event.payload.changes?.some((change) => change.type === "text" && change.value === "会员等级"));
   if (!richInput || !richMutation) throw new Error("富文本输入或结构变化未记录");
@@ -692,7 +691,7 @@ try {
   if (events.some((event) => event.kind === "resource.initial" && event.tabId === tab.id && event.payload.url.endsWith("/test-image.png")))
     throw new Error("不应绕过跨域限制读取初始图片");
   const laterStyleRequest = events.find((event) => event.kind === "network.request" && event.tabId === tab.id && event.payload.url.endsWith("/style-later.css"));
-  const laterStyleFinished = events.find((event) => event.kind === "network.finished" && event.payload.requestId === laterStyleRequest?.payload.requestId && event.payload.body?.status === "captured_redacted_best_effort");
+  const laterStyleFinished = events.find((event) => event.kind === "network.finished" && event.payload.requestId === laterStyleRequest?.payload.requestId && event.payload.body?.status === "captured");
   const fontRequest = events.find((event) => event.kind === "network.request" && event.tabId === tab.id && event.payload.url.endsWith("/test-font.woff2"));
   const fontFinished = events.find((event) => event.kind === "network.finished" && event.payload.requestId === fontRequest?.payload.requestId && event.payload.body?.status === "captured_asset");
   if (!fontFinished || !files[`resources/${fontFinished.payload.assetId}.bin`]) throw new Error("录制期间加载的字体未保存");
@@ -820,11 +819,11 @@ try {
   );
   if (
     largeRequest?.payload.postData?.status !== "pending" ||
-    largeBody?.payload.body?.status !== "captured_redacted" ||
+    largeBody?.payload.body?.status !== "captured" ||
     JSON.parse(largeBody.payload.body.value).note.length !== 90000 ||
-    JSON.parse(largeBody.payload.body.value).token !== "[已隐藏]"
+    JSON.parse(largeBody.payload.body.value).token !== "hidden-value-large-post"
   )
-    throw new Error("较大请求体未正确补充或脱敏");
+    throw new Error("较大请求体原值未正确补充");
   const oversizedRequest = events.find(
     (event) =>
       event.kind === "network.request" &&
@@ -861,7 +860,7 @@ try {
         event.payload.eventId === "event-2" &&
         event.payload.data?.value?.includes("order=ok"),
     ) ||
-    JSON.stringify(pushes).includes("hidden-value")
+    !JSON.stringify(pushes).includes("hidden-value")
   )
     throw new Error("服务器推送消息或连接关联未正确记录");
   const canceledPush = events.some(
@@ -884,19 +883,19 @@ try {
         (event) =>
           event.payload.direction === direction &&
           event.payload.data?.value?.includes("订单A") &&
-          !event.payload.data.value.includes("hidden-value-socket"),
+          event.payload.data.value.includes("hidden-value-socket"),
       ) ||
       !frames.some(
         (event) =>
           event.payload.direction === direction &&
           event.payload.data?.value?.includes("order=ok") &&
-          !event.payload.data.value.includes("hidden-value"),
+          event.payload.data.value.includes("hidden-value"),
       ) ||
       !frames.some(
         (event) =>
           event.payload.direction === direction &&
           event.payload.opcode === 2 &&
-          event.payload.data?.status === "omitted_binary",
+          event.payload.data?.status === "captured" && event.payload.data?.encoding === "base64",
       )
     )
       throw new Error(`实时消息${direction}记录不完整`);
@@ -1077,8 +1076,8 @@ try {
       y: Math.round(passwordRect.y + passwordRect.height / 2),
     },
   );
-  if (pixel.slice(0, 3).some((v) => v > 12))
-    throw new Error(`密码框截图未遮挡: ${pixel}`);
+  if (pixel.slice(0, 3).every((v) => v <= 12))
+    throw new Error(`密码框截图被遮挡: ${pixel}`);
   const textPixel = await panel.evaluate(
     async ({ imageBytes, x, y }) => {
       const bitmap = await createImageBitmap(
@@ -1095,8 +1094,8 @@ try {
       y: Math.round(sensitiveTextRect.y + sensitiveTextRect.height / 2),
     },
   );
-  if (textPixel.slice(0, 3).some((v) => v > 12))
-    throw new Error(`敏感文本截图未遮挡: ${textPixel}`);
+  if (textPixel.slice(0, 3).every((v) => v <= 12))
+    throw new Error(`文本截图被遮挡: ${textPixel}`);
   for (const rect of closedShadowRects) {
     const shadowPixel = await panel.evaluate(
       async ({ imageBytes, x, y }) => {
@@ -1108,8 +1107,8 @@ try {
       },
       { imageBytes: [...image], x: Math.round(rect.x + rect.width - 8), y: Math.round(rect.y + rect.height / 2) },
     );
-    if (shadowPixel.slice(0, 3).some((v) => v > 12))
-      throw new Error(`关闭式组件中的密码框截图未遮挡: ${shadowPixel}`);
+    if (shadowPixel.slice(0, 3).every((v) => v <= 12))
+      throw new Error(`关闭式组件中的密码框截图被遮挡: ${shadowPixel}`);
   }
   if (
     !events.some((event) => event.kind === "tab.created") ||
@@ -1165,17 +1164,17 @@ try {
       y: Math.round(embeddedPasswordRect.y + embeddedPasswordRect.height / 2),
     },
   );
-  if (framePixel.slice(0, 3).some((v) => v > 12))
-    throw new Error(`嵌入页面密码框未遮挡: ${framePixel}`);
+  if (framePixel.slice(0, 3).every((v) => v <= 12))
+    throw new Error(`嵌入页面密码框截图被遮挡: ${framePixel}`);
   if (
     !events.some(
       (event) =>
         event.kind === "network.request" && event.payload.protocolSessionId,
     )
   )
-    throw new Error("跨进程嵌入页面网络未被记录");
-  if (JSON.stringify(events).includes("hidden-value"))
-    throw new Error("敏感值未隐藏");
+    throw new Error(`跨进程嵌入页面网络未被记录：${JSON.stringify({ attached: events.filter((event) => event.kind === "frame.attached").length, frameRequests: events.filter((event) => event.kind === "network.request" && event.payload.documentUrl?.includes("localhost")).length, warnings: events.filter((event) => event.kind === "warning").map((event) => event.payload.message) })}`);
+  if (!JSON.stringify(events).includes("hidden-value"))
+    throw new Error("原始值未记录");
   const initialCookies = events
     .filter((event) => event.kind === "cookie.initial")
     .flatMap((event) => event.payload.items || []);
@@ -1184,7 +1183,7 @@ try {
       (cookie) => cookie.name === "theme" && cookie.value === "light",
     ) ||
     !initialCookies.some(
-      (cookie) => cookie.name === "session_id" && cookie.value === "[已隐藏]",
+      (cookie) => cookie.name === "session_id" && cookie.value === "hidden-value-cookie",
     )
   )
     throw new Error("Cookie 初始值或敏感字段处理不正确");
@@ -1514,7 +1513,7 @@ try {
       const response = operation?.responses?.["200"]?.content;
       return (
         JSON.stringify(form?.examples?.sample_1?.value?.tag) === '["a","b"]' &&
-        form?.examples?.sample_1?.value?.token === "[已隐藏]" &&
+        form?.examples?.sample_1?.value?.token === "hidden-value-form" &&
         operation?.requestBody?.content?.["application/json"] &&
         operation?.requestBody?.content?.["text/plain"] &&
         response?.["application/json"]?.schema?.properties?.order &&

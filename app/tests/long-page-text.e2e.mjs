@@ -70,7 +70,7 @@ try {
   assert.ok(first?.payload.html.includes("初始末尾"), "初始长正文丢失");
   assert.ok(first.payload.html.includes("组件末尾"), "组件长正文丢失");
   assert.ok(last?.payload.html.includes("更新末尾"), "更新后的长正文丢失");
-  assert.ok(!last.payload.html.includes("private-value"), "长正文中的敏感内容未隐藏");
+  assert.ok(last.payload.html.includes("private-value"), "长正文中的原值未记录");
   assert.equal(last.payload.status, "captured");
   await panel.reload();
   const downloadPromise = panel.waitForEvent("download", { timeout: 15000 });

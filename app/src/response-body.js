@@ -36,6 +36,8 @@ export function cleanDebuggerResponse(result, response = {}, method = "") {
   if (!result.base64Encoded) return cleanBody(result.body, bodyType);
   if (result.body.length > 5333336)
     return { value: null, status: "omitted_size" };
+  if (!/^(text\/|application\/(?:json|[^;]*\+json|javascript|xml|[^;]*\+xml|x-www-form-urlencoded|graphql)|image\/svg\+xml)/i.test(bodyType))
+    return { value: result.body, encoding: "base64", status: "captured" };
   try {
     const binary = atob(result.body);
     if (binary.length > 4000000) return { value: null, status: "omitted_size" };

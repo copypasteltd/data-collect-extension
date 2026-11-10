@@ -42,7 +42,7 @@ function sameTarget(previous, current) {
   );
 }
 function replayControl(step) {
-  if (step?.kind !== "interaction.change" || step.payload?.target?.sensitive)
+  if (step?.kind !== "interaction.change")
     return null;
   const target = step.payload.target,
     state = step.payload.formState;
@@ -144,7 +144,9 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
   }, [choiceInitial]);
   const inputBefore = useMemo(() => {
     if (!step || step.kind !== "interaction.input") return { value: "", status: null };
-    if (typeof step.payload.beforeValue === "string" && step.payload.beforeValue.length <= MAX_INPUT_LENGTH && step.payload.beforeValue !== "[已隐藏]") {
+    if (["redacted", "redacted_truncated"].includes(step.payload.beforeValueStatus) && step.payload.beforeValue === "[已隐藏]")
+      return { value: "", status: step.payload.beforeValueStatus === "redacted" ? "操作前输入值已脱敏" : "操作前输入值已脱敏且截断" };
+    if (typeof step.payload.beforeValue === "string" && step.payload.beforeValue.length <= MAX_INPUT_LENGTH) {
       const statuses = new Map([
         ["redacted", "操作前输入值已脱敏"],
         ["truncated", "操作前输入值过长，已截断"],
@@ -162,7 +164,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
           sameTarget(item, step),
       );
     const value = previous?.payload.value;
-    return typeof value === "string" && value.length <= MAX_INPUT_LENGTH && value !== "[已隐藏]"
+    return typeof value === "string" && value.length <= MAX_INPUT_LENGTH && !["redacted", "redacted_truncated"].includes(previous?.payload.valueStatus) && !previous?.payload.target?.sensitive
       ? { value, status: "显示最近一次记录值，操作前状态未确认" }
       : { value: "", status: "操作前输入值未取得" };
   }, [step, index, steps]);
@@ -230,13 +232,11 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
   const canType =
     step.kind === "interaction.input" &&
     typeof step.payload.value === "string" &&
-    step.payload.value !== "[已隐藏]" &&
-    !target.sensitive &&
+    !["redacted", "redacted_truncated"].includes(step.payload.valueStatus) &&
     (target.type == null || typeof target.type === "string") &&
     (["input", "textarea"].includes(target.tag) || target.editable) &&
     ![
       "file",
-      "password",
       "checkbox",
       "radio",
       "button",
@@ -248,7 +248,7 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
   const InputControl = target.tag === "textarea" || target.editable ? "textarea" : "input";
   const numeric = target.numericConstraints;
   const numericType = ["range", "number"].includes(targetType) && numeric && typeof numeric === "object" && !Array.isArray(numeric);
-  const inputType = numericType ? targetType : targetType === "color" && typeof step.payload.value === "string" && /^#[0-9a-f]{6}$/i.test(step.payload.value) ? "color" : "text";
+  const inputType = numericType ? targetType : targetType === "password" ? "password" : targetType === "color" && typeof step.payload.value === "string" && /^#[0-9a-f]{6}$/i.test(step.payload.value) ? "color" : "text";
   const numericProp = (name) => normalizeNumericConstraint(name, numeric?.[name]) ?? undefined;
   const inputProps = InputControl === "input" ? {
     type: inputType,

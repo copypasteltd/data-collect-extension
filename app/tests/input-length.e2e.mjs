@@ -107,9 +107,9 @@ try {
       event.kind === "interaction.input" &&
       event.payload.target?.selector === "#redacted",
   );
-  assert.equal(redactedInput?.payload.valueStatus, "redacted_truncated");
-  assert.equal(redactedInput.payload.value.length, 10000);
-  assert.ok(!redactedInput.payload.value.includes("token=x"));
+  assert.equal(redactedInput?.payload.valueStatus, "captured");
+  assert.equal(redactedInput.payload.value.length, 9600);
+  assert.ok(redactedInput.payload.value.includes("token=x"));
   const finalSnapshot = events
     .filter(
       (event) =>
@@ -126,8 +126,8 @@ try {
         .getAttribute("value"),
     finalSnapshot.payload.html,
   );
-  assert.equal(snapshotValue.length, 10000);
-  assert.ok(!snapshotValue.includes("token=x"));
+  assert.equal(snapshotValue.length, 9600);
+  assert.ok(snapshotValue.includes("token=x"));
   assert.ok(
     events.some(
       (event) =>

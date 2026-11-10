@@ -70,7 +70,7 @@ it("字体只使用已录制的 WOFF 资源并报告缺失", () => {
       seen.push(url);
       return url.startsWith("https://example.test/") ? "data:font/woff2;base64,d09GMg==" : null;
     });
-  assert.deepEqual(seen, ["https://example.test/demo.woff2?token=%5B%E5%B7%B2%E9%9A%90%E8%97%8F%5D", "https://other.test/missing.woff"]);
+  assert.deepEqual(seen, ["https://example.test/demo.woff2?token=secret", "https://other.test/missing.woff"]);
   assert.equal(result.missing, 1);
   assert.match(result.css, /data:font\/woff2;base64,d09GMg==/);
   assert.doesNotMatch(result.css, /secret|Installed|other\.test/);

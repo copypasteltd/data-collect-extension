@@ -63,8 +63,8 @@ try {
   assert.ok(events.some((event) => event.kind === "page.mutation"));
   assert.ok(events.some((event) => event.kind === "page.snapshot" && event.payload.reason === "stop"));
   const recorded = JSON.stringify(events);
-  assert.ok(!recorded.includes("private-route"), "页面网址片段泄露敏感值");
-  assert.ok(!recorded.includes("private-poster"), "资源网址片段泄露敏感值");
+  assert.ok(recorded.includes("private-route"), "页面网址片段未保留原值");
+  assert.ok(recorded.includes("private-poster"), "资源网址片段未保留原值");
   await panel.reload();
   const pendingDownload = panel.waitForEvent("download", { timeout: 15000 });
   await panel.locator(".record").filter({ hasText: "片段参数测试" }).getByTitle("下载记录包").click();
@@ -76,9 +76,9 @@ try {
   const text = Object.entries(files)
     .filter(([name]) => name.endsWith(".json") || name.endsWith(".jsonl"))
     .map(([, bytes]) => strFromU8(bytes)).join("\n");
-  assert.ok(!text.includes("private-route"), "导出包中的页面网址片段泄露敏感值");
-  assert.ok(!text.includes("private-poster"), "导出包中的资源网址片段泄露敏感值");
-  console.log("页面和资源网址片段的敏感参数已隐藏");
+  assert.ok(text.includes("private-route"), "导出包缺少页面网址片段原值");
+  assert.ok(text.includes("private-poster"), "导出包缺少资源网址片段原值");
+  console.log("页面和资源网址片段保留原值");
 } finally {
   if (context) await context.close();
   await new Promise((resolve) => server.close(resolve));

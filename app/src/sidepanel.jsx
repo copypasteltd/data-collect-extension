@@ -26,7 +26,6 @@ function App() {
   const [tab, setTab] = useState(null);
   const [screenshots, setScreenshots] = useState(true);
   const [canvasSnapshots, setCanvasSnapshots] = useState(true);
-  const [cookieValues, setCookieValues] = useState(false);
   const [scope, setScope] = useState("site");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
@@ -86,7 +85,7 @@ function App() {
         throw new Error("当前页面已变化，请确认后重新开始");
       await call("START", {
         tab: current,
-        options: { screenshots, canvasSnapshots, cookieValues, scope },
+        options: { screenshots, canvasSnapshots, scope },
       });
       await refresh();
     } catch (e) {
@@ -234,17 +233,6 @@ function App() {
               />
               <span>记录画布静态画面（可能含敏感信息）</span>
             </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={cookieValues}
-                onChange={(e) => {
-                  setCookieValues(e.target.checked);
-                  setConsent(false);
-                }}
-              />
-              <span>保存非认证 Cookie 值（可能含敏感信息）</span>
-            </label>
             <label className="check consent">
               <input
                 type="checkbox"
@@ -253,7 +241,7 @@ function App() {
               />
               <span>
                 我有权记录{scope === "browser" ? "所有打开的网页" : "当前站点"}
-                ，并同意在本机保存页面、操作、文件名、截图、画布、图片资源、相关请求及站点状态。
+                ，并同意在本机保存原始页面、操作、截图、请求、Cookie 和站点状态；记录包不加密，可能包含密码及凭据。
               </span>
             </label>
             <button

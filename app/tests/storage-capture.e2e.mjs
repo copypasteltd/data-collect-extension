@@ -109,7 +109,7 @@ try {
     "updated-immediately-before-stop",
   );
   assert.equal(final.payload.stores.sessionStorage.customer, "C001");
-  assert.equal(final.payload.stores.sessionStorage.token, "[已隐藏]");
+  assert.equal(final.payload.stores.sessionStorage.token, "private-token-value");
   assert.equal(final.payload.stores.sessionStorage.huge, "[超过大小限制]");
   assert.deepEqual(
     final.payload.specialEntries.find(
@@ -140,8 +140,8 @@ try {
     exportedFinal?.payload.stores.sessionStorage["final-state"],
     "updated-immediately-before-stop",
   );
-  assert.equal(exportedFinal.payload.stores.sessionStorage.token, "[已隐藏]");
-  assert.ok(!JSON.stringify(exportedEvents).includes("private-token-value"));
+  assert.equal(exportedFinal.payload.stores.sessionStorage.token, "private-token-value");
+  assert.ok(JSON.stringify(exportedEvents).includes("private-token-value"));
   await panel.getByRole("button", { name: "导入记录包" }).click();
   await panel.locator("input[type=file]").first().setInputFiles(archivePath);
   await panel.getByRole("heading", { name: "存储采集测试" }).waitFor();

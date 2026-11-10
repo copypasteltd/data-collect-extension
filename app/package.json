@@ -42,6 +42,7 @@
     "test:browser-restart": "node tests/browser-restart.e2e.mjs",
     "test:worker-network-recovery": "node tests/worker-network-recovery.e2e.mjs",
     "test:pending-network": "node tests/pending-network.e2e.mjs",
+    "test:query-parameters": "node tests/query-parameters.e2e.mjs",
     "test:worker-socket-recovery": "node tests/worker-socket-recovery.e2e.mjs",
     "test:worker-frame-recovery": "node tests/worker-frame-recovery.e2e.mjs",
     "test:concurrent-stop": "node tests/concurrent-stop.e2e.mjs",

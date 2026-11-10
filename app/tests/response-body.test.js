@@ -2,7 +2,7 @@ import { it } from "node:test";
 import assert from "node:assert/strict";
 import { cleanDebuggerResponse } from "../src/response-body.js";
 
-it("解码 Base64 文本并继续脱敏", () => {
+it("解码 Base64 文本并保留原始字段值", () => {
   const body = Buffer.from("customer=C001&token=private").toString("base64");
   const result = cleanDebuggerResponse(
     { body, base64Encoded: true },
@@ -12,10 +12,10 @@ it("解码 Base64 文本并继续脱敏", () => {
       },
     },
   );
-  assert.equal(result.status, "captured_redacted");
+  assert.equal(result.status, "captured");
   const parsed = new URLSearchParams(result.value);
   assert.equal(parsed.get("customer"), "C001");
-  assert.equal(parsed.get("token"), "[已隐藏]");
+  assert.equal(parsed.get("token"), "private");
   const sniffed = cleanDebuggerResponse(
     { body: "b2s=", base64Encoded: true },
     {
@@ -37,9 +37,11 @@ it("解码 Base64 文本并继续脱敏", () => {
   );
   assert.deepEqual(JSON.parse(decoded.value), {
     customer: "客户",
-    token: "[已隐藏]",
-    nested: { password: "[已隐藏]" },
+    token: "private",
+    nested: { password: "secret" },
   });
+  assert.deepEqual(cleanDebuggerResponse({ body: "AQID", base64Encoded: true }, { mimeType: "application/octet-stream" }),
+    { value: "AQID", encoding: "base64", status: "captured" });
 });
 
 it("按声明的字符集解码，并拒绝无效或不支持的编码", () => {

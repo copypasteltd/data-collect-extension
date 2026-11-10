@@ -169,7 +169,7 @@ export function applyRecordedMutations(doc, events, popover, dialog) {
   }
   function textMutationMatches(event, index) {
     const expected = event.payload?.value;
-    if (typeof expected !== "string" || expected === "[已隐藏]" ||
+    if (typeof expected !== "string" || ["redacted", "redacted_truncated"].includes(event.payload?.valueStatus) ||
         ["input", "textarea", "select"].includes(String(event.payload?.target?.tag || "").toLowerCase())) return false;
     let node;
     try { node = inputNode(doc, event.payload?.target); } catch { return false; }
@@ -205,7 +205,7 @@ export function applyRecordedMutations(doc, events, popover, dialog) {
   }
   function structuralMutationMatches(event, index) {
     const expected = event.payload?.value;
-    if (typeof expected !== "string" || expected === "[已隐藏]" || expected.length > MAX_INPUT_LENGTH ||
+    if (typeof expected !== "string" || ["redacted", "redacted_truncated"].includes(event.payload?.valueStatus) || expected.length > MAX_INPUT_LENGTH ||
         ["input", "textarea", "select"].includes(String(event.payload?.target?.tag || "").toLowerCase())) return false;
     let node;
     try { node = inputNode(doc, event.payload?.target); } catch { return false; }
@@ -349,14 +349,14 @@ export function applyRecordedInputs(doc, events) {
     const target = event.payload?.target,
       value = event.payload?.value,
       state = event.payload?.formState;
-    if (value === "[已隐藏]") continue;
+    if (["redacted", "redacted_truncated"].includes(event.payload?.valueStatus) || target?.sensitive) continue;
     try {
       const node = inputNode(doc, target);
       if (!node) {
         issues.add("输入或选择的目标无法唯一确认");
         continue;
       }
-      if (node.matches('input[type="password"], input[type="file"]'))
+      if (node.matches('input[type="file"]'))
         continue;
       if (node.matches("select") && (state?.truncated || state?.optionsTruncated)) {
         issues.add("部分选项状态超过采集上限");

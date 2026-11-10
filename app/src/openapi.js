@@ -62,9 +62,7 @@ function schemaFrom(value, depth = 0) {
   if (typeof value === "number")
     return { type: Number.isInteger(value) ? "integer" : "number" };
   if (typeof value === "boolean") return { type: "boolean" };
-  return value === "[已隐藏]"
-    ? { type: "string", description: "样本值已隐藏" }
-    : { type: "string" };
+  return { type: "string" };
 }
 function contentType(headers, fallback = "application/json") {
   const raw = Object.entries(headers || {}).find(
@@ -78,6 +76,7 @@ function contentType(headers, fallback = "application/json") {
 }
 function sampleContent(content, mime) {
   if (typeof content?.value !== "string") return null;
+  if (content.encoding === "base64") return null;
   const raw = content.value;
   if (/json/i.test(mime)) {
     try {
@@ -192,15 +191,39 @@ export function buildOpenApi(catalog) {
           ? { responseBodyStatus: call.result.body.status } : {}),
       });
       try {
-        for (const [name, value] of new URL(call.url).searchParams)
-          if (!parameters.has(name))
+        const query = new Map();
+        for (const [name, value] of new URL(call.url).searchParams) {
+          if (!query.has(name)) query.set(name, []);
+          query.get(name).push(value);
+        }
+        for (const [name, values] of query) {
+          if (!parameters.has(name)) {
             parameters.set(name, {
               name,
               in: "query",
               description: "是否必填尚未确认",
               schema: { type: "string" },
-              example: value,
+              examples: {},
+              "x-logic-recorder-observed-samples": 0,
             });
+          }
+          const parameter = parameters.get(name);
+          if (values.length > 1 && parameter.schema.type !== "array") {
+            parameter.schema = { type: "array", items: { type: "string" } };
+            parameter.style = "form";
+            parameter.explode = true;
+            parameter.description = "观察到重复参数；是否必填及服务端语义尚未确认";
+            for (const example of Object.values(parameter.examples))
+              example.value = [example.value];
+          }
+          const count = ++parameter["x-logic-recorder-observed-samples"];
+          if (count <= 20)
+            parameter.examples[`sample_${count}`] = {
+              value: parameter.schema.type === "array" ? values : values[0],
+              ...(call.requestEventId ? { "x-logic-recorder-event-id": call.requestEventId } : {}),
+            };
+          else parameter["x-logic-recorder-omitted-examples"] = count - 20;
+        }
       } catch {}
       const requestMime = contentType(call.request?.headers, "text/plain");
       const request = sampleContent(call.request?.postData, requestMime);

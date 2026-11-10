@@ -175,6 +175,31 @@ describe("接口规范草稿", () => {
     assert.equal(media["x-logic-recorder-observed-samples"], 22);
     assert.equal(media["x-logic-recorder-omitted-examples"], 2);
   });
+  it("保留重复查询参数、跨请求样本及其来源", () => {
+    const urls = [
+      "https://example.test/api?tag=one&name=%E5%AE%A2%E6%88%B7",
+      "https://example.test/api?tag=two&tag=three%26four&name=x",
+      ...Array.from({ length: 20 }, (_, index) => `https://example.test/api?tag=${index}`),
+    ];
+    const samples = urls.map((url, index) => ({ url, requestEventId: `req-${index}`, request: { headers: {} } }));
+    const operation = buildOpenApi({ endpoints: [{ method: "GET", path: "https://example.test/api", samples }] })[0].document.paths["/api"].get;
+    const tag = operation.parameters.find((parameter) => parameter.name === "tag");
+    assert.deepEqual(tag.schema, { type: "array", items: { type: "string" } });
+    assert.equal(tag.style, "form");
+    assert.equal(tag.explode, true);
+    assert.equal(tag.required, undefined);
+    assert.deepEqual(tag.examples.sample_1.value, ["one"]);
+    assert.deepEqual(tag.examples.sample_2.value, ["two", "three&four"]);
+    assert.deepEqual(tag.examples.sample_3.value, ["0"]);
+    assert.equal(tag.examples.sample_2["x-logic-recorder-event-id"], "req-1");
+    assert.equal(tag["x-logic-recorder-observed-samples"], 22);
+    assert.equal(tag["x-logic-recorder-omitted-examples"], 2);
+    assert.equal(Object.keys(tag.examples).length, 20);
+    const name = operation.parameters.find((parameter) => parameter.name === "name");
+    assert.equal(name.schema.type, "string");
+    assert.equal(name.examples.sample_1.value, "客户");
+    assert.equal(name.examples.sample_2.value, "x");
+  });
   it("异常内容类型和非文本主体不会使规范导出失败", () => {
     const sample = {
       url: "https://example.test/api",

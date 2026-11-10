@@ -10,8 +10,6 @@ import {
   cleanRealtimeText,
   cleanUrl,
   cleanWebSocketFrame,
-  redactText,
-  scrubEventPayload,
 } from "./privacy.js";
 
 const uid = () => crypto.randomUUID();
@@ -96,7 +94,7 @@ function append(kind, payload = {}, extra = {}) {
     seq: ++sequence,
     time: Date.now(),
     kind,
-    payload: scrubEventPayload(kind, payload),
+    payload,
     ...extra,
   };
   outstandingWrites++;
@@ -120,7 +118,7 @@ function appendPageBatch(items, sender, session, batchId) {
   const events = selected.map((item, index) => ({
     id: batchId ? `${batchId}_${index}` : uid(), sessionId: session.id, seq: ++sequence, time: item.time,
     kind: item.kind,
-    payload: scrubEventPayload(item.kind, { ...item.payload, url: cleanUrl(item.payload?.url || sender.url) }),
+    payload: { ...item.payload, url: cleanUrl(item.payload?.url || sender.url) },
     tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId,
     ...(batchId ? { screenshotRequested: !!item.screenshot, batchSize: items.length } : {}),
   }));
@@ -459,7 +457,7 @@ async function snapshotCookies(raw) {
         expirationDate,
         partitionKey,
         storeId,
-        ...cleanCookieValue(name, value, session.options.cookieValues),
+        ...cleanCookieValue(name, value),
       });
     }
     if (active?.id === session.id)
@@ -646,57 +644,6 @@ function capture() {
   screenshotChain = task.catch(() => {});
   return task;
 }
-async function inspectSensitive(tabId) {
-  const top = await chrome.tabs.sendMessage(
-    tabId,
-    { type: "SENSITIVE_CHECK" },
-    { frameId: 0 },
-  );
-  if (!top?.viewport) throw new Error(top?.error || "无法检查页面敏感区域");
-  const rects = [...top.rects],
-    children = [];
-  if (top.frames.length) {
-    const frameList = await chrome.webNavigation.getAllFrames({ tabId });
-    for (const frame of top.frames) {
-      if (!frame.safe || !allowedUrl(frame.url))
-        throw new Error("嵌入页面未授权或坐标无法确认");
-      const matches = (frameList || []).filter(
-        (item) => item.parentFrameId === 0 && item.url === frame.url,
-      );
-      if (matches.length !== 1) throw new Error("嵌入页面无法唯一匹配");
-      const child = await chrome.tabs.sendMessage(
-        tabId,
-        { type: "SENSITIVE_CHECK" },
-        { frameId: matches[0].frameId },
-      );
-      if (
-        !child?.viewport ||
-        child.frames.length ||
-        child.viewport.scale !== 1 ||
-        child.viewport.offsetX !== 0 ||
-        child.viewport.offsetY !== 0 ||
-        Math.abs(frame.clientWidth - child.viewport.width) > 2 ||
-        Math.abs(frame.clientHeight - child.viewport.height) > 2
-      )
-        throw new Error("嵌入页面的敏感区域无法确认");
-      children.push({ frameId: matches[0].frameId, frame, child });
-      for (const rect of child.rects) {
-        const left = Math.max(0, rect.x),
-          topEdge = Math.max(0, rect.y),
-          right = Math.min(child.viewport.width, rect.x + rect.width),
-          bottom = Math.min(child.viewport.height, rect.y + rect.height);
-        if (right > left && bottom > topEdge)
-          rects.push({
-            x: frame.x + frame.borderX + left,
-            y: frame.y + frame.borderY + topEdge,
-            width: right - left,
-            height: bottom - topEdge,
-          });
-      }
-    }
-  }
-  return { top, children, rects };
-}
 async function captureOne() {
   if (!active || !screenshotPending.length) return;
   const first = screenshotPending[0];
@@ -732,8 +679,8 @@ async function captureOne() {
       !sourceFrame ||
       (first.documentId && sourceFrame.documentId !== first.documentId) ||
       (first.url && cleanUrl(sourceFrame.url) !== first.url);
-    const inspection = await inspectSensitive(tabId),
-      info = inspection.top;
+    const info = await chrome.tabs.sendMessage(tabId, { type: "VIEWPORT_INFO" }, { frameId: 0 });
+    if (!info?.viewport) throw new Error("无法读取页面视口");
     screenshotLast = Date.now();
     const captureStartedAt = screenshotLast;
     let data;
@@ -770,12 +717,12 @@ async function captureOne() {
       if (!afterSource || afterSource.documentId !== sourceFrame.documentId)
         throw new Error("截图期间操作所在页面已变化");
     }
-    const afterInspection = await inspectSensitive(tabId);
-    if (JSON.stringify(inspection) !== JSON.stringify(afterInspection))
-      throw new Error("截图期间页面或敏感区域发生变化");
+    const afterInfo = await chrome.tabs.sendMessage(tabId, { type: "VIEWPORT_INFO" }, { frameId: 0 });
+    if (JSON.stringify(info) !== JSON.stringify(afterInfo))
+      throw new Error("截图期间页面视口发生变化");
     if ((tabActivationVersions.get(windowId) || 0) !== activationVersion)
       throw new Error("截图期间标签曾切换");
-    let blob = await (await fetch(data)).blob();
+    const blob = await (await fetch(data)).blob();
     const bitmap = await createImageBitmap(blob);
     try {
       const expectedWidth = info.viewport.width * info.viewport.dpr,
@@ -787,27 +734,6 @@ async function captureOne() {
         throw new Error(
           `截图尺寸 ${bitmap.width}×${bitmap.height} 与页面视口 ${expectedWidth}×${expectedHeight} 不一致`,
         );
-      if (inspection.rects.length) {
-        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height),
-          context = canvas.getContext("2d");
-        if (!context || !info.viewport?.width || !info.viewport?.height)
-          throw new Error("敏感区域遮挡不可用");
-        context.drawImage(bitmap, 0, 0);
-        context.fillStyle = "#000";
-        const sx = bitmap.width / info.viewport.width,
-          sy = bitmap.height / info.viewport.height;
-        for (const rect of inspection.rects)
-          context.fillRect(
-            Math.floor((rect.x - 4) * sx),
-            Math.floor((rect.y - 4) * sy),
-            Math.ceil((rect.width + 8) * sx),
-            Math.ceil((rect.height + 8) * sy),
-          );
-        blob = await canvas.convertToBlob({
-          type: "image/jpeg",
-          quality: 0.75,
-        });
-      }
     } finally {
       bitmap.close();
     }
@@ -1246,16 +1172,8 @@ chrome.debugger.onEvent.addListener(
     if (method === "Target.attachedToTarget") {
       if (active.status === "stopping") return;
       const child = { tabId: source.tabId, sessionId: params.sessionId };
-      if (!allowedUrl(params.targetInfo?.url)) {
-        track(
-          warning("嵌入页面不在授权范围或地址尚未确定", {
-            tabId: source.tabId,
-          }),
-        );
-        return;
-      }
       childDocuments.set(params.sessionId, { frameId: params.targetInfo.targetId, loaderId: null, url: params.targetInfo.url });
-      setChildScope(params.sessionId, source.tabId, true);
+      setChildScope(params.sessionId, source.tabId, allowedUrl(params.targetInfo?.url));
       const sessionId = active.id;
       const task = (async () => {
         try {
@@ -1270,14 +1188,16 @@ chrome.debugger.onEvent.addListener(
           try {
             const tree = await withDeadline(chrome.debugger.sendCommand(child, "Page.getFrameTree"), 1500, "框架实例检查");
             const frame = tree?.frameTree?.frame;
-            if (before && childDocuments.get(params.sessionId) === before && frame?.id === before.frameId)
+            if (before && childDocuments.get(params.sessionId) === before && frame?.id === before.frameId) {
               childDocuments.set(params.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
+              setChildScope(params.sessionId, source.tabId, allowedUrl(frame.url));
+            }
           } catch {}
-          if (active?.id === sessionId)
+          if (active?.id === sessionId && childScopes.get(params.sessionId))
             await append("frame.attached", {
               tabId: source.tabId,
               protocolSessionId: params.sessionId,
-              url: cleanUrl(params.targetInfo.url),
+              url: cleanUrl(childDocuments.get(params.sessionId)?.url),
               note: "连接前的请求可能未记录",
             });
         } catch (error) {
@@ -1318,7 +1238,7 @@ chrome.debugger.onEvent.addListener(
             "dialog.open",
             {
               type: params.type,
-              message: redactText(params.message || ""),
+              message: params.message || "",
               url: cleanUrl(params.url || ""),
             },
             { tabId: source.tabId },
@@ -1340,7 +1260,7 @@ chrome.debugger.onEvent.addListener(
         track(
           append(
             "dialog.closed",
-            { accepted: params.result, userInput: "[已隐藏]" },
+            { accepted: params.result, userInput: params.userInput ?? null },
             { tabId: source.tabId },
           ),
         );
@@ -1348,8 +1268,10 @@ chrome.debugger.onEvent.addListener(
     }
     if (method === "Page.frameNavigated" && source.sessionId) {
       const current = childDocuments.get(source.sessionId), frame = params.frame;
-      if (current && frame?.id === current.frameId)
+      if (current && frame?.id === current.frameId) {
         childDocuments.set(source.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
+        setChildScope(source.sessionId, source.tabId, allowedUrl(frame.url));
+      }
       return;
     }
     if (!method.startsWith("Network.") || networkSealed) return;
@@ -1534,10 +1456,8 @@ chrome.debugger.onEvent.addListener(
           "network.eventSourceMessage",
           {
             requestId: item.requestId,
-            eventName: redactText(
-              String(params.eventName || "").slice(0, 1000),
-            ),
-            eventId: redactText(String(params.eventId || "").slice(0, 4000)),
+            eventName: String(params.eventName || "").slice(0, 1000),
+            eventId: String(params.eventId || "").slice(0, 4000),
             timestamp: params.timestamp,
             data: cleanRealtimeText(params.data),
           },
@@ -1623,6 +1543,13 @@ chrome.debugger.onEvent.addListener(
               status: "unavailable",
               reason: String(error),
             };
+          }
+        } else {
+          try {
+            const result = await chrome.debugger.sendCommand(debugSession, "Network.getResponseBody", { requestId: rawRequestId });
+            body = cleanDebuggerResponse(result, item.response, item.method);
+          } catch (error) {
+            body = { value: null, status: "unavailable", reason: String(error) };
           }
         }
         if (active?.id === sessionId && !item.finalized) {
@@ -1931,11 +1858,7 @@ chrome.cookies.onChanged.addListener(
         removed,
         cause,
         source: "domain_scope_unconfirmed",
-        ...cleanCookieValue(
-          cookie.name,
-          cookie.value,
-          active.options.cookieValues,
-        ),
+        ...cleanCookieValue(cookie.name, cookie.value),
       }),
     );
   }),

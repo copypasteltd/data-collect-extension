@@ -93,7 +93,7 @@ try {
     bitmap.close();
     return rgba;
   }, { assetId: first.shot.payload.assetId, password, viewport: first.shot.payload.viewport });
-  if (pixel.slice(0, 3).some((channel) => channel > 12)) throw new Error("截图中的密码区域未遮挡");
+  if (pixel.slice(0, 3).every((channel) => channel <= 12)) throw new Error("截图中的密码区域被遮挡");
   const stopped = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
   if (!stopped.ok) throw new Error("截图录制未能停止");
   const recorded = await events();

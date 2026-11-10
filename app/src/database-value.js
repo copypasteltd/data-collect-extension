@@ -1,4 +1,4 @@
-export function encodeDatabaseValue(input, isSensitive, cleanText) {
+export function encodeDatabaseValue(input, cleanText) {
   const issues = new Set();
   const ancestors = new WeakSet();
   let nodes = 0;
@@ -43,7 +43,7 @@ export function encodeDatabaseValue(input, isSensitive, cleanText) {
           if (entries.length >= 200) break;
           entries.push([
             encode(key, depth + 1),
-            typeof key === "string" && isSensitive(key) ? "[已隐藏]" : encode(item, depth + 1),
+            encode(item, depth + 1),
           ]);
         }
         return { $type: "map", entries };
@@ -68,7 +68,7 @@ export function encodeDatabaseValue(input, isSensitive, cleanText) {
       if (entries.length > 200) issues.add("entry_limit");
       return Object.fromEntries(entries.slice(0, 200).map(([key, item]) => [
         key,
-        isSensitive(key) ? "[已隐藏]" : encode(item, depth + 1),
+        encode(item, depth + 1),
       ]));
     } finally {
       ancestors.delete(value);

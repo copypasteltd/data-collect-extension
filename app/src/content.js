@@ -11,22 +11,6 @@ import { encodeDatabaseValue } from "./database-value.js";
   let collectorClosed = false;
   let canvasMode = "pending";
   let canvasPendingSnapshot = false;
-  const secret =
-    /pass(word|wd)?|pwd|token|secret|auth|cookie|session|credential|api.?key|csrf|xsrf|jwt|验证码|密码|令牌|身份证|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b/i;
-  const isSensitive = (element) =>
-    element instanceof Element &&
-    (element.matches(
-      'input[type="password"], input[autocomplete="one-time-code"], input[autocomplete="current-password"], input[autocomplete="new-password"]',
-    ) ||
-      secret.test(
-        [
-          element.getAttribute("name"),
-          element.id,
-          element.getAttribute("placeholder"),
-          element.getAttribute("autocomplete"),
-          element.getAttribute("aria-label"),
-        ].join(" "),
-      ));
   let buffer = [];
   const captureSettings = (() => {
     let timeout;
@@ -93,28 +77,11 @@ import { encodeDatabaseValue } from "./database-value.js";
       return Object.fromEntries(
         Object.entries(value)
           .slice(0, 200)
-          .map(([k, v]) => [
-            k,
-            secret.test(k) ? "[已隐藏]" : cleanStored(v, depth + 1),
-          ]),
+          .map(([k, v]) => [k, cleanStored(v, depth + 1)]),
       );
     if (typeof value === "string") {
       if (value.length > maxStringLength) return "[超过大小限制]";
-      if (/bearer\s|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i.test(value))
-        return "[已隐藏]";
-      return value
-        .replace(
-          /((?:password|passwd|pwd|token|secret|authorization|credential|session(?:[_-]?(?:id|token))?|cookie|api[_.-]?key|csrf(?:[_-]?token)?|xsrf(?:[_-]?token)?|jwt|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b|验证码|密码|令牌)\s*["']?\s*[:=]\s*)"(?:[^"\\]|\\.)*"/gi,
-          '$1"[已隐藏]"',
-        )
-        .replace(
-          /((?:password|passwd|pwd|token|secret|authorization|credential|session(?:[_-]?(?:id|token))?|cookie|api[_.-]?key|csrf(?:[_-]?token)?|xsrf(?:[_-]?token)?|jwt|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b|验证码|密码|令牌)\s*["']?\s*[:=]\s*)'(?:[^'\\]|\\.)*'/gi,
-          "$1'[已隐藏]'",
-        )
-        .replace(
-          /((?:password|passwd|pwd|token|secret|authorization|credential|session(?:[_-]?(?:id|token))?|cookie|api[_.-]?key|csrf(?:[_-]?token)?|xsrf(?:[_-]?token)?|jwt|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b|验证码|密码|令牌)\s*["']?\s*[:=]\s*["']?)([^\s"'&,;<}]+)/gi,
-          "$1[已隐藏]",
-        );
+      return value;
     }
     return value;
   };
@@ -134,7 +101,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   };
   const selector = (el) => {
     if (!(el instanceof Element)) return null;
-    if (el.id && !secret.test(el.id)) return `#${CSS.escape(el.id)}`;
+    if (el.id) return `#${CSS.escape(el.id)}`;
     const path = [];
     for (let node = el; node && path.length < 6; node = node.parentElement) {
       let part = node.localName;
@@ -157,7 +124,6 @@ import { encodeDatabaseValue } from "./database-value.js";
   const describe = (el) => {
     if (!(el instanceof Element)) return {};
     const rect = el.getBoundingClientRect();
-    const sensitive = isSensitive(el);
     const shadowPath = [];
     let current = el;
     while (current?.getRootNode() instanceof ShadowRoot && shadowPath.length < 20) {
@@ -166,7 +132,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
     if (shadowPath.length) shadowPath.unshift(selector(current));
     const label =
-      !sensitive && "labels" in el && el.labels
+      "labels" in el && el.labels
         ? [...el.labels]
             .slice(0, 10)
             .map((item) => (item.innerText || "").trim().slice(0, 160))
@@ -178,20 +144,18 @@ import { encodeDatabaseValue } from "./database-value.js";
       tag: el.localName,
       nodeId: nodeId(el),
       type: el.getAttribute("type"),
-      ...(!sensitive && el instanceof HTMLInputElement && ["range", "number"].includes(el.type)
+      ...(el instanceof HTMLInputElement && ["range", "number"].includes(el.type)
         ? { numericConstraints: readNumericConstraints(el) }
         : {}),
       editable: el instanceof HTMLElement && el.isContentEditable,
       role: el.getAttribute("role"),
-      name: sensitive
-        ? "[已隐藏]"
-        : (
+      name: (
             el.getAttribute("aria-label") ||
             cleanStored(label) ||
             el.getAttribute("name") ||
             ""
           ).slice(0, 160),
-      text: sensitive ? "[已隐藏]" : cleanStored((el.innerText || "").slice(0, 160)),
+      text: cleanStored((el.innerText || "").slice(0, 160)),
       selector: shadowPath.length ? null : selector(el),
       ...(shadowPath.length ? { shadowPath } : {}),
       rect: {
@@ -200,31 +164,22 @@ import { encodeDatabaseValue } from "./database-value.js";
         width: Math.round(rect.width),
         height: Math.round(rect.height),
       },
-      sensitive,
     };
   };
   function cleanInput(raw) {
     const limited = raw.slice(0, MAX_INPUT_LENGTH);
-    const redactedValue = cleanStored(limited);
-    return {
-      value: redactedValue.slice(0, MAX_INPUT_LENGTH),
-      redacted: redactedValue !== limited,
-      truncated: raw.length > limited.length || redactedValue.length > MAX_INPUT_LENGTH,
-    };
+    return { value: limited, truncated: raw.length > limited.length };
   }
   const value = (el) => {
-    if (isSensitive(el)) return { value: "[已隐藏]" };
     if (el instanceof HTMLInputElement && el.type === "file")
       return { value: "[文件内容未采集]" };
     const raw = el instanceof HTMLElement && el.isContentEditable
       ? el.innerText : typeof el?.value === "string" ? el.value : null;
     if (raw === null) return { value: null };
-    const { value: cleaned, redacted, truncated } = cleanInput(raw);
-    return { value: cleaned, valueStatus: redacted && truncated ? "redacted_truncated"
-      : redacted ? "redacted" : truncated ? "truncated" : "captured" };
+    const { value: cleaned, truncated } = cleanInput(raw);
+    return { value: cleaned, valueStatus: truncated ? "truncated" : "captured" };
   };
   const formState = (el, includeOptions = false) => {
-    if (isSensitive(el)) return undefined;
     if (
       el instanceof HTMLInputElement &&
       ["checkbox", "radio"].includes(el.type)
@@ -312,14 +267,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
   }
   function safeText(node, text) {
-    const parent =
-      node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-    const sensitiveParent = parent?.closest?.(
-      'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
-    );
-    return sensitiveParent && isSensitive(sensitiveParent)
-      ? "[已隐藏]"
-      : cleanStored(String(text || "").slice(0, 10000));
+    return cleanStored(String(text || "").slice(0, 10000));
   }
   function safeAttribute(name, raw) {
     if (raw == null) return null;
@@ -327,14 +275,6 @@ import { encodeDatabaseValue } from "./database-value.js";
       try {
         const url = new URL(raw, document.baseURI);
         if (!["http:", "https:"].includes(url.protocol)) return "[非网络地址]";
-        if (url.username) url.username = "redacted";
-        if (url.password) url.password = "redacted";
-        for (const key of [...url.searchParams.keys()])
-          if (secret.test(key)) url.searchParams.set(key, "[已隐藏]");
-        const fragment = new URLSearchParams(
-          `value=${url.hash.slice(1).replace(/&/g, "%26")}`,
-        ).get("value");
-        if (secret.test(fragment)) url.hash = "#[已隐藏]";
         return url.href;
       } catch {
         return "[不可读取]";
@@ -385,8 +325,6 @@ import { encodeDatabaseValue } from "./database-value.js";
     )
       return null;
     const attrs = Object.create(null);
-    const hiddenOption =
-      node instanceof HTMLOptionElement && isSensitive(node.closest("select"));
     for (const attr of [...node.attributes]) {
       if (node.localName === "img" && attr.name.toLowerCase() === "src") {
         const url = safeImageUrl(attr.value);
@@ -400,22 +338,17 @@ import { encodeDatabaseValue } from "./database-value.js";
       )
         continue;
       if (attr.value.length > 10000) budget.truncated = true;
-      attrs[attr.name] =
-        secret.test(attr.name) ||
-        ((isSensitive(node) || hiddenOption) &&
-          /^(value|placeholder)$/i.test(attr.name))
-          ? "[已隐藏]"
-          : cleanStored(attr.value);
+      attrs[attr.name] = cleanStored(attr.value);
     }
     if (
       node instanceof HTMLInputElement &&
       ["checkbox", "radio"].includes(node.type)
     ) {
-      if (!isSensitive(node) && node.checked) attrs.checked = "";
+      if (node.checked) attrs.checked = "";
       else delete attrs.checked;
     }
     if (node instanceof HTMLOptionElement) {
-      if (!hiddenOption && node.selected) attrs.selected = "";
+      if (node.selected) attrs.selected = "";
       else delete attrs.selected;
     }
     const children = [...node.childNodes]
@@ -432,11 +365,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   function syncFormValue(source, copy) {
     if (!(source instanceof Element) || !(copy instanceof Element)) return;
     let truncated = false;
-    if (isSensitive(source)) {
-      copy.removeAttribute("value");
-      copy.removeAttribute("checked");
-      copy.textContent = "[已隐藏]";
-    } else if (source instanceof HTMLInputElement) {
+    if (source instanceof HTMLInputElement) {
       if (source.type !== "file") {
         truncated = source.value.length > MAX_INPUT_LENGTH;
         copy.setAttribute("value", source.value.slice(0, MAX_INPUT_LENGTH));
@@ -598,8 +527,6 @@ import { encodeDatabaseValue } from "./database-value.js";
           } catch { canvas.geometryOmitted++; }
         } else canvas.geometryOmitted++;
         if (canvasMode !== "enabled") return;
-        for (let node = source; node instanceof Element; node = node.parentElement || node.getRootNode()?.host)
-          if (isSensitive(node)) { canvasGap("omitted", "sensitive"); return; }
         if (++canvasAttempts > 5) { canvasGap("omitted", "count_limit"); return; }
         if (performance.now() > canvasDeadline) { canvasGap("omitted", "time_limit"); return; }
         if (!source.width || !source.height) { canvasGap("omitted", "zero_size"); return; }
@@ -736,14 +663,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         .forEach((el) => el.remove());
       let truncatedNodes = formValuesTruncated;
       for (const root of roots) root.querySelectorAll("*").forEach((el) => {
-        if (
-          el.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])') &&
-          isSensitive(el)
-        ) {
-          el.removeAttribute("value");
-          el.removeAttribute("checked");
-          el.textContent = "[已隐藏]";
-        } else if (el.matches('input[type="file"]')) el.removeAttribute("value");
+        if (el.matches('input[type="file"]')) el.removeAttribute("value");
         for (const attribute of [...el.attributes]) {
           if (attribute.name === "data-logic-fonts") {
             if (!fontReferences.has(el)) el.removeAttribute(attribute.name);
@@ -775,8 +695,6 @@ import { encodeDatabaseValue } from "./database-value.js";
             el.removeAttribute(attribute.name);
           else if (attribute.name.toLowerCase() === "poster")
             el.setAttribute(attribute.name, safeAttribute(attribute.name, attribute.value));
-          else if (secret.test(attribute.name))
-            el.setAttribute(attribute.name, "[已隐藏]");
           else {
             const cleaned = cleanStored(attribute.value);
             if (attribute.value.length > 10000 || cleaned.length > 10000) truncatedNodes++;
@@ -956,7 +874,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   }
   const choiceBefore = new WeakMap();
   function rememberChoice(target, time) {
-    if (!(target instanceof Element) || isSensitive(target)) return;
+    if (!(target instanceof Element)) return;
     choiceBefore.delete(target);
     const state = formState(target, true);
     if (state && !state.truncated && !state.optionsTruncated)
@@ -970,13 +888,13 @@ import { encodeDatabaseValue } from "./database-value.js";
           choiceBefore.delete(target);
         const previous = type === "change" && target instanceof Element ? choiceBefore.get(target) : null;
         if (type === "change" && target instanceof Element) choiceBefore.delete(target);
-        const beforeFormState = event.isTrusted && !isSensitive(target) && previous &&
+        const beforeFormState = event.isTrusted && previous &&
           time >= previous.time && time - previous.time <= 2000 ? previous.state : undefined;
         const files =
           target instanceof HTMLInputElement &&
           target.type === "file"
             ? [...(target.files || [])].slice(0, 20).map((file) => ({
-                name: isSensitive(target) ? "[已隐藏]" : file.name,
+                name: file.name,
                 size: file.size,
                 type: file.type,
                 content: "未采集",
@@ -1006,21 +924,20 @@ import { encodeDatabaseValue } from "./database-value.js";
   recordOnRoots("beforeinput", (event, target, time) => {
     if (!(target instanceof Element)) return;
     inputBefore.delete(target);
-    if (!event.isTrusted || isSensitive(target)) return;
+    if (!event.isTrusted) return;
     const raw = target instanceof HTMLElement && target.isContentEditable
       ? target.innerText : typeof target.value === "string" ? target.value : null;
     if (typeof raw !== "string") return;
-    const { value: previous, redacted, truncated } = cleanInput(raw);
-    if (previous !== "[已隐藏]")
-      inputBefore.set(target, { value: previous, time, inputType: event.inputType,
-        redacted, truncated });
+    const { value: previous, truncated } = cleanInput(raw);
+    inputBefore.set(target, { value: previous, time, inputType: event.inputType,
+      truncated });
   });
   recordOnRoots(
     "input",
     (event, target, time) => {
       const previous = target instanceof Element ? inputBefore.get(target) : null;
       if (target instanceof Element) inputBefore.delete(target);
-      const beforeValue = event.isTrusted && !isSensitive(target) && previous && time >= previous.time &&
+      const beforeValue = event.isTrusted && previous && time >= previous.time &&
         time - previous.time <= 2000 && previous.inputType === event.inputType
         ? previous.value : undefined;
       emit(
@@ -1031,8 +948,7 @@ import { encodeDatabaseValue } from "./database-value.js";
           viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
           ...value(target),
           ...(beforeValue !== undefined ? { beforeValue,
-            beforeValueStatus: previous.redacted && previous.truncated ? "redacted_truncated"
-              : previous.redacted ? "redacted" : previous.truncated ? "truncated" : "captured" } : {}),
+            beforeValueStatus: previous.truncated ? "truncated" : "captured" } : {}),
           formState: formState(target, true),
           inputType: event.inputType,
           composing: event.isComposing,
@@ -1054,10 +970,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         {
           url: location.href,
           target: describe(element),
-          key:
-            isSensitive(element) || (typeof event.key === "string" && event.key.length === 1)
-              ? "[输入]"
-              : event.key || "",
+          key: event.key || "",
           alt: event.altKey,
           ctrl: event.ctrlKey,
           meta: event.metaKey,
@@ -1099,7 +1012,7 @@ import { encodeDatabaseValue } from "./database-value.js";
             ? [...(event.dataTransfer?.files || [])]
                 .slice(0, 20)
                 .map((file) => ({
-                  name: isSensitive(target) ? "[已隐藏]" : file.name,
+                  name: file.name,
                   size: file.size,
                   type: file.type,
                   content: "未采集",
@@ -1114,7 +1027,7 @@ import { encodeDatabaseValue } from "./database-value.js";
             x: event.clientX,
             y: event.clientY,
             ...(type === "keyup" && typeof event.key === "string"
-              ? { key: isSensitive(target) || event.key.length === 1 ? "[输入]" : event.key,
+              ? { key: event.key,
                   alt: event.altKey, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey }
               : {}),
             files,
@@ -1241,9 +1154,6 @@ import { encodeDatabaseValue } from "./database-value.js";
         const name = record.attributeName || "";
         if (name === "open" && record.target instanceof HTMLDialogElement) dialogs.add(record.target);
         if (/^on/i.test(name)) continue;
-        const masked =
-          secret.test(name) ||
-          (isSensitive(record.target) && /^(value|placeholder)$/i.test(name));
         const next = records
           .slice(index + 1)
           .find(
@@ -1262,14 +1172,10 @@ import { encodeDatabaseValue } from "./database-value.js";
           type: "attribute",
           id: nodeId(record.target),
           name,
-          before: masked
-            ? "[已隐藏]"
-            : record.target.localName === "img" && name === "src"
+          before: record.target.localName === "img" && name === "src"
               ? safeImageUrl(record.oldValue)
               : safeAttribute(name, record.oldValue),
-          value: masked
-            ? "[已隐藏]"
-            : record.target.localName === "img" && name === "src"
+          value: record.target.localName === "img" && name === "src"
               ? safeImageUrl(current)
               : safeAttribute(name, current),
         });
@@ -1349,20 +1255,8 @@ import { encodeDatabaseValue } from "./database-value.js";
           const key = store.key(i);
           if (key === null) continue;
           const raw = store.getItem(key);
-          let safe = raw;
-          if (raw && !secret.test(key) && raw.length <= 4000) {
-            try {
-              safe = JSON.stringify(cleanStored(JSON.parse(raw)));
-            } catch {
-              safe = cleanStored(raw);
-            }
-          }
-          if (!secret.test(key) && raw?.length > 4000) oversizedValues++;
-          entries[key] = secret.test(key)
-            ? "[已隐藏]"
-            : raw?.length > 4000
-              ? "[超过大小限制]"
-              : safe;
+          if (raw?.length > 4000) oversizedValues++;
+          entries[key] = raw?.length > 4000 ? "[超过大小限制]" : raw;
           if (key === "__proto__")
             specialEntries.push({ storage: name, key, value: entries[key] });
         }
@@ -1469,11 +1363,8 @@ import { encodeDatabaseValue } from "./database-value.js";
                     return;
                   }
                   try {
-                    const encodedKey = encodeDatabaseValue(row.key, (key) => secret.test(key), cleanStored);
-                    const encoded =
-                      secret.test(name) || secret.test(String(row.key))
-                        ? { value: "[已隐藏]", issues: [] }
-                        : encodeDatabaseValue(row.value, (key) => secret.test(key), cleanStored);
+                    const encodedKey = encodeDatabaseValue(row.key, cleanStored);
+                    const encoded = encodeDatabaseValue(row.value, cleanStored);
                     const serialized = JSON.stringify(encoded.value);
                     const tooLarge =
                       serialized?.length > 10000 ||
@@ -1560,8 +1451,8 @@ import { encodeDatabaseValue } from "./database-value.js";
       const names = await withinDeadline(caches.keys());
       let remaining = 300;
       for (const name of names.slice(0, 20)) {
-        const safeName = secret.test(name) ? "[已隐藏]" : cleanStored(name);
-        const nameStatus = name.length > 10000 ? "omitted_size" : secret.test(name) ? "redacted" : "captured";
+        const safeName = cleanStored(name);
+        const nameStatus = name.length > 10000 ? "omitted_size" : "captured";
         if (remaining <= 0) {
           emit("cache.snapshot", { reason, name: safeName, status: "omitted_limit" });
           continue;
@@ -1635,85 +1526,10 @@ import { encodeDatabaseValue } from "./database-value.js";
     beginStateCapture("cache", "initial", () => captureCache("initial")),
   ];
   const onMessage = (msg, _sender, reply) => {
-    if (msg.type === "SENSITIVE_CHECK") {
-      let elements;
-      try {
-        elements = collectDom().elements;
-      } catch (error) {
-        reply({ error: String(error) });
-        return;
-      }
-      const secretText =
-        /(?:password|passwd|pwd|token|secret|authorization|credential|session(?:[_-]?(?:id|token))?|cookie|api[_.-]?key|csrf(?:[_-]?token)?|xsrf(?:[_-]?token)?|jwt|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b|验证码|密码|令牌)\s*["']?\s*[:=]\s*\S+|\bBearer\s+[A-Za-z0-9._~+\/-]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i;
-      const rects = elements
-        .filter(
-          (el) =>
-            (el.matches(
-              'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
-            ) &&
-              isSensitive(el)) ||
-            (!el.children.length && secretText.test(el.textContent || "")),
-        )
-        .map((el) => el.getBoundingClientRect())
-        .filter((rect) => rect.width > 0 && rect.height > 0)
-        .map(({ x, y, width, height }) => ({ x, y, width, height }));
-      const frames = elements
-        .filter((el) => el.localName === "iframe")
-        .flatMap((el) => {
-          const rect = el.getBoundingClientRect(),
-            style = getComputedStyle(el);
-          if (
-            !rect.width ||
-            !rect.height ||
-            style.visibility === "hidden" ||
-            style.display === "none" ||
-            rect.right <= 0 ||
-            rect.bottom <= 0 ||
-            rect.left >= innerWidth ||
-            rect.top >= innerHeight
-          )
-            return [];
-          let node = el,
-            safe = true;
-          while (node instanceof Element) {
-            const css = getComputedStyle(node);
-            if (
-              css.transform !== "none" ||
-              (css.zoom !== "1" && css.zoom !== "normal")
-            )
-              safe = false;
-            node = node.parentElement || node.getRootNode()?.host;
-          }
-          return [
-            {
-              url: el.src,
-              x: rect.x,
-              y: rect.y,
-              width: rect.width,
-              height: rect.height,
-              borderX: el.clientLeft,
-              borderY: el.clientTop,
-              clientWidth: el.clientWidth,
-              clientHeight: el.clientHeight,
-              safe,
-            },
-          ];
-        });
-      reply({
-        url: location.href,
-        rects,
-        frames,
-        viewport: {
-          width: innerWidth,
-          height: innerHeight,
-          dpr: devicePixelRatio,
-          scrollX,
-          scrollY,
-          scale: visualViewport?.scale || 1,
-          offsetX: visualViewport?.offsetLeft || 0,
-          offsetY: visualViewport?.offsetTop || 0,
-        },
-      });
+    if (msg.type === "VIEWPORT_INFO") {
+      reply({ url: location.href, viewport: { width: innerWidth, height: innerHeight,
+        dpr: devicePixelRatio, scrollX, scrollY, scale: visualViewport?.scale || 1,
+        offsetX: visualViewport?.offsetLeft || 0, offsetY: visualViewport?.offsetTop || 0 } });
     }
     if (msg.type === "FLUSH") {
       clearTimeout(shadowTimer);

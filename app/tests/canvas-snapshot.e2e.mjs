@@ -86,12 +86,12 @@ try {
   assert.ok(snapshot?.payload.html);
   assert.equal(snapshot.payload.canvas.status, "captured");
   assert.equal(snapshot.payload.canvas.total, 5);
-  assert.equal(snapshot.payload.canvas.captured, 2);
+  assert.equal(snapshot.payload.canvas.captured, 3);
   assert.equal(snapshot.payload.canvas.unavailable, 1);
-  assert.equal(snapshot.payload.canvas.omitted, 2);
+  assert.equal(snapshot.payload.canvas.omitted, 1);
   assert.equal(snapshot.payload.canvas.reasons.cross_origin, 1);
   assert.equal(snapshot.payload.canvas.reasons.pixel_limit, 1);
-  assert.equal(snapshot.payload.canvas.reasons.sensitive, 1);
+  assert.equal(snapshot.payload.canvas.reasons.sensitive, undefined);
   const ids = await panel.evaluate((html) => {
     const doc = new DOMParser().parseFromString(html, "text/html");
     return { chart: doc.querySelector("#chart")?.getAttribute("data-logic-node"),
@@ -104,7 +104,7 @@ try {
   assert.equal(chartItem.pixelHeight, 40);
   assert.ok(Number.isFinite(chartItem.captureStartedAt) && chartItem.captureStartedAt <= chartItem.capturedAt && chartItem.capturedAt <= snapshot.time);
   assert.ok(snapshot.payload.canvas.items.some((item) => item.nodeId === ids.shadow));
-  assert.ok(!snapshot.payload.canvas.items.some((item) => item.nodeId === ids.sensitive));
+  assert.ok(snapshot.payload.canvas.items.some((item) => item.nodeId === ids.sensitive));
   await panel.reload();
   const record = panel.locator(".record").filter({ hasText: "画布快照测试" }).first();
   await record.getByText("完成（有采集提示）").waitFor();

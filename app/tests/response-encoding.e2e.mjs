@@ -150,21 +150,21 @@ try {
   const form = responseFor("/form"),
     graphql = responseFor("/graphql"),
     invalid = responseFor("/invalid");
-  assert.equal(form?.status, "captured_redacted");
+  assert.equal(form?.status, "captured");
   assert.equal(new URLSearchParams(form.value).get("customer"), "C001");
-  assert.equal(new URLSearchParams(form.value).get("token"), "[已隐藏]");
-  assert.equal(graphql?.status, "captured_redacted_best_effort");
+  assert.equal(new URLSearchParams(form.value).get("token"), "private-form-value");
+  assert.equal(graphql?.status, "captured");
   assert.ok(
     graphql.value.includes("customerName") &&
-      !graphql.value.includes("private-graphql-value"),
+      graphql.value.includes("private-graphql-value"),
   );
   assert.equal(invalid?.status, "unavailable");
   assert.match(invalid.reason, /声明长度非零/);
   assert.equal(responseFor("/invalid-base64")?.status, "omitted_encoding");
   assert.equal(responseFor("/gbk")?.value, "中文");
-  assert.equal(responseFor("/invalid-json")?.status, "omitted_unparseable");
+  assert.equal(responseFor("/invalid-json")?.status, "captured");
   assert.equal(responseFor("/empty")?.status, "empty");
-  assert.ok(stopped.value.coverage.responseGaps >= 3);
+  assert.ok(stopped.value.coverage.responseGaps >= 2);
   await panel.reload();
   const record = panel.locator(".record").filter({ hasText: "响应编码测试" });
   await record.getByText("完成（有采集提示）").waitFor();
@@ -179,8 +179,8 @@ try {
   );
   const text = JSON.stringify(archiveEvents);
   assert.ok(
-    !text.includes("private-form-value") &&
-      !text.includes("private-graphql-value"),
+    text.includes("private-form-value") &&
+      text.includes("private-graphql-value"),
   );
   await panel.getByRole("button", { name: "导入记录包" }).click();
   await panel.locator("input[type=file]").first().setInputFiles(archivePath);
@@ -188,8 +188,7 @@ try {
   await panel.getByRole("button", { name: "报告", exact: true }).click();
   await panel.getByText("响应体编码无法解析").first().waitFor();
   await panel.getByText("响应体无法读取").first().waitFor();
-  await panel.getByText("响应体内容无法解析").first().waitFor();
-  console.log("编码文本响应的采集、脱敏和异常提示通过");
+  console.log("编码文本响应的原值采集和异常提示通过");
 } finally {
   if (context) await context.close();
   await new Promise((resolve) => server.close(resolve));

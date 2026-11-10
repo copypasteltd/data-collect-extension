@@ -5,6 +5,9 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 新录制按浏览器提供的原值保存输入、请求、响应、Cookie、站点状态、截图与画布；不再按敏感字段隐藏或遮挡。接口草稿保留重复查询参数、多次样本和事件来源；记录包不加密。 / Retain browser-provided input, requests, responses, cookies, site state, screenshots, and canvases without field masking; API drafts include repeated query parameters, multiple samples, and evidence links. Recordings are not encrypted.
+- 更新中英文说明和虚构数据演示素材，展示原值记录的授权提示与当前侧边栏操作。 / Refresh bilingual documentation and synthetic-data demo media to show the raw-recording consent text and current side-panel workflow.
+- 修复跨进程嵌入页面创建时网址尚未确定导致后续网络采集丢失；旧测试中被替换的空连接标识不再误判为真实连接。 / Keep observing cross-process frames created before their URL is known, authorize subsequent capture against the confirmed URL, and correct a test that treated a masked null session ID as a real connection.
 - 页面采集通信增加有界等待：约 2 秒未返回时使用原批次标识重试，最多保留 3 个未返回请求；持续无响应时提示缺口，连接恢复后继续处理新事件。 / Bound page-collector communication waits: retry after roughly two seconds with the same batch ID, retain at most three unanswered requests, report persistent gaps, and resume new events when communication recovers.
 - 页面事件通信异常时使用稳定批次标识重试，并在事务中核对已有事件，避免重复写入；标识冲突会拒绝，无法确认的截图排队状态会提示。 / Retry page-event communication failures with stable batch IDs and verify existing events in the transaction to prevent duplicates; reject identity conflicts and report uncertain screenshot scheduling.
 - 页面事件按批写入事务并保留逐条确认；为每个页面框架增加 2,000 条或估算 32 MB 的发送队列上限，超限时尝试即时提示并在结束后标记不完整。 / Write page events in batches while retaining per-event acknowledgement; bound each frame's delivery queue to 2,000 events or an estimated 32 MB, with an immediate warning attempt and an incomplete recording status on overflow.

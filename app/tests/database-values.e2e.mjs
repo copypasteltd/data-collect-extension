@@ -82,7 +82,7 @@ try {
   const store = snapshot?.payload.database.stores.find((item) => item.name === "orders");
   const row = store?.records.find((item) => item.key === "order-1");
   assert.deepEqual(row?.value.count, { $type: "bigint", value: "12345678901234567890" });
-  assert.deepEqual(row.value.options, { $type: "map", entries: [["customer", "客户甲"], ["token", "[已隐藏]"]] });
+  assert.deepEqual(row.value.options, { $type: "map", entries: [["customer", "客户甲"], ["token", "private-map-token"]] });
   assert.deepEqual(row.value.tags, { $type: "set", values: ["已支付", "已发货"] });
   assert.equal(row.value.timestamp, "2025-01-01T00:00:00.000Z");
   assert.deepEqual(row.value.binary, { $type: "binary", kind: "Uint8Array", size: 3 });
@@ -96,7 +96,7 @@ try {
   assert.equal(binaryKey?.key.size, 2);
   assert.ok(binaryKey.issues.includes("binary_omitted"));
   assert.ok(stopped.value.coverage.databaseGaps > 0);
-  assert.ok(!JSON.stringify(events).includes("private-map-token"));
+  assert.ok(JSON.stringify(events).includes("private-map-token"));
   await record.getByText("完成（有采集提示）").waitFor();
   await record.getByTitle("查看记录").click();
   await panel.getByRole("button", { name: "报告", exact: true }).click();
