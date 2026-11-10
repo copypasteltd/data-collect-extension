@@ -998,6 +998,9 @@ async function stop(onStopping) {
       ((event.payload.canvas?.total > 0 && (event.payload.canvas.status !== "captured" ||
         event.payload.canvas.omitted > 0 || event.payload.canvas.unavailable > 0 || event.payload.canvas.geometryOmitted > 0)) ||
         event.payload.canvas?.scanTruncated)).length,
+    popoverGaps: recorded.filter((event) =>
+      (event.kind === "page.snapshot" && (event.payload.popover?.omitted || event.payload.popover?.unavailable || event.payload.popover?.scanTruncated)) ||
+      (event.kind === "page.popover" && event.payload.status === "unavailable")).length,
     inputGaps: recorded.filter(
       (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
         (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||

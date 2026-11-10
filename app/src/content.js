@@ -358,7 +358,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       }
       if (
         /^on/i.test(attr.name) ||
-        /^(src|srcset|href|action|formaction|data-logic-node|data-logic-src)$/i.test(
+        /^(src|srcset|href|action|formaction|data-logic-node|data-logic-src|data-logic-popover-open)$/i.test(
           attr.name,
         )
       )
@@ -454,7 +454,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
     return truncated;
   }
-  function captureShadowSnapshots(original, clone, fontReferences, captureCanvas) {
+  function captureShadowSnapshots(original, clone, fontReferences, captureCanvas, capturePopover) {
     const result = { roots: 0, captured: 0, omitted: 0, stylesUnavailable: 0, truncated: false, scrollPositions: [] };
     const pending = [[original, clone, false]];
     let visited = 0, shadowNodes = 0;
@@ -463,6 +463,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       const [source, copy, inShadow] = pending.pop();
       if (!(source instanceof Element) || !(copy instanceof Element)) continue;
       if (source instanceof HTMLCanvasElement) captureCanvas(source);
+      if (source.hasAttribute("popover")) capturePopover(source);
       const sourceChildren = [...source.children], copyChildren = [...copy.children];
       for (let i = 0; i < Math.min(sourceChildren.length, copyChildren.length); i++)
         pending.push([sourceChildren[i], copyChildren[i], inShadow]);
@@ -522,6 +523,16 @@ import { encodeDatabaseValue } from "./database-value.js";
   function snapshot(reason) {
     try {
       const canvas = { status: canvasMode === "enabled" ? "captured" : canvasMode, total: 0, captured: 0, omitted: 0, unavailable: 0, reasons: {}, geometryOmitted: 0, geometry: [], items: [] };
+      const popover = { total: 0, open: [], omitted: 0, unavailable: 0 };
+      const capturePopover = (source) => {
+        popover.total++;
+        try {
+          if (source.matches(":popover-open")) {
+            if (popover.open.length < 100) popover.open.push(nodeId(source));
+            else popover.omitted++;
+          }
+        } catch { popover.unavailable++; }
+      };
       let canvasBytes = 0, canvasAttempts = 0, canvasDeadline;
       const canvasGap = (kind, reason) => {
         canvas[kind]++;
@@ -563,8 +574,9 @@ import { encodeDatabaseValue } from "./database-value.js";
       const clone = inert.importNode(document.documentElement, true);
       markNodes(document.documentElement, clone);
       const fontReferences = new WeakSet();
-      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences, captureCanvas);
+      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences, captureCanvas, capturePopover);
       if (shadow.truncated) canvas.scanTruncated = true;
+      if (shadow.truncated) popover.scanTruncated = true;
       if (canvasMode === "pending" && canvas.total) canvasPendingSnapshot = true;
       clone.removeAttribute("data-logic-background");
       clone
@@ -697,6 +709,10 @@ import { encodeDatabaseValue } from "./database-value.js";
             el.removeAttribute(attribute.name);
             continue;
           }
+          if (attribute.name.toLowerCase() === "data-logic-popover-open") {
+            el.removeAttribute(attribute.name);
+            continue;
+          }
           if (
             attribute.name.toLowerCase() === "src" &&
             el.localName === "img"
@@ -765,6 +781,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         scroll: { positions: scrollPositions, truncated: scrollTruncated },
         shadow,
         canvas,
+        popover,
         styles: {
           captured: stylesCaptured,
           unavailable: stylesUnavailable,
@@ -1105,6 +1122,15 @@ import { encodeDatabaseValue } from "./database-value.js";
       });
     },
   );
+  recordOnRoots("toggle", (_event, target, time) => {
+    if (!(target instanceof HTMLElement) || !target.hasAttribute("popover")) return;
+    try {
+      emit("page.popover", { url: location.href, targetNodeId: nodeId(target), open: target.matches(":popover-open") }, false, time);
+    } catch {
+      emit("page.popover", { url: location.href, targetNodeId: nodeId(target), status: "unavailable" }, false, time);
+    }
+    scheduleSnapshot("popover");
+  });
   refreshShadowListeners();
   window.addEventListener(
     "hashchange",

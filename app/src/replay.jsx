@@ -9,6 +9,7 @@ import {
 import { assessScreenshotTiming, canPlaceScreenshotTarget, findStepScreenshots } from "./screenshots.js";
 import { attachPageReplay } from "./page-replay.js";
 import { restoreScrollState } from "./scroll-state.js";
+import { restorePopoverState } from "./popover-state.js";
 import { MAX_INPUT_LENGTH } from "./capture-limits.js";
 import { normalizeNumericConstraint } from "./numeric-constraints.js";
 
@@ -321,14 +322,15 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
               onLoad={(event) => {
                 const frame = event.currentTarget;
                 try {
+                  const popoverReady = restorePopoverState(frame);
                   restoreScrollState(frame, snapshot.scrollState);
-                  if (completed) return;
+                  if (completed) { setPageProblem(popoverReady ? null : "部分弹出层状态无法还原"); return; }
                   const result = attachPageReplay(frame, step, {
                     control, canType, inputBefore, choiceInitial,
                     onInput: updateInputValue, onChoice: updateChoiceValue,
                     onSelection: updateSelectionValues, onNext: next,
                   });
-                  setPageProblem(result.ok ? null : result.reason);
+                  setPageProblem(result.ok ? (popoverReady ? null : "部分弹出层状态无法还原") : result.reason);
                 } catch { setPageProblem("页面快照无法交互"); }
               }}
             />

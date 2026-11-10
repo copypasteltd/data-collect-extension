@@ -319,6 +319,7 @@ function App() {
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.canvasGaps ||
+                      session.coverage?.popoverGaps ||
                       session.coverage?.inputGaps ||
                       session.coverage?.storageGaps ||
                       session.coverage?.styleGaps ||

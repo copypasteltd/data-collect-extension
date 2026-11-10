@@ -18,7 +18,7 @@ const forbiddenTags = new Set([
   "foreignobject",
 ]);
 const forbiddenAttr =
-  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-node$)/i;
+  /^(on|src$|srcset$|href$|xlink:href$|action$|formaction$|poster$|background$|manifest$|ping$|srcdoc$|data-logic-node$|data-logic-popover-open$)/i;
 
 function inputNode(doc, target) {
   const unique = (root, selector) => {
@@ -45,8 +45,9 @@ function inputNode(doc, target) {
   return node;
 }
 
-export function applyRecordedMutations(doc, events) {
+export function applyRecordedMutations(doc, events, popover) {
   const refs = new Map(),
+    duplicates = new Set(),
     issues = [],
     rootHosts = new Map(),
     roots = [doc];
@@ -59,7 +60,7 @@ export function applyRecordedMutations(doc, events) {
   for (const root of roots) {
     for (const element of root.querySelectorAll("[data-logic-node]")) {
       const id = element.getAttribute("data-logic-node");
-      if (refs.has(id)) issues.push("节点标识重复");
+      if (refs.has(id)) { duplicates.add(id); issues.push("节点标识重复"); }
       else refs.set(id, {
         node: element,
         container: element.matches("template[data-logic-shadow-root]") ? element.content : element,
@@ -72,10 +73,20 @@ export function applyRecordedMutations(doc, events) {
       if (!match || !marker.nextSibling) continue;
       const expected = match[1] === "text" ? 3 : 8;
       if (marker.nextSibling.nodeType !== expected || refs.has(match[2])) {
+        if (refs.has(match[2])) duplicates.add(match[2]);
         issues.push("文本节点标识无效");
         continue;
       }
       refs.set(match[2], { node: marker.nextSibling, marker });
+    }
+  }
+  if (popover != null) {
+    if (!Array.isArray(popover.open) || popover.open.length > 100)
+      issues.push("弹出层状态格式无效或超过上限");
+    for (const id of Array.isArray(popover.open) ? popover.open.slice(0, 100) : []) {
+      const node = typeof id === "string" && /^\d{1,16}$/.test(id) && !duplicates.has(id) ? refs.get(id)?.node : null;
+      if (!node || node.nodeType !== 1 || !node.hasAttribute("popover")) issues.push("弹出层目标无法确认");
+      else node.setAttribute("data-logic-popover-open", "1");
     }
   }
   function present(node) {
@@ -104,6 +115,7 @@ export function applyRecordedMutations(doc, events) {
           : doc.createComment(String(item.text ?? "").slice(0, 10000));
       const fragment = doc.createDocumentFragment();
       fragment.append(marker, node);
+      if (refs.has(item.id)) duplicates.add(item.id);
       refs.set(item.id, { node, marker });
       return fragment;
     }
@@ -116,6 +128,7 @@ export function applyRecordedMutations(doc, events) {
       throw new Error("新增元素不受支持");
     const node = doc.createElement(item.tag);
     node.setAttribute("data-logic-node", item.id);
+    if (refs.has(item.id)) duplicates.add(item.id);
     refs.set(item.id, { node });
     for (const [name, value] of Object.entries(item.attrs || {}).slice(
       0,
@@ -219,6 +232,15 @@ export function applyRecordedMutations(doc, events) {
   let applied = 0;
   for (let index = 0; index < events.length; index++) {
     const event = events[index];
+    if (event.kind === "page.popover") {
+      const id = event.payload?.targetNodeId;
+      const node = typeof id === "string" && /^\d{1,16}$/.test(id) && !duplicates.has(id) ? refs.get(id)?.node : null;
+      if (!present(node) || node.nodeType !== 1 || !node.hasAttribute("popover") || typeof event.payload?.open !== "boolean")
+        issues.push("弹出层状态无法确认");
+      else if (event.payload.open) node.setAttribute("data-logic-popover-open", "1");
+      else node.removeAttribute("data-logic-popover-open");
+      continue;
+    }
     if (["interaction.input", "interaction.change"].includes(event.kind)) {
       if (["truncated", "redacted_truncated"].includes(event.payload?.valueStatus))
         issues.push("输入值超过采集上限，仅还原已记录内容");
@@ -255,6 +277,7 @@ export function applyRecordedMutations(doc, events) {
             !forbiddenAttr.test(name) &&
             /^[a-z_:][a-z0-9_:.-]*$/i.test(name)
           ) {
+            if (name.toLowerCase() === "popover") ref.node.removeAttribute("data-logic-popover-open");
             if (change.value === null) ref.node.removeAttribute(name);
             else
               ref.node.setAttribute(

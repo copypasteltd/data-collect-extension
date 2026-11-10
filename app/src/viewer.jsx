@@ -25,6 +25,7 @@ import { fontMime } from "./font-format.js";
 import { recordedFontFaces, recordedFontMetadata } from "./font-resources.js";
 import { applyRecordedMutations } from "./mutations.js";
 import { recordedScrollState, restoreScrollState } from "./scroll-state.js";
+import { restorePopoverState } from "./popover-state.js";
 import { assessScreenshotTiming } from "./screenshots.js";
 import { findReplayOutcome } from "./replay-outcome.js";
 import { matchesRequestSnapshot, requestSnapshotCursor } from "./request-snapshot.js";
@@ -41,6 +42,7 @@ const labels = {
   "interaction.keydown": "按键",
   "page.snapshot": "页面状态",
   "page.mutation": "页面变化",
+  "page.popover": "弹出层状态",
   screenshot: "截图",
   "network.request": "请求",
   "network.requestBody": "请求体",
@@ -111,6 +113,8 @@ function snapshotIssues(payload) {
     if (Number.isSafeInteger(count) && count > 0) issues.push(`${label}：${count} 个`);
   }
   if (payload.canvas?.scanTruncated) issues.push("画布检查可能不完整");
+  if (payload.popover?.omitted) issues.push(`弹出层状态超过采集上限：${payload.popover.omitted} 个`);
+  if (payload.popover?.unavailable || payload.popover?.scanTruncated) issues.push("弹出层状态检查不完整");
   return issues;
 }
 function databaseIssue(payload) {
@@ -168,10 +172,12 @@ function Report({ archive, showEvent }) {
           e.payload.scroll?.truncated ||
           (e.payload.canvas?.total > 0 && (e.payload.canvas.status !== "captured" || e.payload.canvas.omitted > 0 || e.payload.canvas.unavailable > 0 || e.payload.canvas.geometryOmitted > 0)) ||
           e.payload.canvas?.scanTruncated ||
+          e.payload.popover?.omitted || e.payload.popover?.unavailable || e.payload.popover?.scanTruncated ||
           e.payload.shadow?.roots > 0 ||
           e.payload.shadow?.truncated ||
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
+      (e.kind === "page.popover" && e.payload.status === "unavailable") ||
       (e.kind === "cache.snapshot" && !!cacheIssue(e.payload)) ||
       (e.kind === "state.capture" && ["timeout", "failed"].includes(e.payload.status)) ||
       e.kind === "storage.unavailable" ||
@@ -262,6 +268,7 @@ function Report({ archive, showEvent }) {
                 ? snapshotIssues(e.payload).join("；")
                 : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
                 (e.kind === "cache.snapshot" ? cacheIssue(e.payload) : null) ||
+                (e.kind === "page.popover" ? "弹出层状态无法读取" : null) ||
                 (e.kind === "state.capture"
                   ? `${e.payload.reason === "initial" ? "开始" : "结束"}时${e.payload.source === "database" ? "数据库" : "缓存"}采集${e.payload.status === "timeout" ? "超时" : "失败"}`
                   : null) ||
@@ -333,6 +340,7 @@ export default function Viewer({ onBack, sessionId }) {
     setReplayOutcome(completed);
   }, []);
   const [scrollFailed, setScrollFailed] = useState(false);
+  const [popoverFailed, setPopoverFailed] = useState(false);
   const events = useMemo(
     () =>
       (archive?.events || [])
@@ -446,8 +454,8 @@ export default function Viewer({ onBack, sessionId }) {
     const result = applyRecordedMutations(
       doc,
       related.filter((event) =>
-        ["page.mutation", "interaction.input", "interaction.change"].includes(event.kind),
-      ),
+        ["page.mutation", "page.popover", "interaction.input", "interaction.change"].includes(event.kind),
+      ), snapshotEvent.payload.popover,
     );
     const scrollState = recordedScrollState(snapshotEvent.payload, related);
     result.issues.push(...snapshotIssues(snapshotEvent.payload));
@@ -1157,6 +1165,9 @@ export default function Viewer({ onBack, sessionId }) {
                           {scrollFailed && (
                             <div className="notice error">滚动位置无法还原</div>
                           )}
+                          {popoverFailed && (
+                            <div className="notice error">部分弹出层状态无法还原</div>
+                          )}
                           <iframe
                             key={selected.id}
                             className="snapshot"
@@ -1164,10 +1175,12 @@ export default function Viewer({ onBack, sessionId }) {
                             sandbox="allow-same-origin"
                             onLoad={(event) => {
                               try {
+                                setPopoverFailed(!restorePopoverState(event.currentTarget));
                                 setScrollFailed(
                                   !restoreScrollState(event.currentTarget, snapshot.scrollState),
                                 );
                               } catch {
+                                setPopoverFailed(true);
                                 setScrollFailed(true);
                               }
                             }}
