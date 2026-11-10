@@ -24,3 +24,13 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
   assert.deepEqual(sent, ["first", "rejected", "unaccepted"]);
   assert.equal(delivery.failedEvents, 3);
 });
+
+it("对部分写入失败只统计未确认的事件，拒绝不一致的确认", async () => {
+  const delivery = createEventDelivery(async (events) => events[0] === "partial"
+    ? { ok: true, value: { accepted: 2, failed: 1 } }
+    : { ok: true, value: { accepted: 99, failed: 0 } });
+  await delivery.enqueue(["partial", "saved", "failed"]);
+  assert.equal(delivery.failedEvents, 1);
+  await delivery.enqueue(["invalid", "unknown"]);
+  assert.equal(delivery.failedEvents, 3);
+});

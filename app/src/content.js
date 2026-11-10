@@ -8,6 +8,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   const abort = new AbortController();
   const MAX_INPUT_LENGTH = 10000;
   let stopped = false;
+  let collectorClosed = false;
   let canvasMode = "pending";
   let canvasPendingSnapshot = false;
   const secret =
@@ -27,9 +28,25 @@ import { encodeDatabaseValue } from "./database-value.js";
         ].join(" "),
       ));
   let buffer = [];
-  const delivery = createEventDelivery((events) =>
-    chrome.runtime.sendMessage({ type: "EVENTS", events }),
-  );
+  const captureSettings = (() => {
+    let timeout;
+    return Promise.race([
+      chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" }),
+      new Promise((resolve) => { timeout = setTimeout(() => resolve(null), 5000); }),
+    ]).catch(() => null).then((result) => {
+      clearTimeout(timeout);
+      const settings = result?.ok && typeof result.value?.sessionId === "string" ? result.value : null;
+      canvasMode = typeof settings?.enabled === "boolean"
+        ? (settings.enabled ? "enabled" : "disabled") : "unavailable";
+      if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
+      return settings;
+    });
+  })();
+  const delivery = createEventDelivery(async (events) => {
+    const settings = await captureSettings;
+    if (!settings || collectorClosed) return { ok: false };
+    return chrome.runtime.sendMessage({ type: "EVENTS", events, sessionId: settings.sessionId });
+  });
   let timer;
   let snapshotTimer;
   let snapshotMaxTimer;
@@ -1724,6 +1741,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     if (msg.type === "STOP_CAPTURE") {
       clearTimeout(shadowTimer);
       cancelDeferredEvents();
+      collectorClosed = true;
       stopped = true;
       abort.abort();
       observer.disconnect();
@@ -1737,14 +1755,6 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
   };
   chrome.runtime.onMessage.addListener(onMessage);
-  chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" }).then((result) => {
-    canvasMode = result?.ok && typeof result.value?.enabled === "boolean"
-      ? (result.value.enabled ? "enabled" : "disabled") : "unavailable";
-    if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
-  }).catch(() => {
-    canvasMode = "unavailable";
-    if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
-  });
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", () => snapshot("initial"), {
       once: true,

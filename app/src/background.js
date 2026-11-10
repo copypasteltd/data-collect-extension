@@ -878,7 +878,7 @@ async function stop(onStopping) {
         );
         if (!result?.ok)
           throw new Error(
-            `页面采集消息未送达：${result?.failedEvents || 0} 条`,
+            `页面采集消息未确认：${result?.failedEvents || 0} 条`,
           );
       } catch (error) {
         session.incomplete = true;
@@ -1139,11 +1139,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (message.type === "CANVAS_OPTIONS") {
       if (!active || !active.tabs[sender.tab?.id] || !allowedUrl(sender.url) ||
           !["preparing", "recording"].includes(active.status)) return { enabled: false };
-      return { enabled: active.options?.canvasSnapshots === true };
+      return { enabled: active.options?.canvasSnapshots === true, sessionId: active.id };
     }
     if (message.type === "EVENTS") {
       if (
         !active ||
+        message.sessionId !== active.id ||
         !active.tabs[sender.tab?.id] ||
         !["preparing", "recording", "stopping"].includes(active.status)
       )
@@ -1156,7 +1157,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         }
       })();
       if (!allowedUrl(origin)) return false;
-      for (const item of message.events) {
+      if (!Array.isArray(message.events)) return false;
+      const session = active;
+      let accepted = 0, failed = 0;
+      for (const [index, item] of message.events.entries()) {
+        if (active !== session || !["preparing", "recording", "stopping"].includes(session.status)) {
+          failed += message.events.length - index;
+          break;
+        }
         const eventId = uid();
         const itemPayload = {
           ...item.payload,
@@ -1169,7 +1177,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           frameId: sender.frameId,
           documentId: sender.documentId,
         });
-        if (saved && item.screenshot && active.options.screenshots)
+        if (saved) accepted++; else failed++;
+        if (saved && active === session && item.screenshot && session.options.screenshots)
           requestScreenshot(
             eventId,
             sender.tab.id,
@@ -1178,7 +1187,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
             itemPayload.url,
           );
       }
-      return true;
+      return { accepted, failed };
     }
     return null;
   })()

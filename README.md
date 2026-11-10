@@ -49,6 +49,8 @@ npm run build
 导入并校验成功后，原始 ZIP 会保存到本机“录制记录”，可在浏览器重启后再次查看、原样下载或删除。重复导入生成独立记录；保存失败时仍可在当前界面查看，关闭后需要重新导入。导入包按原样保存，不会再次脱敏。
 
 停止整理期间若收到重复停止请求，插件会提示等待，原任务继续收尾；实际收尾失败时会标记异常中断。
+
+页面采集消息绑定当前录制，并在本地逐条写入后确认；部分写入失败会计入未确认数量并提示异常中断。若通信在确认前中断，未确认不一定代表全部丢失，也不能保证已经保存。
 停止时仍在进行的请求会在记录包和采集报告中逐条标记，不能据此认定请求失败；请求已结束但响应内容未完成采集的情况也会单独提示。旧记录可能缺少这些标记。
 查看记录时，报告还会检查已保存的请求是否缺少结束事件，并提供原请求的查看入口。这适用于异常中断及旧记录，但无法判断请求的实际结果，也无法找回未保存的事件。
 
@@ -185,6 +187,7 @@ npm run test:worker-network-recovery
 npm run test:worker-socket-recovery
 npm run test:worker-frame-recovery
 npm run test:concurrent-stop
+npm run test:event-ack
 npm run test:archive-roundtrip
 npm run test:archive-concurrency
 npm run test:input-length

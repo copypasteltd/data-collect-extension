@@ -49,6 +49,8 @@ npm run build
 After successful validation, the original ZIP is saved in the local recording list for viewing, downloading unchanged, or deletion after a browser restart. Each import creates a separate entry. If local saving fails, the archive remains open for the current view and must be imported again after closing it. Imported content is saved as supplied and is not redacted again.
 
 While a recording is being finalized, repeated stop requests return a wait message and the original finalization continues. A genuine finalization failure is marked as interrupted.
+
+Page-collector messages are bound to the active recording and acknowledged after individual local writes. Partial failures contribute to an unconfirmed-event count and mark the recording as interrupted. If communication fails before acknowledgement, an unconfirmed event may or may not have been saved.
 Requests still in progress at the end are individually marked in the archive and capture report; this does not mean the requests failed. The report also distinguishes requests that completed while response-body capture remained unfinished. Older recordings may lack these markers.
 When viewing a recording, the report also identifies saved requests with no recorded outcome and links to their original events. This helps with interrupted and older recordings, but cannot determine the actual network result or recover events that were never saved.
 
@@ -185,6 +187,7 @@ npm run test:worker-network-recovery
 npm run test:worker-socket-recovery
 npm run test:worker-frame-recovery
 npm run test:concurrent-stop
+npm run test:event-ack
 npm run test:archive-roundtrip
 npm run test:archive-concurrency
 npm run test:input-length

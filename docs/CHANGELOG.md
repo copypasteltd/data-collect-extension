@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 页面事件绑定录制身份并按逐条写入结果确认；部分失败时准确统计未确认数量，拒绝已绑定旧录制的迟到消息，采集器关闭后不再发送排队消息，并将通信不确定性写入说明。 / Bind page events to their recording and acknowledge individual write outcomes, count partial failures accurately, reject late messages bound to previous recordings, stop queued sends after collector closure, and document uncertain communication outcomes.
 - 协调多个侧边栏对记录的查看、打包和删除，避免读取过程中删除；打包结束复核会话、事件和资源数量，发现变化时提示重新下载。 / Coordinate viewing, export, and deletion across side panels to prevent deletion during reads; recheck the session and event and asset counts at the end of packaging and request a retry if they changed.
 - 记录并恢复原生 `dialog` 的模态状态和可观察变化，包括遮罩及可采集组件内部；对超限、无法确认和多个浮层的叠放顺序给出提示，浮层变化期间不在截图中标示操作位置。 / Capture and restore native `dialog` modal states and observable changes, including backdrops and captured component trees, with warnings for limits, unconfirmed states, and overlay stacking order; suppress screenshot target markers when overlay state changes.
 - 采集原生 `popover` 打开状态及其变化，在侧栏隔离页面中恢复，覆盖可读取组件并提示超限或还原失败；校验导入记录中的节点标识。 / Capture native `popover` open states and changes for isolated side-panel replay, including accessible component trees, with limit and restoration warnings and imported node identity checks.
