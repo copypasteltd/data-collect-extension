@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "docs:capture": "node scripts/capture-readme.mjs",
-    "test": "node --test tests/privacy.test.js tests/response-body.test.js tests/analysis.test.js tests/archive.test.js tests/openapi.test.js tests/db.test.js tests/database-value.test.js tests/delivery.test.js tests/downloads.test.js tests/background-style.test.js tests/scroll-state.test.js tests/screenshots.test.js tests/stylesheets.test.js tests/replay-outcome.test.js",
+    "test": "node --test tests/privacy.test.js tests/response-body.test.js tests/analysis.test.js tests/archive.test.js tests/openapi.test.js tests/db.test.js tests/database-value.test.js tests/delivery.test.js tests/downloads.test.js tests/background-style.test.js tests/scroll-state.test.js tests/screenshots.test.js tests/stylesheets.test.js tests/replay-outcome.test.js tests/request-snapshot.test.js",
     "test:e2e": "node tests/e2e.mjs",
     "test:archive-roundtrip": "node tests/archive-roundtrip.e2e.mjs",
     "test:input-length": "node tests/input-length.e2e.mjs",
@@ -19,6 +19,7 @@
     "test:url-fragment": "node tests/url-fragment.e2e.mjs",
     "test:screenshot-identity": "node tests/screenshot-identity.e2e.mjs",
     "test:network-origin": "node tests/network-origin.e2e.mjs",
+    "test:network-page-context": "node tests/network-page-context.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",
     "test:permissions": "node tests/permissions.e2e.mjs",
     "test:replay": "node tests/replay-controls.e2e.mjs",

@@ -131,6 +131,7 @@ integrity.json                   文件大小与 SHA-256 校验信息
 
 - 只覆盖授权范围内、录制期间实际观察到的路径；浏览器限制、跨域框架、权限拒绝、后台休眠、站点脚本及调试连接中断都可能造成缺失。
 - 请求与操作的关联是基于时间和可用页面上下文的候选，不证明因果关系；接口草稿不代表完整契约。
+- 接口事件关联请求发起的页面：同页会展示截至所选事件的可用状态，期间发生跳转时回退到请求时刻。若缺少可确认的快照会提示无法确认，旧记录缺少页面实例时仍可能只能近似判断。
 - 页面复现使用隔离快照和已记录的变化，不运行原站脚本，也不会向原站提交复现操作。它不等同于重新运行原站、恢复服务端逻辑或生成完整可部署网站。
 - 截图可能共享或失败；图片、字体、样式、富文本、框架和页面变化可能因权限、时序或大小限制不完整。请查看侧边栏“报告”和每条记录的状态。
 - 自动填充、文件内容、未知二进制、WebSocket 二进制、数据库中间变化和缓存条目内容可能不可得或不保存。所有大小和数量限制详见[使用说明](docs/插件安装与使用说明.md)。
@@ -164,6 +165,7 @@ npm run test:long-page-text
 npm run test:url-fragment
 npm run test:screenshot-identity
 npm run test:network-origin
+npm run test:network-page-context
 npm run test:response-encoding
 npm run test:permissions
 npm run test:e2e

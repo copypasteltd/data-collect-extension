@@ -131,6 +131,7 @@ When a decoded URL fragment (the part after `#`) matches a common sensitive name
 
 - Only authorized paths actually observed during recording can be captured. Browser restrictions, cross-origin frames, denied permissions, background lifecycle, site code, and debugger disconnects can cause gaps.
 - Action/request links are candidates inferred from timing and available page context, not proof of causality. An API draft is not a complete contract.
+- Network events are associated with the originating page: the viewer shows available state through the selected event while the page remains unchanged, or falls back to request time after navigation. Missing confirmable snapshots are reported; older records without document identity may still be approximate.
 - Page replay uses isolated snapshots and recorded changes. It does not execute original site scripts or submit replay actions to the original site; it is not a complete site rebuild or a replacement for server-side logic.
 - Screenshots can be shared or unavailable. Images, fonts, styles, rich text, frames, and page changes may be incomplete because of permission, timing, and size limits. Review the side-panel report and individual event statuses.
 - Autofill, file contents, unknown binary data, binary WebSocket frames, intermediate database changes, and cache entries may be unavailable or intentionally omitted. See the [usage guide](docs/插件安装与使用说明.md) for limits.
@@ -164,6 +165,7 @@ npm run test:long-page-text
 npm run test:url-fragment
 npm run test:screenshot-identity
 npm run test:network-origin
+npm run test:network-page-context
 npm run test:response-encoding
 npm run test:permissions
 npm run test:e2e

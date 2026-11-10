@@ -27,6 +27,7 @@ import { applyRecordedMutations } from "./mutations.js";
 import { recordedScrollState, restoreScrollState } from "./scroll-state.js";
 import { assessScreenshotTiming } from "./screenshots.js";
 import { findReplayOutcome } from "./replay-outcome.js";
+import { matchesRequestSnapshot, requestSnapshotCursor } from "./request-snapshot.js";
 import { strToU8, zipSync } from "fflate";
 import "./style.css";
 
@@ -348,8 +349,10 @@ export default function Viewer({ onBack, sessionId }) {
   const snapshotCursor = useMemo(() => {
     if (!selected || !archive) return null;
     if (view === "replay" && replayOutcome) return findReplayOutcome(archive.events, selected);
+    if (requestContext?.request)
+      return { event: requestSnapshotCursor(archive.events, requestContext.request, selected) };
     return { event: selected };
-  }, [selected, archive, view, replayOutcome]);
+  }, [selected, archive, view, replayOutcome, requestContext]);
   const snapshotEvent = useMemo(() => {
     const cursor = snapshotCursor?.event;
     if (!cursor || !archive) return null;
@@ -357,8 +360,7 @@ export default function Viewer({ onBack, sessionId }) {
     if (!cursor.tabId) return null;
     if (cursor.frameId == null && ["embedded", "unknown"].includes(requestContext?.request?.payload?.sourceFrame)) return null;
     const inReplay = view === "replay", beforeAction = inReplay && !replayOutcome;
-    return (
-      archive.events
+    const candidate = archive.events
         .filter(
           (e) =>
             e.kind === "page.snapshot" &&
@@ -371,8 +373,10 @@ export default function Viewer({ onBack, sessionId }) {
               (e.time === cursor.time && (beforeAction ? e.seq < cursor.seq : e.seq <= cursor.seq))) &&
             e.payload?.html,
         )
-        .sort((a, b) => b.time - a.time || b.seq - a.seq)[0] || null
-    );
+        .sort((a, b) => b.time - a.time || b.seq - a.seq)[0] || null;
+    if (requestContext?.request?.payload?.sourceFrame === "main" &&
+        !matchesRequestSnapshot(archive.events, candidate, requestContext.request)) return null;
+    return candidate;
   }, [snapshotCursor, archive, requestContext, view, replayOutcome]);
   const snapshot = useMemo(() => {
     const cursor = snapshotCursor?.event;
@@ -1078,7 +1082,7 @@ export default function Viewer({ onBack, sessionId }) {
                           />
                         </>
                       )}
-                      {!snapshot && requestContext && ["embedded", "unknown"].includes(requestContext.request.payload.sourceFrame) && (
+                      {!snapshot && requestContext && (
                         <div className="replay-meta">请求所属页面快照无法确认</div>
                       )}
                       <h3>记录数据</h3>
