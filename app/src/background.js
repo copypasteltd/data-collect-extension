@@ -860,6 +860,9 @@ async function stop(onStopping) {
   const recorded = await all("events", session.id);
   session.coverage = {
     warnings: recorded.filter((event) => event.kind === "warning").length,
+    snapshotGaps: recorded.filter(
+      (event) => event.kind === "page.snapshot" && event.payload.status !== "captured",
+    ).length,
     initialResourceGaps: recorded.filter(
       (event) => event.kind === "resource.initialSummary" && event.payload.status !== "captured",
     ).length,

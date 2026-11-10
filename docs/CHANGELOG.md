@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 修复较长页面及组件正文被替换为占位文字的问题；单个文本节点超限时保留前缀，并在录制列表标记快照截断或缺失。 / Preserve longer page and component text in snapshots, keep a truncated prefix when a text node exceeds its limit, and flag incomplete snapshots in the recording list.
 - 改进网址片段中常见敏感名称的识别，覆盖一次百分号编码，并处理页面快照中视频封面地址；命中时隐藏整个片段。 / Improve detection of common sensitive names in URL fragments, including percent-encoded forms and video poster URLs in snapshots; matching fragments are hidden in full.
 - 修复多个停止请求并发时，后来的请求可能错误中断正在整理的录制；真正的收尾失败仍标记异常中断。 / Prevent concurrent stop requests from interrupting an ongoing finalization; genuine finalization failures remain marked as interrupted.
 - 修复页面和组件中较大的可读取样式被替换为占位内容、导致侧边栏回看丢失样式的问题；超过单个样式上限时标记截断。 / Preserve larger readable page and component styles in snapshots instead of replacing them with a placeholder; flag styles that exceed the per-style limit.

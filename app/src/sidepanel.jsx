@@ -302,6 +302,7 @@ function App() {
                   {new Date(session.startedAt).toLocaleString()} ·{" "}
                   {session.status === "ready"
                     ? session.coverage?.warnings ||
+                      session.coverage?.snapshotGaps ||
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.inputGaps ||

@@ -668,8 +668,8 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       while (walker.nextNode()) {
         const original = walker.currentNode.nodeValue;
         const isStyle = walker.currentNode.parentElement?.localName === "style";
-        const limit = isStyle ? 500000 : 10000;
-        const cleaned = cleanStored(isStyle ? original.slice(0, limit) : original, 0, limit);
+        const limit = 500000;
+        const cleaned = cleanStored(original.slice(0, limit), 0, limit);
         if (original.length > limit || cleaned.length > limit) {
           truncatedNodes++;
           if (isStyle) {
