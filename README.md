@@ -136,6 +136,7 @@ npm ci
 npm run build
 npm test
 export PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers"
+unset CHROME_BIN
 npx playwright install chromium
 npm run test:replay
 npm run test:page-replay
@@ -154,7 +155,7 @@ npm run test:permissions
 npm run test:e2e
 ```
 
-以上环境变量示例适用于 Bash；PowerShell 可使用 `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'`。若使用本机浏览器，可在运行测试前设置 `CHROME_BIN` 为 Chrome/Chromium 可执行文件路径。部分测试在临时浏览器配置中预授权站点；`test:permissions` 也检查权限请求等待及模拟结果，但不代表已自动接受或拒绝真实系统授权弹窗。完整端到端测试在部分 Windows 环境的浏览器重启阶段可能超时；应查看日志并运行独立重启恢复测试。
+以上环境变量示例适用于 Bash；PowerShell 可使用 `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` 和 `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`。安装及运行测试时应保持相同的 `PLAYWRIGHT_BROWSERS_PATH`；更新 Playwright 依赖后重新执行浏览器安装命令，以使用匹配版本。`CHROME_BIN` 会覆盖该浏览器，若需要指定本机 Chrome/Chromium，应自行验证兼容性；版本不匹配可能影响测试稳定性。部分测试在临时浏览器配置中预授权站点；`test:permissions` 也检查权限请求等待及模拟结果，但不代表已自动接受或拒绝真实系统授权弹窗。完整端到端测试在部分 Windows 环境的浏览器重启阶段可能超时；应查看日志并运行独立重启恢复测试。
 
 演示素材的生成依赖 Playwright 视频组件和 FFmpeg，步骤见 [docs/DEMO.md](docs/DEMO.md)。开发时不需要 Docker 或 WSL。
 

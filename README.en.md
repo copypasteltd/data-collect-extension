@@ -136,6 +136,7 @@ npm ci
 npm run build
 npm test
 export PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers"
+unset CHROME_BIN
 npx playwright install chromium
 npm run test:replay
 npm run test:page-replay
@@ -154,7 +155,7 @@ npm run test:permissions
 npm run test:e2e
 ```
 
-The environment-variable example above uses Bash. In PowerShell, use `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'`. Set `CHROME_BIN` to a local Chrome/Chromium executable before running browser tests if you do not use Playwright's browser. Some tests use a temporary browser profile with host permissions pre-granted. `test:permissions` checks pending permission requests and simulated outcomes; it does not claim to automatically accept or reject the real native prompt. The long end-to-end test can time out while restarting Chrome in some Windows environments; inspect its output and run the dedicated restart recovery test.
+The environment-variable example above uses Bash. In PowerShell, use `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` and `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`. Keep the same `PLAYWRIGHT_BROWSERS_PATH` when installing and running tests, and reinstall the browser after updating Playwright dependencies to use a matching version. `CHROME_BIN` overrides that browser; verify compatibility if using a local Chrome/Chromium executable, as a version mismatch can affect test stability. Some tests use a temporary browser profile with host permissions pre-granted. `test:permissions` checks pending permission requests and simulated outcomes; it does not claim to automatically accept or reject the real native prompt. The long end-to-end test can time out while restarting Chrome in some Windows environments; inspect its output and run the dedicated restart recovery test.
 
 Demo media generation requires Playwright's video component and FFmpeg; see [docs/DEMO.md](docs/DEMO.md). Docker and WSL are not required for development.
 
