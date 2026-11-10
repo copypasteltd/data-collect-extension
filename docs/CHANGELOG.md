@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 录制后台重启后尝试恢复已保存的进行中网络请求及响应关联；未完成的请求体读取标记为不可用，并提示重启期间可能缺失的事件。 / Restore saved in-flight network request context after a recording worker restart, mark unfinished request-body reads unavailable, and report potential gaps during the restart.
 - 按请求发起时的页面和导航上下文关联接口事件，避免跳转、刷新后把旧页面或延迟响应误关联到其他页面；无法确认时显示提示。 / Associate network events with the page and navigation context at request initiation, avoiding stale-page or delayed-response mismatches and reporting unknown context.
 - 扩展缓存开始和结束快照，记录有限的缓存请求地址、方法和模式，并提示超限、超时及不可读取；不采集缓存响应正文。 / Capture bounded cached-request URLs, methods, and modes in start/end snapshots, reporting limits, timeouts, and read failures without collecting response bodies.
 - 数据库快照现在能够以类型标记保存大整数、映射、集合等复杂值；二进制、循环引用和超限数据标记缺口，并在录制列表及报告中提示。 / Database snapshots now encode complex values such as big integers, maps, and sets with type tags; binary, circular, and over-limit data are flagged in the recording list and report.

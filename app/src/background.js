@@ -1,6 +1,7 @@
 import { all, get, put, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
+import { recoverPendingRequests } from "./network-recovery.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -181,6 +182,15 @@ async function init() {
     }
     const events = await all("events", active.id);
     sequence = events.reduce((n, e) => Math.max(n, e.seq || 0), 0);
+    for (const [key, item] of recoverPendingRequests(events, active.tabs)) {
+      requests.set(key, item);
+      if (item.postData?.status === "pending") {
+        const body = { value: null, status: "unavailable", reason: "后台重启前请求体读取未完成" };
+        item.postData = body;
+        await append("network.requestBody", { requestId: item.requestId, body }, { tabId: item.tabId });
+      }
+    }
+    await warning("录制后台已重新启动，期间的部分事件或连接可能缺失");
   } else {
     for (const session of await all("sessions")) {
       if (["preparing", "recording", "stopping"].includes(session.status)) {

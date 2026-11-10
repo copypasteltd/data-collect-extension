@@ -81,6 +81,7 @@ The current-site scope is limited to the same scheme, host, and port; a new tab 
 Network scope follows the originating page: cross-origin API requests made by an in-scope page are captured when available, while requests made by an out-of-scope embedded page are excluded. Requests with an unconfirmed source are skipped and reported. WebSocket connections are checked using their handshake origin; existing connections with an unconfirmed origin may be skipped.
 Browsers share cookies by domain rather than port, and cookie change events do not reliably identify the originating page. Changes from other ports on the same domain may therefore appear. Older recordings may contain data from out-of-scope embedded pages; inspect them before sharing.
 For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default) before redaction. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.
+After the recording worker restarts, the extension attempts to reconnect already-saved in-flight requests when the debugger remains attached. Pending request-body reads and some events, existing WebSocket messages, or cross-process frame messages may still be missing; the report flags the restart.
 For continuously changing pages, the recorder attempts a snapshot after about two seconds instead of postponing it indefinitely; a pending snapshot is also attempted when leaving a page. Browser throttling, busy pages, or page destruction can still delay or omit states.
 Readable page and component styles are retained in snapshots up to 500,000 UTF-16 code units per style text; exceeding this limit is reported. Styles already lost in older recordings cannot be restored automatically.
 Each page snapshot retains up to 500,000 UTF-16 code units per text node, keeping the prefix and reporting truncation when exceeded; the complete snapshot has a separate size limit. Changes between snapshots have lower per-item limits, and text already lost in older recordings cannot be restored automatically.
@@ -153,6 +154,7 @@ npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
+npm run test:worker-network-recovery
 npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
