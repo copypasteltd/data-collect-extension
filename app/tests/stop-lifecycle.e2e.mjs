@@ -400,7 +400,7 @@ try {
   assert.equal(await worker.evaluate(() => typeof globalThis.releaseLateStateWrite), "function");
   await panel.getByText("录制中", { exact: true }).waitFor({ timeout: 10000 });
   assert.equal(await panel.getByRole("button", { name: "停止录制" }).isEnabled(), true,
-    "启动消息未返回时仍应允许停止");
+    "录制状态写入未完成时仍应允许停止");
   await panel.getByRole("button", { name: "停止录制" }).click();
   await panel.getByRole("button", { name: "开始录制" }).waitFor({ timeout: 25000 });
   await page.bringToFront();
@@ -418,7 +418,7 @@ try {
   assert.equal(storedAfterWrite, afterWrite.value.active.id, "迟到的旧状态写入不能覆盖新批次");
   await panel.getByRole("button", { name: "停止录制" }).click();
   await panel.getByRole("button", { name: "开始录制" }).waitFor({ timeout: 25000 });
-  console.log("启动未返回时可停止，迟到的状态写入不会覆盖新批次");
+  console.log("录制状态写入未完成时可停止，迟到写入不会覆盖新批次");
   console.log("准备期间可停止并导出，迟到注入不影响下一批录制");
 } finally {
   if (context) await context.close();

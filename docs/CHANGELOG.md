@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.1.4 - 2026-11-11
+
+- 批次创建后提前确认启动，标签页准备按每阶段最多四个并发执行；准备期间仍可停止。 / Acknowledge startup after batch creation and prepare up to four tabs concurrently per phase; Stop remains available during preparation.
+- 录制状态与批次列表读取分离；列表超时不阻塞停止，读取恢复后清除提示。后台恢复读取增加等待边界。 / Separate live recording status from batch-list reads so list timeouts do not block Stop; clear the message after recovery and bound recovery reads.
+- 以慢标签页及列表读取卡住的隔离场景测试启动、停止和导出，并测试启动确认后的准备失败；尚未完成 macOS 真机验证。 / Test startup, stopping, and export with slow tabs and stalled batch reads, as well as failure after startup acknowledgment; macOS hardware has not yet been tested.
+
 ## 0.1.3 - 2026-11-11
 
 - 准备期间允许停止并导出已保存的部分记录；启动慢或侧边栏状态更新时不再把停止按钮锁住。 / Allow stopping during preparation and exporting saved data; keep Stop available while startup is pending.

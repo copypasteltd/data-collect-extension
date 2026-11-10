@@ -42,6 +42,7 @@ try {
   assert.equal(await panel.getByRole("button", { name: "导出记录包" }).isDisabled(), true);
   await panel.getByRole("button", { name: "开始录制" }).click();
   await panel.getByRole("button", { name: "停止录制" }).waitFor();
+  await panel.getByText("录制中", { exact: true }).waitFor();
   await page.locator("#value").fill("fixture-first");
   await Promise.all([page.waitForResponse((response) => response.url().includes("/api?")), page.locator("#send").click()]);
   await panel.getByRole("button", { name: "停止录制" }).click();
@@ -56,6 +57,7 @@ try {
   await panel.waitForTimeout(2200);
   await panel.getByRole("button", { name: "开始录制" }).click();
   await panel.getByRole("button", { name: "停止录制" }).waitFor();
+  await panel.getByText("录制中", { exact: true }).waitFor();
   await page.locator("#value").fill("fixture-second");
   await panel.getByRole("button", { name: "停止录制" }).click();
   await panel.getByRole("button", { name: "开始录制" }).waitFor();

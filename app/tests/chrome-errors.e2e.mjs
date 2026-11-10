@@ -63,6 +63,7 @@ try {
   await page.bringToFront();
   await panel.getByRole("button", { name: "开始录制" }).click();
   await panel.getByRole("button", { name: "停止录制" }).waitFor({ timeout: 30000 });
+  await panel.getByText("录制中", { exact: true }).waitFor({ timeout: 30000 });
   await page.locator("#input").fill("example value");
   await Promise.all([page.waitForResponse((response) => response.url().endsWith("/api")), page.locator("#send").click()]);
   await panel.getByRole("button", { name: "停止录制" }).click();

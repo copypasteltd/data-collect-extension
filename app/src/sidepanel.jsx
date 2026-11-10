@@ -22,31 +22,56 @@ async function call(type, data = {}) {
 
 function App() {
   const [state, setState] = useState({ active: null, sessions: [] });
-  const [tab, setTab] = useState(null);
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [statusError, setStatusError] = useState("");
+  const [batchError, setBatchError] = useState("");
   const operation = useRef(null);
   const refreshNumber = useRef(0);
   const appliedRefresh = useRef(0);
+  const batchInFlight = useRef(false);
+  const preferredSession = useRef("");
 
-  const refresh = useCallback(async (preferredId) => {
-    const request = ++refreshNumber.current;
-    const next = await call("GET_STATE");
-    const [current] = await withTimeout(chrome.tabs.query({ active: true, currentWindow: true }), 8000);
-    if (request < appliedRefresh.current) return;
-    appliedRefresh.current = request;
-    setState(next);
-    setTab(current);
-    const available = next.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
-    setSelectedId((previous) => {
-      if (preferredId && available.some((session) => session.id === preferredId)) return preferredId;
-      return available.some((session) => session.id === previous) ? previous : available[0]?.id || "";
-    });
+  const refreshBatches = useCallback(() => {
+    if (batchInFlight.current) return;
+    batchInFlight.current = true;
+    call("GET_STATE").then((next) => {
+      setBatchError("");
+      setState((previous) => ({ ...previous, sessions: next.sessions }));
+      const available = next.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
+      const preferred = preferredSession.current;
+      if (preferred && available.some((session) => session.id === preferred)) preferredSession.current = "";
+      setSelectedId((previous) => {
+        if (preferred && available.some((session) => session.id === preferred)) return preferred;
+        return available.some((session) => session.id === previous) ? previous : available[0]?.id || "";
+      });
+    }).catch((reason) => setBatchError(reason.message)).finally(() => { batchInFlight.current = false; });
   }, []);
 
+  const refresh = useCallback(async (preferredId) => {
+    if (preferredId) preferredSession.current = preferredId;
+    const request = ++refreshNumber.current;
+    try {
+      const next = await call("GET_STATUS");
+      if (request >= appliedRefresh.current) {
+        appliedRefresh.current = request;
+        setStatusError("");
+        setState((previous) => ({ ...previous, active: next.active }));
+      }
+    } catch (reason) {
+      if (request >= appliedRefresh.current) {
+        appliedRefresh.current = request;
+        setStatusError(reason.message);
+      }
+      throw reason;
+    } finally {
+      refreshBatches();
+    }
+  }, [refreshBatches]);
+
   useEffect(() => {
-    const update = () => refresh().catch((reason) => setError(reason.message));
+    const update = () => refresh().catch(() => {});
     update();
     const timer = setInterval(update, 2000);
     return () => clearInterval(timer);
@@ -64,8 +89,8 @@ function App() {
       const [current] = await withTimeout(chrome.tabs.query({ active: true, currentWindow: true }), 8000);
       if (!current?.url || !["http:", "https:"].includes(new URL(current.url).protocol))
         throw new Error("请先切换到需要录制的网页");
-      await call("START", { tab: current, options: { screenshots: true, canvasSnapshots: true, scope: "browser" } });
-      await refresh();
+      await call("START", { tab: current, options: { screenshots: true, canvasSnapshots: true, scope: "browser" }, acknowledgeEarly: true });
+      await refresh().catch(() => {});
     } catch (reason) {
       if (operation.current === currentOperation) {
         setError(reason.message);
@@ -87,7 +112,7 @@ function App() {
     setBusy("stopping");
     try {
       const session = await call("STOP");
-      await refresh(session.id);
+      await refresh(session.id).catch(() => {});
     } catch (reason) {
       setError(reason.message);
       await refresh().catch(() => {});
@@ -115,6 +140,7 @@ function App() {
 
   const active = state.active;
   const sessions = state.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
+  const visibleError = error || statusError || batchError;
   const status = !active ? "未录制" : active.status === "preparing" ? "准备中" : active.status === "recording" ? "录制中" : "正在结束";
   return (
     <main className="panel">
@@ -130,12 +156,12 @@ function App() {
             <Square size={16} fill="currentColor" />{busy === "stopping" || !["preparing", "recording"].includes(active.status) ? "正在结束…" : "停止录制"}
           </button>
         ) : (
-          <button className="primary" disabled={!!busy || !tab} onClick={start}>
+          <button className="primary" disabled={!!busy} onClick={start}>
             <Circle size={16} fill="currentColor" />{busy === "starting" ? "正在准备…" : "开始录制"}
           </button>
         )}
       </section>
-      {error && <div className="error" role="alert"><AlertTriangle size={16} /><span>{error}</span></div>}
+      {visibleError && <div className="error" role="alert"><AlertTriangle size={16} /><span>{visibleError}</span></div>}
       <section className="batches" aria-label="录制批次">
         <h2>录制批次</h2>
         {sessions.length ? (
@@ -143,7 +169,7 @@ function App() {
             {sessions.map((session) => (
               <label className="batch" key={session.id}>
                 <input type="radio" name="batch" checked={selectedId === session.id} disabled={!!busy}
-                  onChange={() => setSelectedId(session.id)} />
+                  onChange={() => { preferredSession.current = ""; setSelectedId(session.id); }} />
                 <span className="batch-info"><strong>{new Date(session.startedAt).toLocaleString()}</strong>
                   <small>{session.status === "interrupted" ? "录制中断" : "已完成"} · {session.id.slice(0, 8)}</small></span>
               </label>

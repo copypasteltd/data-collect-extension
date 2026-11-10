@@ -4,7 +4,7 @@
 
 [English](README.en.md) · [安装与使用](docs/插件安装与使用说明.md) · [技术文档](docs/Chrome扩展技术开发文档.md) · [需求文档](docs/Chrome扩展需求梳理.md) · [更新说明](docs/CHANGELOG.md)
 
-> 当前为 **0.1.3 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
+> 当前为 **0.1.4 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
 
 ## 演示
 
@@ -20,7 +20,7 @@
 
 ## 安装
 
-需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.3.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
+需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.4.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
 
 也可从源码构建；此方式还需要 Node.js 20 或更高版本和 npm：
 
@@ -40,6 +40,8 @@ npm run build
 4. 在“录制批次”中选择一个已完成或中断的批次，点击“导出记录包”。可切换批次并分别导出；中断批次仅包含已保存的数据。
 
 批次和 ZIP 均保存在本机，扩展不会主动上传记录。卸载扩展可能清除其本地数据，应先导出需要保留的批次。
+
+页面较多或响应较慢时，后台会继续准备录制，侧边栏显示“准备中”且仍可停止。批次列表暂时读取失败不会阻止状态刷新或停止；恢复读取后提示会清除。
 
 ## 记录内容
 
@@ -64,7 +66,7 @@ resources/                    已保存的图片、字体等资源
 
 仓库提供 [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md)，用于校验记录包、整理页面和操作证据，并按要求基于已观察流程构建复现项目。技能在插件之外运行，不改变侧边栏功能。解析工具需要 Python 3.9 或更高版本，无需安装额外 Python 库。
 
-也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.3.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
+也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.4.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
 
 Windows PowerShell 中，从项目根目录安装到当前用户的 Codex 技能目录：
 
@@ -108,6 +110,8 @@ npm run build
 npm test
 npm run test:e2e
 npm run test:startup-tabs
+npm run test:startup-many-tabs
+npm run test:status-isolation
 npm run test:attach-stop
 npm run test:stop-lifecycle
 npm run test:query-parameters
