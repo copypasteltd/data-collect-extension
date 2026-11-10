@@ -16,6 +16,8 @@ const server = http.createServer((request, response) => {
   } else if (request.url === "/completed") {
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end('{"ok":true}');
+  } else if (request.url === "/failed") {
+    request.socket.destroy();
   } else {
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     response.end("<!doctype html><title>未完成请求测试</title>");
@@ -52,6 +54,7 @@ try {
       fetch(url).then((response) => response.text()).catch(() => null));
   });
   await page.evaluate(() => fetch("/completed").then((response) => response.text()));
+  await page.evaluate(() => fetch("/failed").catch(() => null));
   const readEvents = (id) => panel.evaluate(async (id) => {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open("logic-recorder");
@@ -70,11 +73,12 @@ try {
   let events, ids;
   while (Date.now() < deadline) {
     events = await readEvents(started.value.id);
-    ids = Object.fromEntries(["/with-headers", "/without-headers", "/completed"].map((url) =>
+    ids = Object.fromEntries(["/with-headers", "/without-headers", "/completed", "/failed"].map((url) =>
       [url, events.find((event) => event.kind === "network.request" && event.payload.url.endsWith(url))?.payload.requestId]));
     if (Object.values(ids).every(Boolean) &&
         events.some((event) => event.kind === "network.response" && event.payload.requestId === ids["/with-headers"]) &&
-        events.some((event) => event.kind === "network.finished" && event.payload.requestId === ids["/completed"])) break;
+        events.some((event) => event.kind === "network.finished" && event.payload.requestId === ids["/completed"]) &&
+        events.some((event) => event.kind === "network.failed" && event.payload.requestId === ids["/failed"])) break;
     await page.waitForTimeout(50);
   }
   assert.ok(Object.values(ids).every(Boolean), "测试请求未全部记录");
@@ -111,6 +115,24 @@ try {
   await record.getByTitle("查看记录").click();
   await panel.getByRole("button", { name: "报告", exact: true }).click();
   assert.ok(await panel.getByText("录制结束时请求仍在进行，响应可能不完整").count() >= 2);
+  await panel.getByRole("button", { name: /^接口 \d+$/ }).click();
+  const specPromise = panel.waitForEvent("download", { timeout: 15000 });
+  await panel.getByRole("button", { name: "导出接口规范草稿" }).click();
+  const specDownload = await specPromise;
+  const specPath = path.join(profile, "openapi.zip");
+  await specDownload.saveAs(specPath);
+  const specFiles = unzipSync(await fs.readFile(specPath));
+  const specIndex = JSON.parse(strFromU8(specFiles["index.json"]));
+  const specEntry = specIndex.find((entry) => entry.origin === `http://127.0.0.1:${server.address().port}`);
+  assert.ok(specEntry, "接口草稿缺少录制站点");
+  const spec = JSON.parse(strFromU8(specFiles[specEntry.file]));
+  for (const [url, outcome, status] of [["/completed", "finished", "200"], ["/failed", "failed", "default"],
+    ["/with-headers", "incomplete", "200"], ["/without-headers", "incomplete", "default"]]) {
+    const operation = spec.paths[url]?.get;
+    assert.ok(operation?.responses?.[status], `${url} 缺少正确的响应记录`);
+    assert.equal(operation["x-logic-recorder-evidence"][0].outcome, outcome);
+    if (outcome === "incomplete") assert.equal(operation["x-logic-recorder-evidence"][0].outcomeReason, "recording_stopped");
+  }
   const second = await panel.evaluate((tab) => chrome.runtime.sendMessage({
     type: "START", tab, options: { screenshots: false, scope: "site" },
   }), tab);

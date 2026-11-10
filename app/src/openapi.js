@@ -1,3 +1,9 @@
+const outcomes = new Map([
+  ["network.finished", "finished"],
+  ["network.failed", "failed"],
+  ["network.incomplete", "incomplete"],
+]);
+
 function mergeSchema(left, right) {
   if (!left) return right;
   if (!right) return left;
@@ -64,12 +70,11 @@ function contentType(headers, fallback = "application/json") {
   const raw = Object.entries(headers || {}).find(
     ([key]) => key.toLowerCase() === "content-type",
   )?.[1];
-  const value =
-    typeof raw === "string" ? raw.split(";")[0].trim().toLowerCase() : "";
-  return value &&
-    /^[a-z0-9!#$%&'*+.^_`|~-]+\/[a-z0-9!#$%&'*+.^_`|~-]+$/.test(value)
-    ? value
-    : fallback;
+  const normalize = (item) => {
+    const value = typeof item === "string" ? item.split(";")[0].trim().toLowerCase() : "";
+    return /^[a-z0-9!#$%&'*+.^_`|~-]+\/[a-z0-9!#$%&'*+.^_`|~-]+$/.test(value) ? value : "";
+  };
+  return normalize(raw) || normalize(fallback) || "application/octet-stream";
 }
 function sampleContent(content, mime) {
   if (typeof content?.value !== "string") return null;
@@ -123,6 +128,7 @@ export function buildOpenApi(catalog) {
     } catch {
       continue;
     }
+    if (!["http:", "https:"].includes(url.protocol)) continue;
     const method = String(endpoint.method || "").toLowerCase();
     if (
       ![
@@ -152,15 +158,21 @@ export function buildOpenApi(catalog) {
       };
       docs.set(url.origin, doc);
     }
-    const operation = {
+    const path = url.pathname
+      .replace(/[{}]/g, (character) => encodeURIComponent(character))
+      .replace(/%7[bd]/gi, (encoded) => encoded.toUpperCase());
+    const pathItem = (doc.paths[path] ||= {});
+    const operation = (pathItem[method] ||= {
       description:
         "仅反映录制中观察到的样本；不推断必填项、身份认证或未观察到的响应。",
       parameters: [],
       responses: {},
       "x-logic-recorder-evidence": [],
-    };
-    const parameters = new Map();
+    });
+    const parameters = new Map(operation.parameters.map((parameter) => [parameter.name, parameter]));
     for (const call of endpoint.samples) {
+      const observedStatus = call.response?.status;
+      const validStatus = Number.isInteger(observedStatus) && observedStatus >= 100 && observedStatus <= 599;
       operation["x-logic-recorder-evidence"].push({
         requestEventId: call.requestEventId,
         ...(call.requestBodyEventId
@@ -168,6 +180,16 @@ export function buildOpenApi(catalog) {
           : {}),
         responseEventId: call.responseEventId,
         finishedEventId: call.finishedEventId,
+        outcome: outcomes.get(call.outcomeKind) || "unrecorded",
+        ...(Number.isInteger(observedStatus) && observedStatus >= 100 && observedStatus <= 999
+          ? { observedStatus } : {}),
+        ...(call.outcomeKind === "network.incomplete" &&
+          ["recording_stopped", "response_capture_incomplete"].includes(call.result?.reason)
+          ? { outcomeReason: call.result.reason } : {}),
+        ...(call.outcomeKind === "network.failed" && typeof call.result?.canceled === "boolean"
+          ? { canceled: call.result.canceled } : {}),
+        ...(typeof call.result?.body?.status === "string"
+          ? { responseBodyStatus: call.result.body.status } : {}),
       });
       try {
         for (const [name, value] of new URL(call.url).searchParams)
@@ -194,13 +216,11 @@ export function buildOpenApi(catalog) {
           call.requestBodyEventId || call.requestEventId,
         );
       }
-      const status = call.response?.status
-        ? String(call.response.status)
-        : "default";
+      const status = validStatus ? String(observedStatus) : "default";
       const response = (operation.responses[status] ||= {
-        description: call.response?.status
+        description: validStatus
           ? `观察到 HTTP ${status}`
-          : "未观察到完整响应",
+          : "未取得可用于规范的 HTTP 状态码；此项仅为占位",
       });
       const responseMime = contentType(
         call.response?.headers,
@@ -215,7 +235,6 @@ export function buildOpenApi(catalog) {
     operation.parameters = [...parameters.values()];
     if (!Object.keys(operation.responses).length)
       operation.responses.default = { description: "未观察到完整响应" };
-    (doc.paths[url.pathname] ||= {})[method] = operation;
   }
   return [...docs.entries()].map(([origin, document]) => ({
     origin,

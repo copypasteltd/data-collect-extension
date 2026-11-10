@@ -81,6 +81,8 @@ Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / 
 | Resources | Attempts to preserve observed images, WOFF/WOFF2 fonts, and available styles. Images already loaded at recording start may be captured only as a static PNG preview, subject to cross-origin restrictions. |
 | Replay and analysis | Step through screenshots or an isolated page; candidate requests are inferred from available page context and timing and link to evidence. OpenAPI output is a sample-derived draft. |
 
+API draft evidence distinguishes finished, failed, incomplete, and unrecorded request outcomes. A documented `default` placeholder is used when no usable HTTP status was observed; it does not represent a successful response. Literal braces in paths are escaped so they are not mistaken for path parameters.
+
 The current-site scope is limited to the same scheme, host, and port; a new tab that crosses that origin is outside the scope.
 At the end of step replay, a recorded tab closure without another confirmed page is reported as an unavailable final state instead of displaying the closed tab's old snapshot. Unrecorded tab switches or closures can still affect this assessment.
 If a tab-switch notification arrives during capture, the screenshot is discarded even when the user switches back; the reason is recorded. When the debugger is unavailable, fallback screenshots also require suitable Chrome active-tab permission and are reported unavailable when permission is missing.

@@ -171,6 +171,7 @@ export function buildCatalog(events) {
     )
       Object.assign(calls.get(p.requestId), {
         result: p,
+        outcomeKind: event.kind,
         finishedEventId: event.id,
       });
   }

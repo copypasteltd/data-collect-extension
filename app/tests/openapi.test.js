@@ -1,8 +1,48 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildOpenApi } from "../src/openapi.js";
+import { buildCatalog } from "../src/analysis.js";
 
 describe("接口规范草稿", () => {
+  it("区分成功、失败和未完成的响应，不把未知状态伪装成成功", () => {
+    const url = "https://example.test/api";
+    let sequence = 0;
+    const event = (kind, requestId, payload = {}) => ({
+      id: `e${++sequence}`, seq: sequence, time: sequence, tabId: 1, kind,
+      payload: { requestId, ...payload },
+    });
+    const request = (id) => event("network.request", id, { method: "GET", url, type: "Fetch", headers: {} });
+    const events = [request("ok"), event("network.response", "ok", { status: 200, mimeType: "application/json" }),
+      event("network.finished", "ok", { body: { status: "captured_redacted", value: '{"ok":true}' } }),
+      request("error"), event("network.response", "error", { status: 404 }), event("network.finished", "error", { body: { status: "empty" } }),
+      request("interrupted"), event("network.response", "interrupted", { status: 200 }),
+      event("network.incomplete", "interrupted", { reason: "recording_stopped" }),
+      request("failed"), event("network.failed", "failed", { canceled: true }),
+      request("unknown"), request("unusual"), event("network.response", "unusual", { status: 600 }),
+      request("invalid"), event("network.response", "invalid", { status: "__proto__" })];
+    const operation = buildOpenApi(buildCatalog(events))[0].document.paths["/api"].get;
+    assert.deepEqual(Object.keys(operation.responses).sort(), ["200", "404", "default"]);
+    assert.match(operation.responses.default.description, /占位/);
+    const evidence = operation["x-logic-recorder-evidence"];
+    assert.deepEqual(evidence.map((item) => item.outcome),
+      ["finished", "finished", "incomplete", "failed", "unrecorded", "unrecorded", "unrecorded"]);
+    assert.equal(evidence[0].responseBodyStatus, "captured_redacted");
+    assert.equal(evidence[2].outcomeReason, "recording_stopped");
+    assert.equal(evidence[3].canceled, true);
+    assert.equal(evidence[5].observedStatus, 600);
+    assert.equal(evidence[6].observedStatus, undefined);
+  });
+  it("将路径中的字面花括号转义，并合并规范化后相同的接口样本", () => {
+    const sample = (url, id) => ({ url, requestEventId: id, request: { headers: {} }, response: { status: 200 } });
+    const doc = buildOpenApi({ endpoints: [
+      { method: "GET", path: "https://example.test/api/{literal}", samples: [sample("https://example.test/api/{literal}?a=1", "a")] },
+      { method: "get", path: "https://example.test/api/%7bliteral%7d", samples: [sample("https://example.test/api/%7bliteral%7d?b=2", "b")] },
+    ] })[0].document;
+    assert.deepEqual(Object.keys(doc.paths), ["/api/%7Bliteral%7D"]);
+    const operation = doc.paths["/api/%7Bliteral%7D"].get;
+    assert.deepEqual(operation.parameters.map((parameter) => parameter.name), ["a", "b"]);
+    assert.deepEqual(operation["x-logic-recorder-evidence"].map((item) => item.requestEventId), ["a", "b"]);
+  });
   it("根据样本生成参数、响应和证据，不推断必填字段", () => {
     const catalog = {
       endpoints: [
@@ -150,5 +190,11 @@ describe("接口规范草稿", () => {
     })[0].document;
     assert.equal(doc.paths["/api"].post.requestBody, undefined);
     assert.ok(doc.paths["/api"].post.responses["200"]);
+    sample.response.mimeType = "not-a-media-type";
+    sample.result.body.value = "response";
+    const media = buildOpenApi({
+      endpoints: [{ method: "POST", path: sample.url, samples: [sample] }],
+    })[0].document.paths["/api"].post.responses["200"].content;
+    assert.ok(media["application/octet-stream"]);
   });
 });
