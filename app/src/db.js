@@ -1,11 +1,27 @@
 const NAME = "logic-recorder";
+const OPEN_TIMEOUT_MS = 5000;
+const WRITE_TIMEOUT_MS = 5000;
 let promise;
+function limitWrite(tx, reject) {
+  const timer = setTimeout(() => {
+    try { tx.abort(); } catch {}
+    reject(new Error("本地存储写入超时"));
+  }, WRITE_TIMEOUT_MS);
+  return () => clearTimeout(timer);
+}
 export function openDB() {
   if (!promise) {
     let opening;
     opening = new Promise((resolve, reject) => {
       const request = indexedDB.open(NAME, 3);
+      let finished = false;
+      const timer = setTimeout(() => {
+        finished = true;
+        if (promise === opening) promise = undefined;
+        reject(new Error("本地存储打开超时"));
+      }, OPEN_TIMEOUT_MS);
       request.onupgradeneeded = (event) => {
+        if (finished) { try { request.transaction.abort(); } catch {} return; }
         const db = request.result;
         let events;
         if (event.oldVersion < 1) {
@@ -22,6 +38,9 @@ export function openDB() {
       };
       request.onsuccess = () => {
         const db = request.result;
+        if (finished) { db.close(); return; }
+        finished = true;
+        clearTimeout(timer);
         db.onversionchange = () => {
           db.close();
           if (promise === opening) promise = undefined;
@@ -29,11 +48,15 @@ export function openDB() {
         resolve(db);
       };
       request.onerror = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
         if (promise === opening) promise = undefined;
         reject(request.error);
       };
     });
     promise = opening;
+    opening.catch(() => { if (promise === opening) promise = undefined; });
   }
   return promise;
 }
@@ -88,16 +111,19 @@ export async function put(store, value) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(store, "readwrite");
-    tx.objectStore(store).put(value);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
+    const clear = limitWrite(tx, reject);
+    try { tx.objectStore(store).put(value); }
+    catch (error) { clear(); try { tx.abort(); } catch {} reject(error); return; }
+    tx.oncomplete = () => { clear(); resolve(); };
+    tx.onerror = () => { clear(); reject(tx.error); };
+    tx.onabort = () => { clear(); reject(tx.error || new Error("存储事务已中断")); };
   });
 }
 export async function putMany(store, values) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(store, "readwrite");
+    const clear = limitWrite(tx, reject);
     const results = values.map(() => true);
     const target = tx.objectStore(store);
     values.forEach((value, index) => {
@@ -112,8 +138,8 @@ export async function putMany(store, values) {
         results[index] = false;
       }
     });
-    tx.oncomplete = () => resolve(results);
-    tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
+    tx.oncomplete = () => { clear(); resolve(results); };
+    tx.onabort = () => { clear(); reject(tx.error || new Error("存储事务已中断")); };
     tx.onerror = () => {};
   });
 }
@@ -121,6 +147,7 @@ export async function putIdempotentEvents(values, capacity) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("events", "readwrite"), store = tx.objectStore("events");
+    const clear = limitWrite(tx, reject);
     const results = values.map(() => "failed");
     let remaining = capacity, pendingReads = values.length;
     const sameEvent = (left, right) =>
@@ -155,8 +182,8 @@ export async function putIdempotentEvents(values, capacity) {
         };
       } catch { finishRead(); }
     });
-    tx.oncomplete = () => resolve(results);
-    tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
+    tx.oncomplete = () => { clear(); resolve(results); };
+    tx.onabort = () => { clear(); reject(tx.error || new Error("存储事务已中断")); };
     tx.onerror = () => {};
   });
 }

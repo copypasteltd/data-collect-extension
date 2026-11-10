@@ -5,8 +5,17 @@ import { createArchive } from "./archive.js";
 import { downloadBlob } from "./downloads.js";
 import "./style.css";
 
+function withTimeout(promise, milliseconds) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("后台响应超时，请等待状态刷新")), milliseconds); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 async function call(type, data = {}) {
-  const result = await chrome.runtime.sendMessage({ type, ...data });
+  const timeout = type === "STOP" ? 90000 : type === "START" ? 30000 : 8000;
+  const result = await withTimeout(chrome.runtime.sendMessage({ type, ...data }), timeout);
   if (!result.ok) throw new Error(result.error);
   return result.value;
 }
@@ -17,11 +26,16 @@ function App() {
   const [selectedId, setSelectedId] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const operation = useRef(false);
+  const operation = useRef(null);
+  const refreshNumber = useRef(0);
+  const appliedRefresh = useRef(0);
 
   const refresh = useCallback(async (preferredId) => {
+    const request = ++refreshNumber.current;
     const next = await call("GET_STATE");
-    const [current] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [current] = await withTimeout(chrome.tabs.query({ active: true, currentWindow: true }), 8000);
+    if (request < appliedRefresh.current) return;
+    appliedRefresh.current = request;
     setState(next);
     setTab(current);
     const available = next.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
@@ -40,31 +54,35 @@ function App() {
 
   async function start() {
     if (operation.current) return;
-    operation.current = true;
+    const currentOperation = { type: "starting" };
+    operation.current = currentOperation;
     setError("");
     setBusy("starting");
     try {
-      if (!tab?.url || !["http:", "https:"].includes(new URL(tab.url).protocol))
-        throw new Error("请先切换到需要录制的网页");
       const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
       if (!granted) throw new Error("未授予网页访问权限");
-      const [current] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!current?.url || current.id !== tab.id || new URL(current.url).origin !== new URL(tab.url).origin)
-        throw new Error("当前页面已变化，请重新开始");
+      const [current] = await withTimeout(chrome.tabs.query({ active: true, currentWindow: true }), 8000);
+      if (!current?.url || !["http:", "https:"].includes(new URL(current.url).protocol))
+        throw new Error("请先切换到需要录制的网页");
       await call("START", { tab: current, options: { screenshots: true, canvasSnapshots: true, scope: "browser" } });
       await refresh();
     } catch (reason) {
-      setError(reason.message);
-      await refresh().catch(() => {});
+      if (operation.current === currentOperation) {
+        setError(reason.message);
+        await refresh().catch(() => {});
+      }
     } finally {
-      operation.current = false;
-      setBusy("");
+      if (operation.current === currentOperation) {
+        operation.current = null;
+        setBusy("");
+      }
     }
   }
 
   async function stop() {
-    if (operation.current) return;
-    operation.current = true;
+    if (operation.current && operation.current.type !== "starting") return;
+    const currentOperation = { type: "stopping" };
+    operation.current = currentOperation;
     setError("");
     setBusy("stopping");
     try {
@@ -74,14 +92,14 @@ function App() {
       setError(reason.message);
       await refresh().catch(() => {});
     } finally {
-      operation.current = false;
+      operation.current = null;
       setBusy("");
     }
   }
 
   async function download() {
     if (operation.current || !selectedId) return;
-    operation.current = true;
+    operation.current = { type: "exporting" };
     setError("");
     setBusy("exporting");
     try {
@@ -90,14 +108,14 @@ function App() {
     } catch (reason) {
       setError(reason.message);
     } finally {
-      operation.current = false;
+      operation.current = null;
       setBusy("");
     }
   }
 
   const active = state.active;
   const sessions = state.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
-  const status = !active ? "未录制" : active.status === "preparing" ? "准备中" : active.status === "stopping" ? "正在结束" : "录制中";
+  const status = !active ? "未录制" : active.status === "preparing" ? "准备中" : active.status === "recording" ? "录制中" : "正在结束";
   return (
     <main className="panel">
       <header className="top">
@@ -106,10 +124,10 @@ function App() {
       </header>
       <section className="recording" aria-label="录制">
         <div className="section-label"><span>录制状态</span><span className={active ? "status active" : "status"}><i />{status}</span></div>
-        <h1>{active ? "正在录制" : "准备录制"}</h1>
+        <h1>{active?.status === "preparing" ? "准备录制" : active ? "正在录制" : "准备录制"}</h1>
         {active ? (
-          <button className="primary stop" disabled={!!busy || active.status !== "recording"} onClick={stop}>
-            <Square size={16} fill="currentColor" />{busy === "stopping" || active.status === "stopping" ? "正在结束…" : "停止录制"}
+          <button className="primary stop" disabled={(!!busy && busy !== "starting") || !["preparing", "recording"].includes(active.status)} onClick={stop}>
+            <Square size={16} fill="currentColor" />{busy === "stopping" || !["preparing", "recording"].includes(active.status) ? "正在结束…" : "停止录制"}
           </button>
         ) : (
           <button className="primary" disabled={!!busy || !tab} onClick={start}>

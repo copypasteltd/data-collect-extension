@@ -4,7 +4,7 @@ Record authorized browser workflows from the Chrome side panel and export a sele
 
 [中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [Changelog](docs/CHANGELOG.md)
 
-> This is a **0.1.2 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
+> This is a **0.1.3 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 
 ## Demo
 
@@ -20,7 +20,7 @@ The demo uses fictional local data in an isolated test browser. The side panel o
 
 ## Install
 
-Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.2.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
+Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.3.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
 
 To build from source instead, you also need Node.js 20 or later and npm:
 
@@ -36,7 +36,7 @@ Open `chrome://extensions`, enable Developer mode, choose “Load unpacked,” a
 
 1. Open an HTTP or HTTPS page you are authorized to record and click the extension icon.
 2. Click “开始录制” and grant Chrome's website access request. The extension attempts to record all authorized ordinary pages, including pages already open and those opened later.
-3. Work normally and click “停止录制” when finished. Recording continues in the background if the side panel closes; exiting the browser may interrupt the batch.
+3. Work normally and click “停止录制” when finished. You can also stop during preparation; saved data is kept as an interrupted batch. Recording or finalization continues in the background if the side panel closes; exiting the browser may interrupt the batch.
 4. Select a completed or interrupted batch under “录制批次” and click “导出记录包”. Select other batches to export them separately. Interrupted batches contain only data saved before interruption.
 
 Batches and ZIP files stay local; the extension does not upload recordings. Uninstalling the extension may remove its local data, so export batches you need first.
@@ -64,7 +64,7 @@ resources/                    Captured images, fonts, and other resources
 
 The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
 
-Alternatively, download `extension-logic-clone-v0.1.2.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
+Alternatively, download `extension-logic-clone-v0.1.3.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
 
 From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
 
@@ -109,6 +109,7 @@ npm test
 npm run test:e2e
 npm run test:startup-tabs
 npm run test:attach-stop
+npm run test:stop-lifecycle
 npm run test:query-parameters
 npm run test:response-encoding
 npm run test:skill

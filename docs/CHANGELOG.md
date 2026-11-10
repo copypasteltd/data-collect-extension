@@ -3,6 +3,14 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.1.3 - 2026-11-11
+
+- 准备期间允许停止并导出已保存的部分记录；启动慢或侧边栏状态更新时不再把停止按钮锁住。 / Allow stopping during preparation and exporting saved data; keep Stop available while startup is pending.
+- 快速切换标签后，以点击开始时的实际活动标签启动，避免侧边栏缓存过期导致误报页面变化。 / Use the actual active tab when starting after a quick tab switch instead of rejecting a stale sidebar cache.
+- 并行处理页面和调试连接收尾，为启动、截图、存储与后台通信增加等待边界；超时或失败的批次标记为中断。 / Finalize pages and debugger connections concurrently and bound startup, screenshot, storage, and background waits; mark timed-out or failed batches as interrupted.
+- 按录制批次隔离采集器注册和停止消息，避免迟到操作干扰下一批；清理完成前不开放下一批录制。 / Isolate collector registrations and stop messages by session, protecting later recordings from late operations and preventing a new session before cleanup completes.
+- 测试准备阶段停止、部分导出、多页面收尾、超时、迟到消息、立即重录及侧边栏重开；尚未完成 macOS 真机验证。 / Test stopping during preparation, partial exports, concurrent finalization, timeouts, late messages, immediate restart, and reopening the side panel; macOS hardware has not yet been tested.
+
 ## 0.1.2 - 2026-11-10
 
 - 修复普通 HTTP 页面中 `crypto.randomUUID` 不可用造成的重复异常及页面事件丢失；使用浏览器支持的安全随机数生成兼容的 UUID。 / Fix repeated errors and lost page events when `crypto.randomUUID` is unavailable on ordinary HTTP pages; generate compatible UUIDs with browser-provided secure random values.

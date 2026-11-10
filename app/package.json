@@ -1,7 +1,7 @@
 {
   "name": "logic-recorder",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -11,6 +11,7 @@
     "test:e2e": "node tests/sidepanel.e2e.mjs",
     "test:startup-tabs": "node tests/startup-tabs.e2e.mjs",
     "test:attach-stop": "node tests/attach-stop.e2e.mjs",
+    "test:stop-lifecycle": "node tests/stop-lifecycle.e2e.mjs",
     "test:chrome-errors": "node tests/chrome-errors.e2e.mjs",
     "test:db-upgrade": "node tests/db-upgrade.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",

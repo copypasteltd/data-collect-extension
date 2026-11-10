@@ -31,7 +31,8 @@ const unknownSocketTabs = new Set();
 const unknownRequestTabs = new Set();
 const unknownDialogTabs = new Set();
 const dialogScopes = new Map();
-const tabAttachQueues = new Map();
+const tabConnectionQueues = new Map();
+const initialPreparations = new Map();
 let sequence = 0;
 let writeChain = Promise.resolve();
 let outstandingWrites = 0;
@@ -64,6 +65,17 @@ function withDeadline(promise, milliseconds, label) {
     );
   });
 }
+async function persistSessionState(session) {
+  let current = session;
+  let status = current.status;
+  await chrome.storage.session.set({ active: current });
+  while (current !== active || (active && status !== active.status)) {
+    current = active;
+    status = current?.status;
+    if (current) await chrome.storage.session.set({ active: current });
+    else await chrome.storage.session.remove("active");
+  }
+}
 function recordDroppedEvents(session, count) {
   if (!count) return;
   session.droppedEvents = (session.droppedEvents || 0) + count;
@@ -71,16 +83,17 @@ function recordDroppedEvents(session, count) {
   session.notice = "录制速度超过本机写入能力，部分记录已丢失。";
   if (session.droppedEvents === count) {
     chrome.action.setBadgeText({ text: "!" }).catch(() => {});
-    chrome.storage.session.set({ active: session }).catch(() => {});
+    persistSessionState(session).catch(() => {});
   }
 }
 function markEventWriteFailure(sessionId, error) {
   console.error("事件写入失败", error);
   if (active?.id === sessionId) {
-    active.storageError = true;
-    active.notice = "本地存储写入失败，部分记录可能丢失，请停止并检查可用空间。";
+    const session = active;
+    session.storageError = true;
+    session.notice = "本地存储写入失败，部分记录可能丢失，请停止并检查可用空间。";
     chrome.action.setBadgeText({ text: "!" }).catch(() => {});
-    chrome.storage.session.set({ active }).catch(() => {});
+    persistSessionState(session).catch(() => {});
   }
 }
 function append(kind, payload = {}, extra = {}) {
@@ -178,6 +191,14 @@ function persistChildTargets() {
   });
   track(childStorageChain);
 }
+async function removeSessionState(session) {
+  await chrome.storage.session.remove(["active", "recorderFrames"]);
+  if (active && active !== session) {
+    const current = active;
+    await persistSessionState(current);
+    if (active === current) persistChildTargets();
+  }
+}
 function setChildScope(sessionId, tabId, allowed) {
   childScopes.set(sessionId, allowed);
   const previous = childTargets.get(sessionId);
@@ -200,18 +221,41 @@ function clearTabContexts(tabId) {
   }
   if (changed) persistChildTargets();
 }
-async function register(origin, scope) {
+function reserveTabConnection(tabId) {
+  const previous = tabConnectionQueues.get(tabId);
+  let finish;
+  const finished = new Promise((resolve) => { finish = resolve; });
+  const tail = previous ? previous.then(() => finished) : finished;
+  tabConnectionQueues.set(tabId, tail);
+  tail.then(() => { if (tabConnectionQueues.get(tabId) === tail) tabConnectionQueues.delete(tabId); });
+  return { previous, finish };
+}
+async function detachTab(target) {
+  const { previous, finish } = reserveTabConnection(target.id);
+  try {
+    if (previous) await previous;
+    if (!target.debuggerAttached) return;
+    await chrome.debugger.detach({ tabId: target.id });
+    target.debuggerAttached = false;
+  } finally {
+    finish();
+  }
+}
+function preparing(session) {
+  return active === session && session.status === "preparing";
+}
+function requirePreparing(session) {
+  if (!preparing(session)) throw new Error("录制准备已停止");
+}
+async function register(origin, scope, session) {
   const parsed = new URL(origin);
   const matches =
     scope === "browser"
       ? ["http://*/*", "https://*/*"]
       : [`${parsed.protocol}//${parsed.hostname}/*`];
-  await chrome.scripting
-    .unregisterContentScripts({ ids: ["recorder"] })
-    .catch(() => {});
   await chrome.scripting.registerContentScripts([
     {
-      id: "recorder",
+      id: session.scriptId,
       matches,
       js: ["content.js"],
       allFrames: true,
@@ -219,6 +263,9 @@ async function register(origin, scope) {
       persistAcrossSessions: false,
     },
   ]);
+  session.scriptRegistered = true;
+  if (active !== session || !["preparing", "recording"].includes(session.status))
+    await chrome.scripting.unregisterContentScripts({ ids: [session.scriptId] }).catch(() => {});
 }
 async function init() {
   const state = await chrome.storage.session.get(["active", "recorderFrames"]);
@@ -312,15 +359,24 @@ async function init() {
     }
   }
 }
-const ready = init();
+let ready;
+function ensureReady() {
+  if (!ready) {
+    const current = init();
+    ready = current;
+    current.catch(() => { if (ready === current) ready = undefined; });
+  }
+  return ready;
+}
+void ensureReady().catch(console.error);
 const afterReady =
   (handler) =>
   (...args) => {
-    track(ready.then(() => handler(...args)));
+    track(ensureReady().then(() => handler(...args)));
   };
 
 async function start(tab, options, onCreated) {
-  await ready;
+  await ensureReady();
   if (active) throw new Error("已有录制任务进行中");
   networkSealed = false;
   const url = new URL(tab.url);
@@ -351,6 +407,8 @@ async function start(tab, options, onCreated) {
     cookieOrigins: [],
     startedAt: Date.now(),
     status: "preparing",
+    // A late registration can then be removed without touching a newer session.
+    scriptId: `recorder-${uid()}`,
     options,
     browser: navigator.userAgent,
     gaps: [],
@@ -358,62 +416,102 @@ async function start(tab, options, onCreated) {
   active = session;
   onCreated(session);
   childTargets.clear();
-  await chrome.storage.session.remove("recorderFrames");
   currentOrigin = origin;
   sequence = 0;
-  if (options.scope === "browser") {
-    const tabs = await chrome.tabs.query({});
-    for (const item of tabs)
-      if (!item.incognito && allowedUrl(item.url) && !session.tabs[item.id])
-        session.tabs[item.id] = {
-          id: item.id,
-          windowId: item.windowId,
-          inScope: true,
-          url: cleanUrl(item.url),
-        };
-  }
-  await put("sessions", session);
-  await chrome.storage.session.set({ active: session });
-  await append("session.start", {
-    url: cleanUrl(tab.url),
-    note: "开始前发生的操作和请求未记录",
-  });
+  const initial = (async () => {
+    await chrome.storage.session.remove("recorderFrames");
+    if (active && active !== session) persistChildTargets();
+    requirePreparing(session);
+    if (options.scope === "browser") {
+      const tabs = await chrome.tabs.query({});
+      requirePreparing(session);
+      for (const item of tabs)
+        if (!item.incognito && allowedUrl(item.url) && !session.tabs[item.id])
+          session.tabs[item.id] = {
+            id: item.id,
+            windowId: item.windowId,
+            inScope: true,
+            url: cleanUrl(item.url),
+          };
+    }
+    await put("sessions", session);
+    requirePreparing(session);
+    await persistSessionState(session);
+    requirePreparing(session);
+    await append("session.start", {
+      url: cleanUrl(tab.url),
+      note: "开始前发生的操作和请求未记录",
+    });
+    requirePreparing(session);
+  })();
+  initialPreparations.set(session.id, initial);
+  try { await initial; }
+  finally { initialPreparations.delete(session.id); }
   try {
-    await register(origin, options.scope);
+    await withDeadline(register(origin, options.scope, session), 5000, "页面采集器注册");
   } catch (error) {
+    requirePreparing(session);
+    session.incomplete = true;
     await warning("页面采集器注册失败", { error: String(error) });
   }
-  for (const target of Object.values(session.tabs)) await attachTab(target.id);
+  requirePreparing(session);
+  for (const target of Object.values(session.tabs)) {
+    try { await withDeadline(attachTab(target.id), 5000, "网络调试连接"); }
+    catch (error) {
+      requirePreparing(session);
+      session.incomplete = true;
+      await warning("网络调试连接超时，网络记录可能不完整", { tabId: target.id, error: String(error) });
+    }
+    requirePreparing(session);
+  }
   const resourceDeadline = Date.now() + 6000;
-  for (const target of Object.values(session.tabs))
+  for (const target of Object.values(session.tabs)) {
     await captureInitialResources(target, resourceDeadline);
+    requirePreparing(session);
+  }
   for (const target of Object.values(session.tabs)) {
     try {
-      await chrome.scripting.executeScript({
+      await withDeadline(chrome.scripting.executeScript({
         target: { tabId: target.id, allFrames: true },
         files: ["content.js"],
-      });
+      }), 5000, "页面采集器注入");
     } catch (error) {
+      requirePreparing(session);
+      session.incomplete = true;
       await warning("页面采集器注入失败", {
         tabId: target.id,
         error: String(error),
       });
     }
+    requirePreparing(session);
   }
-  for (const target of Object.values(session.tabs))
-    await snapshotCookies(target.url);
+  for (const target of Object.values(session.tabs)) {
+    try { await withDeadline(snapshotCookies(target.url), 5000, "Cookie 初始状态"); }
+    catch (error) {
+      requirePreparing(session);
+      session.incomplete = true;
+      await warning("Cookie 初始状态采集超时", { tabId: target.id, error: String(error) });
+    }
+    requirePreparing(session);
+  }
+  await withDeadline(chrome.action.setBadgeBackgroundColor({ color: "#b43f36" }), 2000, "录制标记").catch(() => {});
+  requirePreparing(session);
+  await withDeadline(chrome.action.setBadgeText({ text: "REC" }), 2000, "录制标记").catch(() => {});
+  requirePreparing(session);
+  await withDeadline(chrome.action.setTitle({ title: "逻辑记录：录制中" }), 2000, "录制标题").catch(() => {});
+  requirePreparing(session);
   session.status = "recording";
-  await chrome.action.setBadgeBackgroundColor({ color: "#b43f36" });
-  await chrome.action.setBadgeText({ text: "REC" });
-  await chrome.action.setTitle({ title: "逻辑记录：录制中" });
   await put("sessions", session);
-  await chrome.storage.session.set({ active: session });
+  if (active !== session || session.status !== "recording") throw new Error("录制准备已停止");
+  await withDeadline(persistSessionState(session), 5000, "录制状态保存");
+  if (active !== session || session.status !== "recording") throw new Error("录制准备已停止");
   const readyEventId = uid();
   await append(
     "session.ready",
     { debuggerAttached: !!session.tabs[tab.id]?.debuggerAttached },
     { id: readyEventId, tabId: tab.id },
   );
+  if (active !== session || session.status !== "recording") throw new Error("录制准备已停止");
   if (options.screenshots)
     requestScreenshot(readyEventId, tab.id, 0, undefined, cleanUrl(tab.url));
   return session;
@@ -483,12 +581,7 @@ async function attachTab(tabId) {
     ["preparing", "recording"].includes(session.status) &&
     session.tabs[tabId] === target && !target.closed;
   target.attaching = true;
-  const previous = tabAttachQueues.get(tabId);
-  let finishAttach;
-  const finished = new Promise((resolve) => { finishAttach = resolve; });
-  const tail = previous ? previous.then(() => finished) : finished;
-  tabAttachQueues.set(tabId, tail);
-  tail.then(() => { if (tabAttachQueues.get(tabId) === tail) tabAttachQueues.delete(tabId); });
+  const { previous, finish: finishAttach } = reserveTabConnection(tabId);
   let attached = false;
   try {
     if (previous) await withDeadline(previous, 3000, "等待旧调试连接关闭");
@@ -537,7 +630,7 @@ async function attachTab(tabId) {
     target.attaching = false;
     try {
       if (active?.id === session.id)
-        await chrome.storage.session.set({ active: session });
+        await withDeadline(persistSessionState(session), 2000, "调试状态保存").catch(() => {});
     } finally {
       finishAttach();
     }
@@ -816,19 +909,24 @@ function requestScreenshot(eventId, tabId, frameId, documentId, url) {
   scheduleScreenshot();
 }
 async function stop(onStopping) {
-  await ready;
+  await ensureReady();
   if (!active) throw new Error("没有正在录制的任务");
   const session = active;
-  if (session.status !== "recording")
+  if (!["preparing", "recording"].includes(session.status))
     throw new Error("录制任务正在准备或停止，请稍候");
+  const stoppedDuringPreparation = session.status === "preparing";
   session.status = "stopping";
   onStopping(session);
   session.stopRequestedAt = Date.now();
+  if (stoppedDuringPreparation) {
+    session.incomplete = true;
+    session.notice = "录制在准备完成前停止，已保存可用的部分记录。";
+  }
+  const initial = initialPreparations.get(session.id);
+  if (initial) await withDeadline(initial.catch(() => {}), 5000, "录制准备收尾");
   await put("sessions", session);
-  await chrome.storage.session.set({ active: session });
-  const activeFrames = [];
-  for (const target of Object.values(session.tabs)) {
-    if (target.closed) continue;
+  await withDeadline(persistSessionState(session), 5000, "停止状态保存");
+  const frameGroups = await Promise.all(Object.values(session.tabs).filter((target) => !target.closed).map(async (target) => {
     let frames;
     try {
       frames = await withDeadline(
@@ -837,25 +935,27 @@ async function stop(onStopping) {
         "页面状态检查",
       );
     } catch {
-      const exists = await chrome.tabs.get(target.id).then(
+      const exists = await withDeadline(chrome.tabs.get(target.id), 2000, "标签检查").then(
         () => true,
-        () => false,
+        (error) => !String(error).includes("No tab with id"),
       );
       if (!exists) {
         target.closed = true;
-        continue;
+        return [];
       }
       frames = [];
       session.incomplete = true;
-      await warning("结束时无法枚举页面框架", { tabId: target.id });
+      void warning("结束时无法枚举页面框架", { tabId: target.id });
     }
-    for (const frame of frames || []) {
-      if (!allowedUrl(frame.url)) continue;
+    return (frames || []).filter((frame) => allowedUrl(frame.url)).map((frame) => ({ tabId: target.id, frameId: frame.frameId }));
+  }));
+  const activeFrames = frameGroups.flat();
+  await Promise.all(activeFrames.map(async (frame) => {
       try {
         const result = await withDeadline(
           chrome.tabs.sendMessage(
-            target.id,
-            { type: "FLUSH" },
+            frame.tabId,
+            { type: "FLUSH", sessionId: session.id },
             { frameId: frame.frameId },
           ),
           12000,
@@ -867,26 +967,25 @@ async function stop(onStopping) {
           );
       } catch (error) {
         session.incomplete = true;
-        await warning("结束时无法取得页面最终状态", {
-          tabId: target.id,
+        void warning("结束时无法取得页面最终状态", {
+          tabId: frame.tabId,
           frameId: frame.frameId,
           error: String(error),
         });
       }
-      activeFrames.push({ tabId: target.id, frameId: frame.frameId });
-    }
-  }
+  }));
   if (screenshotTimer) {
     clearTimeout(screenshotTimer);
     screenshotTimer = null;
   }
+  const screenshotDeadline = Date.now() + 5000;
   while (screenshotPending.length) {
     try {
-      await withDeadline(capture(), 5000, "截图收尾");
+      await withDeadline(capture(), Math.max(0, screenshotDeadline - Date.now()), "截图收尾");
     } catch {
       session.incomplete = true;
       screenshotPending = [];
-      await warning("截图收尾超时，部分截图可能缺失");
+      void warning("截图收尾超时，部分截图可能缺失");
       break;
     }
   }
@@ -894,15 +993,15 @@ async function stop(onStopping) {
     await withDeadline(Promise.allSettled([...pending]), 8000, "数据收尾");
   } catch {
     session.incomplete = true;
-    await warning("数据收尾超时，部分记录可能缺失");
+    void warning("数据收尾超时，部分记录可能缺失");
   }
-  await writeChain;
-  for (const frame of activeFrames) {
+  await withDeadline(writeChain, 10000, "记录写入收尾");
+  await Promise.all(activeFrames.map(async (frame) => {
     try {
       await withDeadline(
         chrome.tabs.sendMessage(
           frame.tabId,
-          { type: "STOP_CAPTURE" },
+          { type: "STOP_CAPTURE", sessionId: session.id },
           { frameId: frame.frameId },
         ),
         2000,
@@ -910,51 +1009,54 @@ async function stop(onStopping) {
       );
     } catch {
       session.incomplete = true;
-      await warning("页面采集器未能正常关闭", frame);
+      void warning("页面采集器未能正常关闭", frame);
     }
-  }
+  }));
   if (session.droppedEvents)
-    await warning("本地写入队列过载，部分记录未保存", {
+    void warning("本地写入队列过载，部分记录未保存", {
       droppedEvents: session.droppedEvents,
     });
-  for (const target of Object.values(session.tabs))
-    if (!target.closed && target.debuggerAttached) {
+  await Promise.all(Object.values(session.tabs).filter((target) => !target.closed && target.debuggerAttached).map(async (target) => {
       try {
         await withDeadline(
-          chrome.debugger.detach({ tabId: target.id }),
+          detachTab(target),
           3000,
           "调试连接关闭",
         );
       } catch {
         session.incomplete = true;
-        await warning("调试连接未能正常关闭", { tabId: target.id });
+        void warning("调试连接未能正常关闭", { tabId: target.id });
       }
-    }
+  }));
   networkSealed = true;
   try {
     await withDeadline(Promise.allSettled([...pending]), 2000, "网络收尾");
   } catch {
     session.incomplete = true;
-    await warning("网络收尾超时，部分响应内容可能缺失");
+    void warning("网络收尾超时，部分响应内容可能缺失");
   }
-  await writeChain;
+  await withDeadline(writeChain, 10000, "网络记录写入收尾");
+  const finalRequests = [];
   for (const item of requests.values()) {
     if (item.finalized) continue;
     item.finalized = true;
-    await append("network.incomplete", {
+    finalRequests.push(append("network.incomplete", {
       requestId: item.requestId,
       reason: item.loadingFinished ? "response_capture_incomplete" : "recording_stopped",
       responseReceived: Boolean(item.response),
-    }, { tabId: item.tabId });
+    }, { tabId: item.tabId }));
   }
+  await withDeadline(Promise.all(finalRequests), 10000, "未完成请求收尾");
   try {
-    await chrome.scripting.unregisterContentScripts({ ids: ["recorder"] });
+    await withDeadline(chrome.scripting.unregisterContentScripts({ ids: [session.scriptId || "recorder"] }), 2000, "页面采集器清理");
   } catch {
-    session.incomplete = true;
-    await warning("页面采集器注册未能清理");
+    if (!session.scriptId || session.scriptRegistered) {
+      session.incomplete = true;
+      void warning("页面采集器注册未能清理");
+    }
   }
   await append("session.stop", { note: "停止时仍在进行的请求可能不完整" });
-  const recorded = await all("events", session.id);
+  const recorded = await withDeadline(all("events", session.id), 5000, "记录检查");
   session.coverage = {
     warnings: recorded.filter((event) => event.kind === "warning").length,
     pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
@@ -1021,11 +1123,9 @@ async function stop(onStopping) {
         ) || Boolean(event.payload.body?.textStatus)),
     ).length,
   };
-  session.status =
-    session.storageError || session.incomplete ? "interrupted" : "ready";
-  session.endedAt = Date.now();
-  await put("sessions", session);
-  active = null;
+  const status = session.storageError || session.incomplete ? "interrupted" : "ready";
+  const endedAt = Date.now();
+  await put("sessions", { ...session, status, endedAt });
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
@@ -1037,10 +1137,13 @@ async function stop(onStopping) {
   unknownDialogTabs.clear();
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
-  await chrome.action.setBadgeText({ text: "" });
-  await chrome.action.setTitle({ title: "打开逻辑记录" });
+  await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch(() => {});
+  await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch(() => {});
   await withDeadline(childStorageChain, 2000, "框架恢复信息收尾").catch(() => {});
-  await chrome.storage.session.remove(["active", "recorderFrames"]);
+  await withDeadline(removeSessionState(session), 2000, "录制状态清理");
+  session.status = status;
+  session.endedAt = endedAt;
+  active = null;
   return session;
 }
 
@@ -1049,25 +1152,26 @@ async function interrupt(session, reason) {
   session.status = "interrupted";
   session.interruptedAt = Date.now();
   session.notice = reason;
-  await put("sessions", session).catch(console.error);
+  await withDeadline(put("sessions", session), 6000, "中断记录保存").catch(console.error);
   await clearActiveResources(session);
+  writeChain = Promise.resolve();
+  pending.clear();
 }
 
 async function clearActiveResources(session) {
   if (screenshotTimer) clearTimeout(screenshotTimer);
   screenshotTimer = null;
   screenshotPending = [];
-  for (const target of Object.values(session.tabs || {})) {
-    await chrome.tabs
-      .sendMessage(target.id, { type: "STOP_CAPTURE" })
+  await Promise.all(Object.values(session.tabs || {}).map(async (target) => {
+    await withDeadline(chrome.tabs
+      .sendMessage(target.id, { type: "STOP_CAPTURE", sessionId: session.id }), 2000, "采集器关闭")
       .catch(() => {});
     if (target.debuggerAttached)
-      await chrome.debugger.detach({ tabId: target.id }).catch(() => {});
-  }
-  await chrome.scripting
-    .unregisterContentScripts({ ids: ["recorder"] })
+      await withDeadline(detachTab(target), 3000, "调试连接关闭").catch(() => {});
+  }));
+  await withDeadline(chrome.scripting
+    .unregisterContentScripts({ ids: [session.scriptId || "recorder"] }), 2000, "页面采集器清理")
     .catch(() => {});
-  active = null;
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
@@ -1080,18 +1184,19 @@ async function clearActiveResources(session) {
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
   await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch(() => {});
-  await chrome.storage.session.remove(["active", "recorderFrames"]).catch(() => {});
-  await chrome.action.setBadgeText({ text: "" }).catch(() => {});
-  await chrome.action.setTitle({ title: "打开逻辑记录" }).catch(() => {});
+  await withDeadline(removeSessionState(session), 2000, "录制状态清理").catch(() => {});
+  if (active === session) active = null;
+  await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch(() => {});
+  await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
-    await ready;
+    await ensureReady();
     if (message.type === "GET_STATE")
       return {
         active,
-        sessions: (await all("sessions")).sort(
+        sessions: (await withDeadline(all("sessions"), 5000, "录制批次读取")).sort(
           (a, b) => b.startedAt - a.startedAt,
         ),
       };
@@ -1102,7 +1207,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           created = session;
         });
       } catch (error) {
-        if (created && active === created && created.status === "preparing")
+        if (created && active === created && ["preparing", "recording"].includes(created.status))
           await interrupt(created, "录制准备失败，已保存可用的部分记录");
         throw error;
       }
@@ -1112,7 +1217,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       try {
         return await stop((session) => { stopping = session; });
       } catch (error) {
-        if (stopping && active === stopping && stopping.status === "stopping")
+        if (stopping && active === stopping)
           await interrupt(stopping, "录制异常结束，已保存可用的部分记录");
         throw error;
       }
@@ -1138,7 +1243,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         session.incomplete = true;
         chrome.action.setBadgeText({ text: "!" }).catch(() => {});
         await warning(overflow ? "页面事件发送队列已满，部分事件未保存" : "页面事件通信未确认，部分记录可能缺失", { tabId: sender.tab.id, frameId: sender.frameId });
-        if (active === session) await chrome.storage.session.set({ active: session }).catch(() => {});
+        if (active === session) await persistSessionState(session).catch(() => {});
       }
       return true;
     }
@@ -1745,7 +1850,7 @@ chrome.tabs.onCreated.addListener(
       append("tab.created", { tabId: tab.id, openerTabId: tab.openerTabId }),
     );
     track(warning("新标签的初始请求可能在采集器连接前发生", { tabId: tab.id }));
-    track(chrome.storage.session.set({ active }));
+    track(persistSessionState(active));
   }),
 );
 chrome.tabs.onActivated.addListener(({ windowId }) => {
@@ -1768,7 +1873,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
       return;
     const target = active.tabs[details.tabId];
     target.inScope = allowedUrl(details.url);
-    track(chrome.storage.session.set({ active }));
+    track(persistSessionState(active));
     if (!target.inScope) {
       track(append("navigation.out_of_scope", { tabId: details.tabId }, { tabId: details.tabId, frameId: 0 }));
       track(warning("页面已离开授权范围", { tabId: details.tabId }));
@@ -1824,7 +1929,7 @@ chrome.tabs.onRemoved.addListener(
     if (active?.tabs[tabId]) {
       active.tabs[tabId].closed = true;
       track(append("tab.closed", { tabId }));
-      track(chrome.storage.session.set({ active }));
+      track(persistSessionState(active));
     }
   }),
 );
@@ -1851,7 +1956,7 @@ chrome.tabs.onUpdated.addListener(
       if (!target.debuggerAttached) track(attachTab(tabId));
       track(snapshotCookies(info.url));
     }
-    track(chrome.storage.session.set({ active }));
+    track(persistSessionState(active));
   }),
 );
 chrome.cookies.onChanged.addListener(
@@ -1934,7 +2039,7 @@ chrome.downloads.onChanged.addListener(
 chrome.runtime.onStartup.addListener(() => {
   track(
     (async () => {
-      await ready;
+      await ensureReady();
       if (!active) {
         await chrome.action.setBadgeText({ text: "" });
         await chrome.action.setTitle({ title: "打开逻辑记录" });

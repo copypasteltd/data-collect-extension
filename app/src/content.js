@@ -3,8 +3,16 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
 import { encodeDatabaseValue } from "./database-value.js";
 
 (() => {
-  if (globalThis.__logicRecorderInstalled) return;
-  globalThis.__logicRecorderInstalled = true;
+  const previous = globalThis.__logicRecorderInstalled;
+  if (previous && !(typeof previous.releaseStopped === "function" && previous.releaseStopped())) return;
+  const collector = {
+    releaseStopped() {
+      if (!stopped) return false;
+      shutdownCollector();
+      return true;
+    },
+  };
+  globalThis.__logicRecorderInstalled = collector;
   const abort = new AbortController();
   const MAX_INPUT_LENGTH = 10000;
   let stopped = false;
@@ -20,6 +28,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     ]).catch(() => null).then((result) => {
       clearTimeout(timeout);
       const settings = result?.ok && typeof result.value?.sessionId === "string" ? result.value : null;
+      if (!settings && !stopped) shutdownCollector();
       canvasMode = typeof settings?.enabled === "boolean"
         ? (settings.enabled ? "enabled" : "disabled") : "unavailable";
       if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
@@ -1538,7 +1547,21 @@ import { encodeDatabaseValue } from "./database-value.js";
     beginStateCapture("database", "initial", () => captureDatabases("initial")),
     beginStateCapture("cache", "initial", () => captureCache("initial")),
   ];
-  const onMessage = (msg, _sender, reply) => {
+  function shutdownCollector() {
+    clearTimeout(shadowTimer);
+    cancelDeferredEvents();
+    collectorClosed = true;
+    stopped = true;
+    abort.abort();
+    observer.disconnect();
+    clearInterval(storageTimer);
+    clearTimeout(timer);
+    cancelScheduledSnapshot();
+    cancelScrolls();
+    chrome.runtime.onMessage.removeListener(onMessage);
+    if (globalThis.__logicRecorderInstalled === collector) delete globalThis.__logicRecorderInstalled;
+  }
+  const handleMessage = (msg, _sender, reply) => {
     if (msg.type === "VIEWPORT_INFO") {
       reply({ url: location.href, viewport: { width: innerWidth, height: innerHeight,
         dpr: devicePixelRatio, scrollX, scrollY, scale: visualViewport?.scale || 1,
@@ -1587,20 +1610,20 @@ import { encodeDatabaseValue } from "./database-value.js";
       return true;
     }
     if (msg.type === "STOP_CAPTURE") {
-      clearTimeout(shadowTimer);
-      cancelDeferredEvents();
-      collectorClosed = true;
-      stopped = true;
-      abort.abort();
-      observer.disconnect();
-      clearInterval(storageTimer);
-      clearTimeout(timer);
-      cancelScheduledSnapshot();
-      cancelScrolls();
-      chrome.runtime.onMessage.removeListener(onMessage);
-      delete globalThis.__logicRecorderInstalled;
+      shutdownCollector();
       reply({ ok: true });
     }
+  };
+  const onMessage = (msg, sender, reply) => {
+    // Finalization messages may arrive after a new collector has replaced this one.
+    if (msg.sessionId && ["FLUSH", "STOP_CAPTURE"].includes(msg.type)) {
+      captureSettings.then((settings) => {
+        if (settings?.sessionId !== msg.sessionId) reply({ ok: false });
+        else handleMessage(msg, sender, reply);
+      }).catch(() => reply({ ok: false }));
+      return true;
+    }
+    return handleMessage(msg, sender, reply);
   };
   chrome.runtime.onMessage.addListener(onMessage);
   if (document.readyState === "loading")
