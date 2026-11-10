@@ -1,4 +1,4 @@
-import { all, get, put, putMany, removeSession } from "./db.js";
+import { all, get, put, putMany, putIdempotentEvents, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
@@ -113,26 +113,33 @@ function append(kind, payload = {}, extra = {}) {
   writeChain = handled.then(() => undefined);
   return track(handled);
 }
-function appendPageBatch(items, sender, session) {
+function appendPageBatch(items, sender, session, batchId) {
   const capacity = Math.max(0, 5000 - outstandingWrites);
-  const selected = items.slice(0, capacity);
-  recordDroppedEvents(session, items.length - selected.length);
-  const events = selected.map((item) => ({
-    id: uid(), sessionId: session.id, seq: ++sequence, time: item.time,
+  const selected = batchId ? items : items.slice(0, capacity);
+  if (!batchId) recordDroppedEvents(session, items.length - selected.length);
+  const events = selected.map((item, index) => ({
+    id: batchId ? `${batchId}_${index}` : uid(), sessionId: session.id, seq: ++sequence, time: item.time,
     kind: item.kind,
     payload: scrubEventPayload(item.kind, { ...item.payload, url: cleanUrl(item.payload?.url || sender.url) }),
     tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId,
+    ...(batchId ? { screenshotRequested: !!item.screenshot, batchSize: items.length } : {}),
   }));
   if (!events.length) return Promise.resolve({ events, results: [] });
-  outstandingWrites += events.length;
-  const handled = writeChain.then(() => putMany("events", events)).then((results) => {
-    if (results.some((saved) => !saved)) markEventWriteFailure(session.id, new Error("部分事件写入失败"));
+  const reserved = Math.min(events.length, capacity);
+  outstandingWrites += reserved;
+  const handled = writeChain.then(() => batchId
+    ? putIdempotentEvents(events, reserved)
+    : putMany("events", events).then((values) => values.map((saved) => saved ? "created" : "failed")))
+  .then((results) => {
+    if (active === session) recordDroppedEvents(session, results.filter((result) => result === "capacity").length);
+    if (results.some((result) => result === "failed" || result === "conflict"))
+      markEventWriteFailure(session.id, new Error("部分事件写入失败或标识冲突"));
     return results;
   }).catch((error) => {
     markEventWriteFailure(session.id, error);
-    return events.map(() => false);
+    return events.map(() => "failed");
   });
-  handled.finally(() => { outstandingWrites -= events.length; });
+  handled.finally(() => { outstandingWrites -= reserved; });
   writeChain = handled.then(() => undefined);
   return track(handled).then((results) => ({ events, results }));
 }
@@ -1196,14 +1203,20 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         }
       })();
       if (!allowedUrl(origin)) return false;
-      if (!Array.isArray(message.events) || message.events.length > 100) return false;
+      if (!Array.isArray(message.events) || message.events.length > 100 ||
+          (message.batchId != null && (typeof message.batchId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.batchId)))) return false;
       const session = active;
-      const { events, results } = await appendPageBatch(message.events, sender, session);
-      const accepted = results.filter(Boolean).length;
+      const { events, results } = await appendPageBatch(message.events, sender, session, message.batchId);
+      const accepted = results.filter((result) => result === "created" || result === "existing").length;
       if (active === session && session.options.screenshots)
         for (let index = 0; index < events.length; index++)
-          if (results[index] && message.events[index].screenshot)
+          if (results[index] === "created" && message.events[index].screenshot)
             requestScreenshot(events[index].id, sender.tab.id, sender.frameId, sender.documentId, events[index].payload.url);
+      if (active === session && session.options.screenshots && !session.retryScreenshotGap &&
+          results.some((result, index) => result === "existing" && message.events[index].screenshot)) {
+        session.retryScreenshotGap = true;
+        track(warning("重试前已保存的操作可能缺少截图，请检查截图记录"));
+      }
       return { accepted, failed: message.events.length - accepted };
     }
     return null;

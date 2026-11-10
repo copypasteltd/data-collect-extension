@@ -13,7 +13,7 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
       });
     if (events[0] === "rejected") throw new Error("连接失败");
     return { ok: false };
-  });
+  }, { retryDelay: 0 });
   delivery.enqueue(["first"]);
   delivery.enqueue(["rejected", "also-lost"]);
   delivery.enqueue(["unaccepted"]);
@@ -21,7 +21,7 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
   assert.deepEqual(sent, ["first"]);
   release({ ok: true, value: true });
   await delivery.flush();
-  assert.deepEqual(sent, ["first", "rejected", "unaccepted"]);
+  assert.deepEqual(sent, ["first", "rejected", "rejected", "rejected", "unaccepted"]);
   assert.equal(delivery.failedEvents, 3);
 });
 
@@ -55,4 +55,22 @@ it("限制待发送事件数量及估算体积，并在队列排空后恢复接�
   const small = createEventDelivery(async () => ({ ok: true, value: true }), { maxEvents: 10, maxBytes: 20 });
   await small.enqueue(["x".repeat(100)]);
   assert.equal(small.failedEvents, 1);
+});
+
+it("通信异常时使用同一批次标识重试，明确拒绝时不重试", async () => {
+  const ids = [];
+  const delivery = createEventDelivery(async (_events, batchId) => {
+    ids.push(batchId);
+    if (ids.length < 3) throw new Error("连接中断");
+    return { ok: true, value: { accepted: 1, failed: 0 } };
+  }, { retryDelay: 0 });
+  await delivery.enqueue(["event"]);
+  assert.equal(delivery.failedEvents, 0);
+  assert.equal(ids.length, 3);
+  assert.equal(new Set(ids).size, 1);
+  let attempts = 0;
+  const rejected = createEventDelivery(async () => { attempts++; return { ok: false }; }, { retryDelay: 0 });
+  await rejected.enqueue(["event"]);
+  assert.equal(attempts, 1);
+  assert.equal(rejected.failedEvents, 1);
 });

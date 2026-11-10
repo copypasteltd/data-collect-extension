@@ -117,6 +117,49 @@ export async function putMany(store, values) {
     tx.onerror = () => {};
   });
 }
+export async function putIdempotentEvents(values, capacity) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("events", "readwrite"), store = tx.objectStore("events");
+    const results = values.map(() => "failed");
+    let remaining = capacity, pendingReads = values.length;
+    const sameEvent = (left, right) =>
+      ["sessionId", "time", "kind", "tabId", "frameId", "documentId", "screenshotRequested", "batchSize"]
+        .every((key) => left[key] === right[key]) && JSON.stringify(left.payload) === JSON.stringify(right.payload);
+    const missing = [];
+    const finishRead = () => {
+      if (--pendingReads) return;
+      if (results.includes("conflict")) {
+        results.fill("conflict");
+        return;
+      }
+      for (const index of missing) {
+        if (remaining <= 0) { results[index] = "capacity"; continue; }
+        remaining--;
+        try {
+          const write = store.put(values[index]);
+          write.onsuccess = () => { results[index] = "created"; };
+          write.onerror = (event) => { event.preventDefault(); event.stopPropagation(); };
+        } catch {}
+      }
+    };
+    values.forEach((value, index) => {
+      try {
+        const read = store.get(value.id);
+        read.onerror = (event) => { event.preventDefault(); event.stopPropagation(); finishRead(); };
+        read.onsuccess = () => {
+          if (read.result) {
+            results[index] = sameEvent(read.result, value) ? "existing" : "conflict";
+          } else missing.push(index);
+          finishRead();
+        };
+      } catch { finishRead(); }
+    });
+    tx.oncomplete = () => resolve(results);
+    tx.onabort = () => reject(tx.error || new Error("存储事务已中断"));
+    tx.onerror = () => {};
+  });
+}
 export async function get(store, key) {
   const db = await openDB();
   return new Promise((resolve, reject) => {

@@ -46,6 +46,7 @@
     "test:worker-frame-recovery": "node tests/worker-frame-recovery.e2e.mjs",
     "test:concurrent-stop": "node tests/concurrent-stop.e2e.mjs",
     "test:event-ack": "node tests/event-ack.e2e.mjs",
+    "test:event-retry": "node tests/event-retry.e2e.mjs",
     "test:queue-overflow": "node tests/queue-overflow.e2e.mjs",
     "test:scroll": "node tests/scroll-replay.e2e.mjs"
   },

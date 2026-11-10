@@ -15,9 +15,19 @@ export function createEventDelivery(sendBatch, options = {}) {
       }
       pendingEvents += events.length;
       pendingBytes += size;
+      const batchId = crypto.randomUUID();
       chain = chain.then(async () => {
         try {
-          const result = await sendBatch(events);
+          let result;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              result = await sendBatch(events, batchId);
+              break;
+            } catch (error) {
+              if (attempt === 2) throw error;
+              await new Promise((resolve) => setTimeout(resolve, options.retryDelay ?? 100));
+            }
+          }
           if (result?.ok && result.value === true) return;
           const value = result?.value;
           if (result?.ok && Number.isSafeInteger(value?.accepted) && value.accepted >= 0 &&

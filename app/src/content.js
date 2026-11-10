@@ -43,10 +43,10 @@ import { encodeDatabaseValue } from "./database-value.js";
     });
   })();
   let overflowNoticeSent = false;
-  const delivery = createEventDelivery(async (events) => {
+  const delivery = createEventDelivery(async (events, batchId) => {
     const settings = await captureSettings;
     if (!settings || collectorClosed) return { ok: false };
-    return chrome.runtime.sendMessage({ type: "EVENTS", events, sessionId: settings.sessionId });
+    return chrome.runtime.sendMessage({ type: "EVENTS", events, batchId, sessionId: settings.sessionId });
   }, {
     onOverflow: () => {
       if (overflowNoticeSent) return;

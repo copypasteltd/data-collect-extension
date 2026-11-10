@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 页面事件通信异常时使用稳定批次标识重试，并在事务中核对已有事件，避免重复写入；标识冲突会拒绝，无法确认的截图排队状态会提示。 / Retry page-event communication failures with stable batch IDs and verify existing events in the transaction to prevent duplicates; reject identity conflicts and report uncertain screenshot scheduling.
 - 页面事件按批写入事务并保留逐条确认；为每个页面框架增加 2,000 条或估算 32 MB 的发送队列上限，超限时尝试即时提示并在结束后标记不完整。 / Write page events in batches while retaining per-event acknowledgement; bound each frame's delivery queue to 2,000 events or an estimated 32 MB, with an immediate warning attempt and an incomplete recording status on overflow.
 - 页面事件绑定录制身份并按逐条写入结果确认；部分失败时准确统计未确认数量，拒绝已绑定旧录制的迟到消息，采集器关闭后不再发送排队消息，并将通信不确定性写入说明。 / Bind page events to their recording and acknowledge individual write outcomes, count partial failures accurately, reject late messages bound to previous recordings, stop queued sends after collector closure, and document uncertain communication outcomes.
 - 协调多个侧边栏对记录的查看、打包和删除，避免读取过程中删除；打包结束复核会话、事件和资源数量，发现变化时提示重新下载。 / Coordinate viewing, export, and deletion across side panels to prevent deletion during reads; recheck the session and event and asset counts at the end of packaging and request a retry if they changed.

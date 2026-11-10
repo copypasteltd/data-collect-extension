@@ -72,7 +72,7 @@ try {
   });
   const partial = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
-      type: "EVENTS", sessionId, events: ["#async-first", "#async-bad", "#async-last"].map((selector) => ({
+      type: "EVENTS", sessionId, batchId: crypto.randomUUID(), events: ["#async-first", "#async-bad", "#async-last"].map((selector) => ({
         kind: "interaction.click", time: Date.now(), payload: { url: location.href, target: { selector } },
       })),
     }),
@@ -89,7 +89,7 @@ try {
   });
   const aborted = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
-      type: "EVENTS", sessionId, events: ["#abort-before", "#abort", "#abort-after"].map((selector) => ({
+      type: "EVENTS", sessionId, batchId: crypto.randomUUID(), events: ["#abort-before", "#abort", "#abort-after"].map((selector) => ({
         kind: "interaction.click", time: Date.now(), payload: { url: location.href, target: { selector } },
       })),
     }),
@@ -124,7 +124,7 @@ try {
       const stale = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: oldId, events: [event("#stale")] });
       const missing = await chrome.runtime.sendMessage({ type: "EVENTS", events: [event("#missing")] });
       const current = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: newId, events: [event("#current")] });
-      const batch = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: newId,
+      const batch = await chrome.runtime.sendMessage({ type: "EVENTS", sessionId: newId, batchId: crypto.randomUUID(),
         events: Array.from({ length: 20 }, (_, index) => event(`#bulk-${index}`)) });
       return { stale, missing, current, batch };
     },
