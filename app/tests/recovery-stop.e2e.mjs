@@ -16,7 +16,7 @@ try {
     IDBObjectStore.prototype.get = function (...args) {
       if (this.name === "sessions" && String(args[0]).startsWith("review-")) {
         if (this.transaction.mode === "readonly") return {};
-        if (args[0] === "review-write-failure" && globalThis.failReviewWrite) throw new Error("模拟本地写入失败");
+        if (["review-write-failure", "review-combined"].includes(args[0]) && globalThis.failReviewWrite) throw new Error("模拟本地写入失败");
       }
       return originalGet.apply(this, args);
     };\n` + source);
@@ -33,7 +33,7 @@ try {
 
   async function restartWithSession(id, storedStatus) {
     await panel.evaluate(async ({ id, storedStatus }) => {
-      const session = { id, title: id, origin: "https://example.test", startedAt: Date.now(), status: storedStatus, options: { scope: "site" }, tabs: {}, ...(id === "review-cleanup" ? { scriptId: "review-script", scriptRegistered: true } : {}) };
+      const session = { id, title: id, origin: "https://example.test", startedAt: Date.now(), status: storedStatus, options: { scope: "site" }, tabs: {}, ...(["review-cleanup", "review-combined"].includes(id) ? { scriptId: "review-script", scriptRegistered: true } : {}) };
       const db = await new Promise((resolve, reject) => { const req = indexedDB.open("logic-recorder"); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
       await new Promise((resolve, reject) => { const tx = db.transaction("sessions", "readwrite"); tx.objectStore("sessions").put(session); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
       await new Promise((resolve, reject) => { const tx = db.transaction("events", "readwrite"); tx.objectStore("events").put({ id: `${id}-event`, sessionId: id, seq: 1, time: Date.now(), kind: "test.saved", payload: { value: "retained" } }); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
@@ -112,6 +112,22 @@ try {
   assert.equal(afterCleanup.value.active, null);
   assert.equal(afterCleanup.value.sessions.find((session) => session.id === "review-cleanup").status, "interrupted");
   console.log("采集器清理失败时报告未确认状态，保留中断批次");
+
+  first = restartWithSession("review-combined", "recording");
+  await panel.waitForTimeout(700);
+  worker = context.serviceWorkers().at(-1);
+  await worker.evaluate(() => {
+    chrome.scripting.unregisterContentScripts = () => Promise.reject(new Error("模拟采集器清理失败"));
+  });
+  const combined = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP", sessionId: "review-combined" }));
+  assert.equal(combined.ok, false);
+  assert.match(combined.error, /无法更新本地批次/);
+  assert.match(combined.error, /部分清理未能确认/);
+  await first;
+  await worker.evaluate(() => { globalThis.failReviewWrite = false; });
+  const afterCombined = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
+  assert.equal(afterCombined.value.sessions.find((session) => session.id === "review-combined").status, "interrupted");
+  console.log("归档和清理同时失败时同时报告，写入恢复后保留批次");
 } finally {
   if (context) await context.close();
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });

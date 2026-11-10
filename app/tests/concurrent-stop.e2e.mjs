@@ -56,7 +56,7 @@ try {
   await worker.evaluate(() => globalThis.releaseTestFlush());
   const firstResult = await firstStop;
   assert.equal(secondStop.ok, false, "重复停止应返回等待提示");
-  assert.match(secondStop.error, /正在准备或停止/);
+  assert.match(secondStop.error, /正在停止/);
   assert.equal(during.value.active?.id, started.value.id, "重复停止不能中断正在收尾的任务");
   assert.equal(during.value.active?.status, "stopping");
   assert.equal(firstResult.ok, true, "第一次停止应正常完成");

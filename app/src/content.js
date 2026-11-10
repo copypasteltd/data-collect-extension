@@ -2,15 +2,38 @@ import { createEventDelivery } from "./delivery.js";
 import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
 import { encodeDatabaseValue } from "./database-value.js";
 
-(() => {
+(async () => {
   const previous = globalThis.__logicRecorderInstalled;
-  if (previous && !(typeof previous.releaseStopped === "function" && previous.releaseStopped())) return;
+  if (previous && !(typeof previous.releaseStopped === "function" && previous.releaseStopped())) {
+    let timeout;
+    const settings = await Promise.race([
+      Promise.resolve().then(() => chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" })).catch(() => null),
+      new Promise((resolve) => { timeout = setTimeout(() => resolve(null), 5000); }),
+    ]);
+    clearTimeout(timeout);
+    if (!settings?.ok || !settings.value?.sessionId || typeof previous.sessionId !== "function" ||
+        typeof previous.shutdown !== "function") return;
+    let previousId;
+    try { previousId = await previous.sessionId(); } catch { return; }
+    if (globalThis.__logicRecorderInstalled !== previous || previousId === settings.value.sessionId) return;
+    let validationTimeout;
+    const current = await Promise.race([
+      Promise.resolve().then(() => chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" })).catch(() => null),
+      new Promise((resolve) => { validationTimeout = setTimeout(() => resolve(null), 5000); }),
+    ]);
+    clearTimeout(validationTimeout);
+    if (!current?.ok || current.value?.sessionId !== settings.value.sessionId ||
+        globalThis.__logicRecorderInstalled !== previous) return;
+    try { previous.shutdown(); } catch { return; }
+  }
   const collector = {
     releaseStopped() {
       if (!stopped) return false;
       shutdownCollector();
       return true;
     },
+    sessionId() { return captureSettings.then((settings) => settings?.sessionId); },
+    shutdown() { shutdownCollector(); },
   };
   globalThis.__logicRecorderInstalled = collector;
   const abort = new AbortController();
@@ -23,7 +46,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   const captureSettings = (() => {
     let timeout;
     return Promise.race([
-      chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" }),
+      Promise.resolve().then(() => chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" })),
       new Promise((resolve) => { timeout = setTimeout(() => resolve(null), 5000); }),
     ]).catch(() => null).then((result) => {
       clearTimeout(timeout);
@@ -1562,6 +1585,11 @@ import { encodeDatabaseValue } from "./database-value.js";
     if (globalThis.__logicRecorderInstalled === collector) delete globalThis.__logicRecorderInstalled;
   }
   const handleMessage = (msg, _sender, reply) => {
+    if (msg.type === "COLLECTOR_READY") {
+      captureSettings.then((settings) => reply({ ok: !collectorClosed && !stopped && settings?.sessionId === msg.sessionId }))
+        .catch(() => reply({ ok: false }));
+      return true;
+    }
     if (msg.type === "VIEWPORT_INFO") {
       reply({ url: location.href, viewport: { width: innerWidth, height: innerHeight,
         dpr: devicePixelRatio, scrollX, scrollY, scale: visualViewport?.scale || 1,
@@ -1632,4 +1660,4 @@ import { encodeDatabaseValue } from "./database-value.js";
       signal: abort.signal,
     });
   else snapshot("initial");
-})();
+})().catch((error) => console.warn("页面采集器启动失败", error));

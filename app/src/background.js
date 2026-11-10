@@ -3,6 +3,7 @@ import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
 import { withSessionLock } from "./session-lock.js";
+import { canRecoverSession } from "./session-ownership.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -39,6 +40,8 @@ let outstandingWrites = 0;
 let childStorageChain = Promise.resolve();
 let stopInFlight = false;
 let recoveryCleanup;
+const pendingInterruptions = new Map();
+let interruptionRetry;
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -486,10 +489,29 @@ async function start(tab, options, onCreated) {
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
     requirePreparing(session);
     try {
-      await withDeadline(chrome.scripting.executeScript({
+      const results = await withDeadline(chrome.scripting.executeScript({
         target: { tabId: target.id, allFrames: true },
         files: ["content.js"],
       }), 5000, "页面采集器注入");
+      requirePreparing(session);
+      if (!results?.length) throw new Error("没有可确认的页面框架");
+      await Promise.all((results || []).map(async (frame) => {
+        const deadline = Date.now() + 5000;
+        while (preparing(session) && Date.now() < deadline) {
+          try {
+            const response = await withDeadline(chrome.tabs.sendMessage(target.id,
+              { type: "COLLECTOR_READY", sessionId: session.id }, { frameId: frame.frameId }),
+              Math.min(1000, deadline - Date.now()), "页面采集器就绪检查");
+            if (response?.ok) return;
+          } catch {}
+          if (preparing(session) && Date.now() < deadline)
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (preparing(session)) {
+          session.incomplete = true;
+          await warning("页面采集器未确认就绪，页面操作可能缺失", { tabId: target.id, frameId: frame.frameId });
+        }
+      }));
     } catch (error) {
       requirePreparing(session);
       session.incomplete = true;
@@ -1164,27 +1186,76 @@ async function stop(onStopping) {
   return session;
 }
 
+async function saveInterruption(session, reason) {
+  const item = { session, reason };
+  pendingInterruptions.set(session.id, item);
+  const saved = await interruptSession(session, reason);
+  if (pendingInterruptions.get(session.id) === item) pendingInterruptions.delete(session.id);
+  return saved;
+}
+function retryInterruptions() {
+  if (!interruptionRetry) {
+    const retry = (async () => {
+      for (const [id, item] of pendingInterruptions) {
+        await interruptSession(item.session, item.reason);
+        if (pendingInterruptions.get(id) === item) pendingInterruptions.delete(id);
+      }
+    })();
+    interruptionRetry = retry;
+    retry.finally(() => { if (interruptionRetry === retry) interruptionRetry = undefined; }).catch(() => {});
+  }
+  return interruptionRetry;
+}
+function interruptionFailure(saveError, failures) {
+  const messages = [];
+  if (saveError) messages.push(`无法更新本地批次：${String(saveError)}`);
+  if (failures.length) messages.push(`部分清理未能确认：${[...new Set(failures)].join("、")}`);
+  return messages.length ? new Error(`已请求停止，但${messages.join("；")}`) : null;
+}
 async function interrupt(session, reason) {
   if (!session || active?.id !== session.id) return;
   session.status = "interrupted";
   session.interruptedAt = Date.now();
   session.notice = reason;
-  await withDeadline(put("sessions", session), 6000, "中断记录保存").catch(console.error);
-  await clearActiveResources(session);
+  let saveError;
+  try { await saveInterruption(session, reason); } catch (error) { saveError = error; }
+  const failures = [];
+  await clearActiveResources(session, (stage, error) => {
+    failures.push(stage);
+    console.warn(`${stage}失败`, error);
+  });
   writeChain = Promise.resolve();
   pending.clear();
+  const failure = interruptionFailure(saveError, failures);
+  if (failure) throw failure;
 }
 
-async function clearActiveResources(session, onFailure = () => {}) {
+async function clearActiveResources(session, onFailure = (stage, error) => console.warn(`${stage}失败`, error)) {
   if (screenshotTimer) clearTimeout(screenshotTimer);
   screenshotTimer = null;
   screenshotPending = [];
   await Promise.all(Object.values(session.tabs || {}).map(async (target) => {
-    await withDeadline(chrome.tabs
-      .sendMessage(target.id, { type: "STOP_CAPTURE", sessionId: session.id }), 2000, "采集器关闭")
-      .catch((error) => {
+    let frames;
+    let enumerateFailed = false;
+    try {
+      frames = await withDeadline(chrome.webNavigation.getAllFrames({ tabId: target.id }), 5000, "页面框架检查");
+    } catch (error) {
+      if (!/No tab with id/i.test(String(error))) {
+        enumerateFailed = true;
+        onFailure("页面框架检查", error);
+      }
+    }
+    const eligible = (frames || []).filter((frame) => allowedUrl(frame.url));
+    const destinations = enumerateFailed ? [null] : eligible;
+    await Promise.all(destinations.map(async (frame) => {
+      try {
+        const response = await withDeadline(chrome.tabs.sendMessage(target.id,
+          { type: "STOP_CAPTURE", sessionId: session.id }, ...(frame ? [{ frameId: frame.frameId }] : [])), 2000, "采集器关闭");
+        if (!response?.ok) throw new Error("页面采集器未确认关闭");
+      } catch (error) {
         if (!/Receiving end does not exist|No tab with id/i.test(String(error))) onFailure("采集器关闭", error);
-      });
+      }
+    }));
     if (target.debuggerAttached)
       await withDeadline(detachTab(target), 3000, "调试连接关闭").catch((error) => onFailure("调试连接关闭", error));
   }));
@@ -1220,14 +1291,22 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         try {
           await ensureReady();
         } catch (error) {
-          const session = active;
-          if (!session || (message.sessionId && message.sessionId !== session.id)) throw error;
-          if (!["preparing", "recording"].includes(session.status)) throw error;
-          session.status = "stopping";
           const cleanup = (async () => {
+            let session = active;
+            if (!session && message.sessionId) {
+              session = await withDeadline(get("sessions", message.sessionId), 5000, "录制批次读取");
+              if (!session || !["preparing", "recording", "stopping"].includes(session.status)) throw error;
+              const sessions = await withDeadline(all("sessions"), 5000, "录制批次核对");
+              if (!canRecoverSession(session, sessions))
+                throw new Error("无法确认当前录制批次，请等待后台状态恢复后重试");
+              active = session;
+            }
+            if (!session || (message.sessionId && message.sessionId !== session.id)) throw error;
+            if (!["preparing", "recording", "stopping"].includes(session.status)) throw error;
+            session.status = "stopping";
             let saved, saveError;
             try {
-              saved = await interruptSession(session, "后台恢复失败，录制已中断；已保存的数据可供导出。");
+              saved = await saveInterruption(session, "后台恢复失败，录制已中断；已保存的数据可供导出。");
             } catch (reason) { saveError = reason; }
             const cleanupFailures = [];
             await clearActiveResources(session, (stage, reason) => {
@@ -1236,9 +1315,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
             });
             writeChain = Promise.resolve();
             pending.clear();
-            if (saveError) throw new Error(`已请求停止，但无法更新本地批次：${String(saveError)}`);
-            if (cleanupFailures.length)
-              throw new Error(`已请求停止，但部分清理未能确认：${[...new Set(cleanupFailures)].join("、")}`);
+            const failure = interruptionFailure(saveError, cleanupFailures);
+            if (failure) throw failure;
             return saved;
           })();
           recoveryCleanup = cleanup;
@@ -1263,7 +1341,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (message.type === "GET_STATE")
       return {
         active,
-        sessions: (await withDeadline(all("sessions"), 5000, "录制批次读取")).sort(
+        sessions: (await withDeadline(retryInterruptions().then(() => all("sessions")), 6000, "录制批次读取")).sort(
           (a, b) => b.startedAt - a.startedAt,
         ),
       };

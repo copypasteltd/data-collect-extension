@@ -4,7 +4,7 @@
 
 [English](README.en.md) · [安装与使用](docs/插件安装与使用说明.md) · [技术文档](docs/Chrome扩展技术开发文档.md) · [需求文档](docs/Chrome扩展需求梳理.md) · [更新说明](docs/CHANGELOG.md)
 
-> 当前为 **0.1.5 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
+> 当前为 **0.1.6 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
 
 ## 演示
 
@@ -20,7 +20,7 @@
 
 ## 安装
 
-需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.5.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
+需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.6.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
 
 也可从源码构建；此方式还需要 Node.js 20 或更高版本和 npm：
 
@@ -45,6 +45,8 @@ npm run build
 
 后台重启后若无法恢复当前录制，停止操作会尝试关闭采集并将批次标记为中断。若本地存储无法写入，侧边栏会提示归档失败；存储恢复后可再次读取批次，已完成批次不会被覆盖。
 
+后台会话状态不可读取时，扩展尝试使用已保存的批次信息完成停止；存在其他未结束批次或归属无法确认时，会提示等待状态恢复，避免误停其他批次。页面采集器未确认就绪或关闭时会记录或提示缺口，异常中断的记录只包含已保存内容。
+
 ## 记录内容
 
 插件尽力记录授权范围内的页面、操作、截图、网络请求及响应、Cookie、站点存储和可读取的资源。新记录保留浏览器提供的原值，不对密码、认证字段或截图进行遮挡；原始 DOM 单独保存在页面快照事件中。DOM 是采集时的序列化结果，并非原始 HTTP 字节，也不包含 Shadow DOM 或未反映在属性中的实时表单值。
@@ -68,7 +70,7 @@ resources/                    已保存的图片、字体等资源
 
 仓库提供 [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md)，用于校验记录包、整理页面和操作证据，并按要求基于已观察流程构建复现项目。技能在插件之外运行，不改变侧边栏功能。解析工具需要 Python 3.9 或更高版本，无需安装额外 Python 库。
 
-也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.5.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
+也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.6.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
 
 Windows PowerShell 中，从项目根目录安装到当前用户的 Codex 技能目录：
 
@@ -117,6 +119,7 @@ npm run test:status-isolation
 npm run test:attach-stop
 npm run test:stop-lifecycle
 npm run test:recovery-stop
+npm run test:stop-review-regressions
 npm run test:stop-timeout
 npm run test:query-parameters
 npm run test:response-encoding

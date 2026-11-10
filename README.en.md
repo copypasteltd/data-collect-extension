@@ -4,7 +4,7 @@ Record authorized browser workflows from the Chrome side panel and export a sele
 
 [中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [Changelog](docs/CHANGELOG.md)
 
-> This is a **0.1.5 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
+> This is a **0.1.6 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 
 ## Demo
 
@@ -20,7 +20,7 @@ The demo uses fictional local data in an isolated test browser. The side panel o
 
 ## Install
 
-Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.5.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
+Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.6.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
 
 To build from source instead, you also need Node.js 20 or later and npm:
 
@@ -45,6 +45,8 @@ With many or slow pages, preparation continues in the background while the side 
 
 If the worker cannot restore an active recording after a restart, Stop attempts to close collectors and mark the batch interrupted. If local storage cannot be written, the side panel reports the archival failure; batches can be read again after storage recovers, and completed batches are not overwritten.
 
+If session state cannot be read, the extension attempts to stop using saved batch information. When another unfinished batch exists or ownership cannot be confirmed, it asks the user to wait for state recovery to avoid stopping the wrong batch. Unconfirmed collector readiness or shutdown is recorded or reported; interrupted recordings contain only saved data.
+
 ## Recorded Data
 
 The extension attempts to capture in-scope pages, actions, screenshots, requests and responses, cookies, site storage, and accessible resources. New recordings retain browser-provided values without masking passwords, authentication fields, or screenshots. Each page snapshot separately stores a serialized DOM, which is not the original HTTP byte stream and excludes Shadow DOM and live form values not reflected in attributes.
@@ -68,7 +70,7 @@ resources/                    Captured images, fonts, and other resources
 
 The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
 
-Alternatively, download `extension-logic-clone-v0.1.5.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
+Alternatively, download `extension-logic-clone-v0.1.6.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
 
 From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
 
@@ -117,6 +119,7 @@ npm run test:status-isolation
 npm run test:attach-stop
 npm run test:stop-lifecycle
 npm run test:recovery-stop
+npm run test:stop-review-regressions
 npm run test:stop-timeout
 npm run test:query-parameters
 npm run test:response-encoding

@@ -33,6 +33,7 @@ function App() {
   const batchInFlight = useRef(false);
   const preferredSession = useRef("");
   const uncertainStop = useRef("");
+  const pendingArchiveError = useRef("");
 
   const refreshBatches = useCallback(() => {
     if (batchInFlight.current) return;
@@ -41,6 +42,10 @@ function App() {
       setBatchError("");
       setState((previous) => ({ ...previous, sessions: next.sessions }));
       const available = next.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
+      if (pendingArchiveError.current && available.some((session) => session.id === pendingArchiveError.current)) {
+        pendingArchiveError.current = "";
+        setError((previous) => previous.includes("无法更新本地批次") && !previous.includes("部分清理未能确认") ? "" : previous);
+      }
       const preferred = preferredSession.current;
       if (preferred && available.some((session) => session.id === preferred)) preferredSession.current = "";
       setSelectedId((previous) => {
@@ -87,6 +92,7 @@ function App() {
     const currentOperation = { type: "starting" };
     operation.current = currentOperation;
     uncertainStop.current = "";
+    pendingArchiveError.current = "";
     setError("");
     setBusy("starting");
     try {
@@ -116,6 +122,7 @@ function App() {
     const sessionId = state.active?.id;
     operation.current = currentOperation;
     uncertainStop.current = "";
+    pendingArchiveError.current = "";
     setError("");
     setBusy("stopping");
     try {
@@ -123,6 +130,7 @@ function App() {
       await refresh(session.id).catch(() => {});
     } catch (reason) {
       if (reason.message === "后台响应超时，请等待状态刷新" && sessionId) uncertainStop.current = sessionId;
+      if (reason.message.includes("无法更新本地批次") && sessionId) pendingArchiveError.current = sessionId;
       setError(reason.message);
       await refresh().catch(() => {});
     } finally {
