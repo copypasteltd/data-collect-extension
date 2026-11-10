@@ -2,7 +2,7 @@
 
 Record authorized browser workflows from the Chrome side panel and export a selected recording as a ZIP archive.
 
-[中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [Changelog](docs/CHANGELOG.md)
+[中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [2026-11-11 Update Specification (Chinese)](docs/20261111内容更新细则文档.md) · [Changelog](docs/CHANGELOG.md)
 
 > This is a **0.1.6 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 

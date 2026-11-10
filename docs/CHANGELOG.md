@@ -3,6 +3,10 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 未发布 / Unreleased
+
+- 新增 2026-11-11 内容更新细则，逐项记录 01–26 的现状、目标、边界和验收要求；此项仅为文档更新。 / Add the 2026-11-11 update specification covering the baseline, goals, limits, and acceptance criteria for items 01–26; documentation only.
+
 ## 0.1.6 - 2026-11-11
 
 - 修复会话状态读取失败时无法停止；无法确认批次归属时拒绝误停。 / Recover Stop from a session-state read failure, rejecting ambiguous ownership.

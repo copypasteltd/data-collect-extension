@@ -2,7 +2,7 @@
 
 在 Chrome 侧边栏录制已授权的浏览器操作，并将选定批次导出为 ZIP 记录包。
 
-[English](README.en.md) · [安装与使用](docs/插件安装与使用说明.md) · [技术文档](docs/Chrome扩展技术开发文档.md) · [需求文档](docs/Chrome扩展需求梳理.md) · [更新说明](docs/CHANGELOG.md)
+[English](README.en.md) · [安装与使用](docs/插件安装与使用说明.md) · [技术文档](docs/Chrome扩展技术开发文档.md) · [需求文档](docs/Chrome扩展需求梳理.md) · [20261111 更新细则](docs/20261111内容更新细则文档.md) · [更新说明](docs/CHANGELOG.md)
 
 > 当前为 **0.1.6 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
 
