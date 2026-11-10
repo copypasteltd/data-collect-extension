@@ -212,6 +212,7 @@ try {
   await panel.getByRole("button", { name: "复现", exact: true }).click();
   await panel.getByAltText("该步骤关联的页面截图").waitFor();
   await panel.getByText(/截图与操作之间有其他操作或页面变化/).waitFor();
+  await panel.getByText(/截图页面实例未确认/).waitFor();
   if (await panel.locator(".replay-hotspot").count()) throw new Error("截图之后发生滚动时仍标示操作位置");
   await panel.getByRole("button", { name: "操作后", exact: true }).click();
   await panel.getByText("操作后截图测试失败").waitFor();

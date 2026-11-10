@@ -79,6 +79,7 @@ npm run build
 页面持续变化时，快照采集会尽力在约 2 秒内执行一次，避免持续更新使快照长期推迟；页面离开时也会尝试保存待处理快照。浏览器节流、页面繁忙或页面销毁仍可能导致状态延迟或遗漏。
 普通文本输入及其操作前值最多记录 10,000 个 UTF-16 代码单元；超限时保存前缀并在报告和复现中提示。早期记录可能已在 4,000 个代码单元处截断且没有标记。
 每种网页存储最多读取 200 个键，非敏感值超过 4,000 个 UTF-16 代码单元时不保存原值；超限或不可读会在报告中提示。轮询间的短暂变化仍可能遗漏，旧版记录中被隐藏的会话存储无法恢复。
+截图仍可作为参考查看；只有页面实例、网址、标签页、时序和视口等条件能够确认时，复现界面才会标示近似操作位置。旧记录缺少页面实例或截图开始时间时可能无法标示。
 
 ### 记录包
 
@@ -143,6 +144,7 @@ npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture
 npm run test:snapshot-scheduling
+npm run test:screenshot-identity
 npm run test:permissions
 npm run test:e2e
 ```

@@ -386,10 +386,13 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
       )}
       <div className="replay-meta">
         {shot?.payload?.capturedAt
-          ? `截图时间 ${new Date(shot.payload.capturedAt).toLocaleTimeString()} · ${timing?.overlap ? "时间不确定" : timing?.before ? "操作前" : "操作后"}`
+          ? `截图时间 ${new Date(shot.payload.capturedAt).toLocaleTimeString()} · ${timing?.overlap || timing?.uncertain ? "时间不确定" : timing?.before ? "操作前" : "操作后"}`
           : "截图不可用"}
         {shot?.payload?.status === "shared" ? " · 多个操作共用" : ""}
         {shot?.payload?.contextChanged ? " · 操作后页面已变化" : ""}
+        {shot?.payload?.assetId && step.frameId === 0 && (!step.documentId || !shot.payload.documentId) ? " · 截图页面实例未确认" : ""}
+        {shot?.payload?.assetId && step.frameId === 0 && step.documentId && shot.payload.documentId && step.documentId !== shot.payload.documentId ? " · 截图与操作的页面实例不一致" : ""}
+        {shot?.payload?.assetId && step.frameId === 0 && step.payload?.url && shot.payload.url && step.payload.url !== shot.payload.url ? " · 截图与操作的网址不一致" : ""}
         {timing?.overlap ? " · 截图期间发生操作" : timing?.changed ? " · 截图与操作之间有其他操作或页面变化" : ""}
         {timing?.startUnknown ? " · 截图开始时间未记录" : ""}
         {canHighlight ? " · 操作位置为近似位置" : ""}
