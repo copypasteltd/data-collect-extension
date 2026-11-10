@@ -29,6 +29,8 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
   );
   let timer;
   let snapshotTimer;
+  let snapshotMaxTimer;
+  let snapshotReason;
   let lastStorage = "";
   let nextNodeId = 0;
   const nodeIds = new WeakMap();
@@ -711,8 +713,23 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
     }
   }
   function scheduleSnapshot(reason) {
+    snapshotReason = reason;
     clearTimeout(snapshotTimer);
-    snapshotTimer = setTimeout(() => snapshot(reason), 500);
+    snapshotTimer = setTimeout(flushScheduledSnapshot, 500);
+    if (!snapshotMaxTimer)
+      snapshotMaxTimer = setTimeout(flushScheduledSnapshot, 2000);
+  }
+  function cancelScheduledSnapshot() {
+    clearTimeout(snapshotTimer);
+    clearTimeout(snapshotMaxTimer);
+    snapshotTimer = null;
+    snapshotMaxTimer = null;
+    snapshotReason = null;
+  }
+  function flushScheduledSnapshot() {
+    const reason = snapshotReason;
+    cancelScheduledSnapshot();
+    if (reason) snapshot(reason);
   }
   const registeredRoots = new WeakSet();
   const observedRoots = new WeakSet();
@@ -1041,6 +1058,10 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       captureStorage("pagehide");
       const records = observer?.takeRecords() || [];
       if (records.length) processMutations(records);
+      if (snapshotTimer || snapshotMaxTimer) {
+        cancelScheduledSnapshot();
+        snapshot("pagehide");
+      }
       emit("page.lifecycle", {
         url: location.href,
         type: "pagehide",
@@ -1474,7 +1495,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       flushScrolls();
       const records = observer.takeRecords();
       if (records.length) processMutations(records);
-      clearTimeout(snapshotTimer);
+      cancelScheduledSnapshot();
       captureStorage("stop");
       snapshot("stop");
       abort.abort();
@@ -1520,7 +1541,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       observer.disconnect();
       clearInterval(storageTimer);
       clearTimeout(timer);
-      clearTimeout(snapshotTimer);
+      cancelScheduledSnapshot();
       cancelScrolls();
       chrome.runtime.onMessage.removeListener(onMessage);
       delete globalThis.__logicRecorderInstalled;
