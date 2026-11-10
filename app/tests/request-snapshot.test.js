@@ -32,6 +32,6 @@ it("遇到后续导航或不同页面实例时不复用旧快照", () => {
   assert.equal(matchesRequestSnapshot([{ ...nav, time: 9, payload: { documentId: "doc-b" } }], snapshot, request), false);
   assert.equal(matchesRequestSnapshot([{ ...nav, tabId: 2 }], snapshot, request), true);
   assert.equal(matchesRequestSnapshot([{ ...nav, time: 21 }], snapshot, request), true);
-  for (const kind of ["navigation", "navigation.spa", "navigation.hash", "navigation.popstate"])
+  for (const kind of ["navigation", "navigation.spa", "navigation.hash", "navigation.popstate", "navigation.out_of_scope"])
     assert.equal(matchesRequestSnapshot([{ ...nav, kind, frameId: null }], snapshot, request), false, kind);
 });

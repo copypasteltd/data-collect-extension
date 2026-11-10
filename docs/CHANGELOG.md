@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 修复嵌入页面操作后主页面跳转、或标签离开录制范围时，逐步复现可能把旧页面当作最终状态的问题；记录不包含范围外网址的边界，重新进入后核对页面实例，并兼容旧版范围提示。 / Avoid presenting stale pages as the final state after an embedded-frame action followed by main-page navigation or a tab leaving the recording scope; record boundaries without outside URLs, verify the document after reentry, and recognize older scope warnings.
 - 增加可独立关闭的 Canvas 静态画面与布局采样，支持侧边栏页面复现并报告跨域、敏感区域及资源上限导致的缺口。 / Add separately configurable static Canvas image and layout capture for side-panel replay, reporting gaps from cross-origin restrictions, sensitive targets, and resource limits.
 - 更新中英文 README 演示截图、录屏与 GIF，并补充本地虚构画布图表的回看截图。 / Refresh bilingual README screenshots, video, and GIF, including a static replay of a fictional local canvas chart.
 - 逐步复现支持滑块、数字和颜色输入；新录制保留有效数值范围与步长，页面范围不一致时切换备用控件。 / Support range, number, and color inputs in step replay, preserving valid numeric bounds and step values and falling back when snapshot constraints differ.

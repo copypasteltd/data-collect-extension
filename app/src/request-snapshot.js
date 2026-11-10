@@ -14,7 +14,7 @@ function isNavigation(event, tabId, frameId) {
   if (event.tabId !== tabId) return false;
   if (event.kind === "navigation.committed") return event.frameId === frameId;
   return frameId === 0 &&
-    ["navigation", "navigation.spa", "navigation.hash", "navigation.popstate"].includes(event.kind) &&
+    ["navigation", "navigation.spa", "navigation.hash", "navigation.popstate", "navigation.out_of_scope"].includes(event.kind) &&
     (event.frameId == null || event.frameId === 0);
 }
 

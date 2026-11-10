@@ -148,6 +148,7 @@ When a decoded URL fragment (the part after `#`) matches a common sensitive name
 - Action/request links are candidates inferred from timing and available page context, not proof of causality. An API draft is not a complete contract.
 - Network events are associated with the originating page: the viewer shows available state through the selected event while the page remains unchanged, or falls back to request time after navigation. Missing confirmable snapshots are reported; older records without document identity may still be approximate.
 - Page replay uses isolated snapshots and recorded changes. It does not execute original site scripts or submit replay actions to the original site; it is not a complete site rebuild or a replacement for server-side logic.
+- After a final action in an embedded frame, replay attempts to show the resulting main page when it navigates. It reports an unavailable final state when the tab leaves the recording scope or the new page cannot be confirmed. The scope-boundary marker does not save the outside URL; some transitions in older recordings remain uncertain.
 - Screenshots can be shared or unavailable. Images, fonts, styles, rich text, frames, and page changes may be incomplete because of permission, timing, and size limits. Review the side-panel report and individual event statuses.
 - Autofill, file contents, unknown binary data, binary WebSocket frames, intermediate database changes, and cache entries may be unavailable or intentionally omitted. See the [usage guide](docs/插件安装与使用说明.md) for limits.
 - If Chrome exits unexpectedly, successfully written data can be exported as a partial archive; buffered data may be lost.
@@ -164,6 +165,8 @@ unset CHROME_BIN
 npx playwright install chromium
 npm run test:replay
 npm run test:page-replay
+npm run test:canvas-snapshot
+npm run test:navigation-outcome
 npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery

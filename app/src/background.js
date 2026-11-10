@@ -1765,6 +1765,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
     target.inScope = allowedUrl(details.url);
     track(chrome.storage.session.set({ active }));
     if (!target.inScope) {
+      track(append("navigation.out_of_scope", { tabId: details.tabId }, { tabId: details.tabId, frameId: 0 }));
       track(warning("页面已离开授权范围", { tabId: details.tabId }));
       return;
     }
@@ -1831,6 +1832,7 @@ chrome.tabs.onUpdated.addListener(
     target.inScope = allowedUrl(info.url);
     if (!target.inScope) {
       target.url = null;
+      track(append("navigation.out_of_scope", { tabId }, { tabId, frameId: 0 }));
       track(warning("已离开授权范围，页面操作不会被采集", { tabId }));
     } else {
       target.url = cleanUrl(info.url);

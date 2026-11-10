@@ -54,3 +54,30 @@ it("最终标签关闭后不把旧快照当作当前页面", () => {
   const otherClosed = { kind: "tab.closed", time: 6, seq: 6, payload: { tabId: 2 } };
   assert.equal(findReplayOutcome([original, closed, activated, other, otherClosed], step), null);
 });
+
+it("嵌入页面操作后主页面跳转时显示新的主页面，未采集到则不显示旧框架", () => {
+  const frameStep = { ...step, frameId: 4 };
+  const frameSnapshot = snapshot("frame", 2, { frameId: 4 });
+  const navigation = { kind: "navigation.committed", time: 3, seq: 3, tabId: 1, frameId: 0, payload: {} };
+  const mainSnapshot = snapshot("main", 4, { frameId: 0 });
+  assert.equal(findReplayOutcome([frameSnapshot, navigation], frameStep), null);
+  const result = findReplayOutcome([mainSnapshot, frameSnapshot, navigation], frameStep);
+  assert.equal(result.event.id, "main");
+  assert.equal(result.label, "主页面跳转后的页面状态");
+});
+
+it("离开录制范围时不将过时快照当作最终页面，并兼容旧记录的警告", () => {
+  const before = snapshot("before", 2);
+  const outside = { kind: "navigation.out_of_scope", time: 3, seq: 3, tabId: 1, frameId: 0, payload: { tabId: 1 } };
+  const lateOldSnapshot = snapshot("late-old", 4);
+  assert.equal(findReplayOutcome([before, outside, lateOldSnapshot], step), null);
+  const oldWarning = { kind: "warning", time: 3, seq: 3, payload: { tabId: 1, message: "已离开授权范围，页面操作不会被采集" } };
+  assert.equal(findReplayOutcome([before, oldWarning], step), null);
+  assert.equal(findReplayOutcome([before, outside], { ...step, frameId: 4 }), null);
+  const returned = { kind: "navigation", time: 5, seq: 5, tabId: 1, payload: {} };
+  const after = snapshot("after", 7);
+  assert.equal(findReplayOutcome([before, outside, returned, after], step), null);
+  const commit = { kind: "navigation.committed", time: 6, seq: 6, tabId: 1, frameId: 0, payload: { documentId: "new" } };
+  assert.equal(findReplayOutcome([before, outside, returned, commit, after], step).event.id, "after");
+  assert.equal(findReplayOutcome([before, outside, returned, commit, { ...after, documentId: "old" }], step), null);
+});

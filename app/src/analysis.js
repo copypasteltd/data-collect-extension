@@ -99,7 +99,7 @@ export function buildCatalog(events) {
       pages.set(pageKey, page);
     }
     if (
-      ["navigation", "navigation.spa", "navigation.committed", "navigation.hash", "navigation.popstate"].includes(event.kind)
+      ["navigation", "navigation.spa", "navigation.committed", "navigation.hash", "navigation.popstate", "navigation.out_of_scope"].includes(event.kind)
     ) {
       const tabId = event.tabId ?? p.tabId;
       const frameId = event.frameId ?? p.frameId;

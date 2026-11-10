@@ -55,6 +55,7 @@ const labels = {
   "resource.initialSummary": "初始资源采集",
   warning: "采集提示",
   navigation: "页面跳转",
+  "navigation.out_of_scope": "页面离开录制范围",
   "session.start": "开始录制",
   "session.ready": "采集已就绪",
   "session.stop": "停止录制",
