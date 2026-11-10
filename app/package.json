@@ -32,6 +32,7 @@
     "test:form-state-identity": "node tests/form-state-identity.e2e.mjs",
     "test:closed-tab-replay": "node tests/closed-tab-replay.e2e.mjs",
     "test:navigation-outcome": "node tests/navigation-outcome.e2e.mjs",
+    "test:candidate-navigation": "node tests/candidate-navigation.e2e.mjs",
     "test:screenshot-timing": "node tests/screenshot-timing.e2e.mjs",
     "test:recovery": "node tests/recovery.e2e.mjs",
     "test:browser-restart": "node tests/browser-restart.e2e.mjs",

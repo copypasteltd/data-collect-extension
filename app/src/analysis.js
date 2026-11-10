@@ -80,7 +80,8 @@ export function buildCatalog(events) {
     calls = new Map(),
     endpoints = new Map(),
     flows = [],
-    lastFlowByTab = new Map();
+    lastFlowByTab = new Map(),
+    topNavigations = new Map(), frameNavigations = new Map();
   for (const event of [...events].sort(compareEvents)) {
     const p = event.payload || {};
     if (event.kind === "page.snapshot" && p.url) {
@@ -103,6 +104,16 @@ export function buildCatalog(events) {
     ) {
       const tabId = event.tabId ?? p.tabId;
       const frameId = event.frameId ?? p.frameId;
+      if (tabId != null) {
+        const top = event.kind === "navigation" || event.kind === "navigation.spa" || frameId === 0;
+        if (top || frameId != null) {
+          const map = top ? topNavigations : frameNavigations;
+          const key = top ? tabId : `${tabId}:${frameId}`;
+          const navigations = map.get(key) || [];
+          navigations.push(event);
+          map.set(key, navigations);
+        }
+      }
       if (event.kind === "navigation" || event.kind === "navigation.spa" || frameId === 0) {
         for (const key of lastFlowByTab.keys())
           if (key.startsWith(`${tabId}:`)) lastFlowByTab.delete(key);
@@ -205,6 +216,15 @@ export function buildCatalog(events) {
     try { const url = new URL(raw); url.hash = ""; return url.href; }
     catch { return null; }
   };
+  const lastBefore = (list, event) => {
+    let low = 0, high = list?.length || 0;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (compareEvents(list[mid], event) <= 0) low = mid + 1;
+      else high = mid;
+    }
+    return low ? list[low - 1] : null;
+  };
   for (const call of calls.values()) {
     if (call.tabId == null || typeof call.url !== "string" || !/^(XHR|Fetch|EventSource|Ping)$/i.test(call.request.type || "") || call.request.redirectFrom) continue;
     const list = stepsByTab.get(call.tabId) || [];
@@ -218,20 +238,31 @@ export function buildCatalog(events) {
     const possible = [];
     for (let i = lo; i < list.length && list[i].step.time <= call.time; i++) {
       const item = list[i], scope = call.request.sourceFrame;
+      if (compareEvents(item.step, call) >= 0) continue;
+      const top = lastBefore(topNavigations.get(call.tabId), call);
+      const frame = lastBefore(frameNavigations.get(`${call.tabId}:${item.flow.frameId}`), call);
+      const boundary = !top ? frame : !frame || compareEvents(top, frame) >= 0 ? top : frame;
+      const navigation = boundary && compareEvents(boundary, item.step) > 0 ? boundary : null;
+      const crossedMainPage = navigation && item.flow.frameId === 0 && scope === "main" &&
+        documentUrl && pageUrl(navigation.payload?.url) === documentUrl;
       if ((scope === "main" && item.flow.frameId !== 0) ||
           (scope === "embedded" && item.flow.frameId === 0) ||
-          (documentUrl && pageUrl(item.flow.url) !== documentUrl)) continue;
-      possible.push(item);
+          (documentUrl && pageUrl(item.flow.url) !== documentUrl && !crossedMainPage)) continue;
+      possible.push({ ...item, navigation });
     }
-    const contexts = new Set(possible.map(({ flow }) => `${flow.frameId}:${flow.documentId || "unknown"}`));
+    if (new Set(possible.map(({ flow }) => flow.frameId)).size !== 1) continue;
+    const candidates = possible.some((item) => !item.navigation)
+      ? possible.filter((item) => !item.navigation) : possible;
+    const contexts = new Set(candidates.map(({ flow }) => `${flow.frameId}:${flow.documentId || "unknown"}`));
     if (contexts.size !== 1) continue;
-    const selected = possible[possible.length - 1];
+    const selected = candidates[candidates.length - 1];
     selected.step.candidateRequests.push({
       eventId: call.requestEventId,
       method: typeof call.method === "string" ? call.method.slice(0, 32) : "请求",
       url: call.url.slice(0, 4000),
       delay: Math.max(0, call.time - selected.step.time),
       source: call.request.sourceFrame === "main" && selected.flow.frameId === 0 ? "main" : "unconfirmed",
+      ...(selected.navigation ? { navigation: { eventId: selected.navigation.id, kind: selected.navigation.kind } } : {}),
     });
   }
   return {

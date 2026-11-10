@@ -356,4 +356,49 @@ describe("记录资料整理", () => {
     events.push({ id: "request", time: 11, seq: 10, tabId: 1, kind: "network.request", payload: { requestId: "r", method: "GET", type: "Fetch", url: "https://site.test/api", sourceFrame: "embedded", documentUrl: "https://site.test/frame" } });
     assert.ok(buildCatalog(events).flows.every((flow) => flow.steps[0].candidateRequests.length === 0));
   });
+  it("区分跳转前后的候选请求并避免同毫秒的未来操作", () => {
+    const action = (id, time, seq, documentId, url) => ({ id, time, seq, tabId: 1, frameId: 0, documentId,
+      kind: "interaction.click", payload: { url, target: { text: id } } });
+    const request = (id, time, seq, url) => ({ id, time, seq, tabId: 1, kind: "network.request",
+      payload: { requestId: id, method: "GET", type: "Fetch", sourceFrame: "main", documentUrl: url, url: `https://site.test/api/${id}` } });
+    const a = "https://site.test/a", b = "https://site.test/b";
+    const events = [
+      action("old", 100, 1, "a", a),
+      { id: "nav", time: 110, seq: 2, tabId: 1, frameId: 0, kind: "navigation.committed", payload: { documentId: "b", url: b } },
+      request("after-nav", 120, 3, b),
+      action("new", 130, 4, "b", b),
+      request("after-action", 140, 5, b),
+      request("same-ms", 150, 6, b),
+      action("future", 150, 7, "b", b),
+      request("unrelated-url", 160, 8, "https://site.test/unrelated"),
+    ];
+    const flows = buildCatalog(events.reverse()).flows;
+    const old = flows.flatMap((flow) => flow.steps).find((step) => step.eventId === "old");
+    const current = flows.flatMap((flow) => flow.steps).find((step) => step.eventId === "new");
+    const future = flows.flatMap((flow) => flow.steps).find((step) => step.eventId === "future");
+    assert.deepEqual(old.candidateRequests.map((item) => item.eventId), ["after-nav"]);
+    assert.deepEqual(old.candidateRequests[0].navigation, { eventId: "nav", kind: "navigation.committed" });
+    assert.deepEqual(current.candidateRequests.map((item) => item.eventId), ["after-action", "same-ms"]);
+    assert.ok(current.candidateRequests.every((item) => !item.navigation));
+    assert.deepEqual(future.candidateRequests, []);
+  });
+  it("同网址刷新和嵌入页面跳转后的候选请求保留边界，并隔离其他框架", () => {
+    const action = (id, time, frameId) => ({ id, time, seq: time, tabId: 1, frameId, documentId: `doc-${frameId}`,
+      kind: "interaction.click", payload: { url: "https://site.test/", target: {} } });
+    const request = (id, time, sourceFrame) => ({ id, time, seq: time, tabId: 1, kind: "network.request",
+      payload: { requestId: id, method: "GET", type: "Fetch", sourceFrame, documentUrl: "https://site.test/", url: `https://site.test/${id}` } });
+    const events = [action("main", 1, 0),
+      { id: "reload", time: 2, seq: 2, tabId: 1, frameId: 0, kind: "navigation.committed", payload: { url: "https://site.test/" } },
+      request("after-reload", 3, "main"),
+      action("frame", 4, 3),
+      { id: "other-frame", time: 5, seq: 5, tabId: 1, frameId: 4, kind: "navigation.committed", payload: { url: "https://site.test/" } },
+      request("frame-api", 6, "embedded"),
+      { id: "frame-nav", time: 7, seq: 7, tabId: 1, frameId: 3, kind: "navigation.committed", payload: { url: "https://site.test/" } },
+      request("after-frame-nav", 8, "embedded")];
+    const steps = buildCatalog(events).flows.flatMap((flow) => flow.steps);
+    const main = steps.find((step) => step.eventId === "main"), frame = steps.find((step) => step.eventId === "frame");
+    assert.equal(main.candidateRequests[0].navigation.eventId, "reload");
+    assert.equal(frame.candidateRequests[0].navigation, undefined);
+    assert.equal(frame.candidateRequests[1].navigation.eventId, "frame-nav");
+  });
 });

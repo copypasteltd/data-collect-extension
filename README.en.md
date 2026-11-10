@@ -146,6 +146,7 @@ When a decoded URL fragment (the part after `#`) matches a common sensitive name
 
 - Only authorized paths actually observed during recording can be captured. Browser restrictions, cross-origin frames, denied permissions, background lifecycle, site code, and debugger disconnects can cause gaps.
 - Action/request links are candidates inferred from timing and available page context, not proof of causality. An API draft is not a complete contract.
+- Flow candidates identified after a navigation are labeled accordingly. Unclear frame identity, missing navigation boundaries, or later requests can still cause missing or incorrect associations.
 - Network events are associated with the originating page: the viewer shows available state through the selected event while the page remains unchanged, or falls back to request time after navigation. Missing confirmable snapshots are reported; older records without document identity may still be approximate.
 - Page replay uses isolated snapshots and recorded changes. It does not execute original site scripts or submit replay actions to the original site; it is not a complete site rebuild or a replacement for server-side logic.
 - After a final action in an embedded frame, replay attempts to show the resulting main page when it navigates. It reports an unavailable final state when the tab leaves the recording scope or the new page cannot be confirmed. The scope-boundary marker does not save the outside URL; some transitions in older recordings remain uncertain.
@@ -167,6 +168,7 @@ npm run test:replay
 npm run test:page-replay
 npm run test:canvas-snapshot
 npm run test:navigation-outcome
+npm run test:candidate-navigation
 npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery

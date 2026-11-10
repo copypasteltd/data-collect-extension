@@ -906,7 +906,7 @@ export default function Viewer({ onBack, sessionId }) {
                           </button>
                           {step.candidateRequests.map((request) => (
                             <button key={request.eventId} className="catalog-row flow-request" onClick={() => showEvent(request.eventId)}>
-                              <span><strong>{request.method || "请求"} {request.url}</strong><small>{request.source === "main" ? "主页面" : "页面来源未确认"} · {request.delay} ms 后 · 仅按时间推测</small></span>
+                              <span><strong>{request.method || "请求"} {request.url}</strong><small>{request.source === "main" ? "主页面" : "页面来源未确认"}{request.navigation ? " · 页面跳转后" : ""} · {request.delay} ms 后 · 仅按时间推测</small></span>
                               <ChevronRight size={15} />
                             </button>
                           ))}
