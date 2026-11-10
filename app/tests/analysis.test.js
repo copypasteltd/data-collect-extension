@@ -1,8 +1,19 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildCatalog, buildResourceMap } from "../src/analysis.js";
+import { buildCatalog, buildResourceMap, findRequestsWithoutOutcome } from "../src/analysis.js";
 
 describe("记录资料整理", () => {
+  it("识别没有结束状态的请求，并区分已结束、显式不完整和标识复用", () => {
+    const request = (id, seq) => ({ id: `event-${seq}`, kind: "network.request", seq, time: seq, payload: { requestId: id } });
+    const outcome = (id, kind, seq) => ({ kind, seq, time: seq, payload: { requestId: id } });
+    const events = [request("pending", 1), request("done", 2), outcome("done", "network.finished", 3),
+      request("failed", 4), outcome("failed", "network.failed", 5),
+      request("incomplete", 6), outcome("incomplete", "network.incomplete", 7),
+      request("reused", 8), request("reused", 9), outcome("reused", "network.finished", 10),
+      request("second", 11), outcome("absent", "network.finished", 12)];
+    assert.deepEqual(findRequestsWithoutOutcome(events.reverse()).map((event) => event.id).sort(),
+      ["event-1", "event-8", "event-11"].sort());
+  });
   it("初始图片可回看，并由后续同地址响应替换", () => {
     const url = "https://example.test/image.png";
     const events = [

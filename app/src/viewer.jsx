@@ -15,7 +15,7 @@ import {
   SkipForward,
 } from "lucide-react";
 import { readArchive, readLocalSession } from "./archive.js";
-import { buildCatalog, buildResourceMap } from "./analysis.js";
+import { buildCatalog, buildResourceMap, findRequestsWithoutOutcome } from "./analysis.js";
 import Replay, { replayableKinds } from "./replay.jsx";
 import { buildOpenApi } from "./openapi.js";
 import { downloadBlob } from "./downloads.js";
@@ -124,6 +124,7 @@ function cacheIssue(payload) {
 }
 function Report({ archive, showEvent }) {
   const events = archive.events;
+  const missingOutcomes = findRequestsWithoutOutcome(events);
   const warnings = events.filter(
     (e) =>
       e.kind === "warning" ||
@@ -219,7 +220,16 @@ function Report({ archive, showEvent }) {
           录制异常中断，此包只包含已保存的部分。
         </div>
       )}
-      <h3 className="report-heading">采集提示 · {warnings.length}</h3>
+      <h3 className="report-heading">采集提示 · {warnings.length + missingOutcomes.length}</h3>
+      {missingOutcomes.map((e) => (
+        <button key={e.id} className="catalog-row" onClick={() => showEvent(e.id)}>
+          <span>
+            <strong>请求结果未记录</strong>
+            <small>{e.payload.method || "请求"} {e.payload.url || "地址未知"}：没有观察到请求结束状态，实际结果无法确认。</small>
+          </span>
+          <ChevronRight size={15} />
+        </button>
+      ))}
       {warnings.map((e) => (
         <button
           key={e.id}
@@ -277,7 +287,7 @@ function Report({ archive, showEvent }) {
           <ChevronRight size={15} />
         </button>
       ))}
-      {!warnings.length && <div className="empty">没有采集提示</div>}
+      {!warnings.length && !missingOutcomes.length && <div className="empty">没有采集提示</div>}
     </section>
   );
 }

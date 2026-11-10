@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 查看或导入记录时，在采集报告中指出缺少结束事件的已保存请求并链接到原始记录；实际请求结果未知。 / Report saved requests without an outcome when viewing or importing recordings, with links to their original events; their actual network result remains unknown.
 - 停止录制时逐条标记尚在进行的请求，并区分请求已完成但响应采集未完成；侧边栏报告和记录包保留提示。 / Mark each request still in progress at recording stop, distinguish completed requests with unfinished response capture, and retain these notices in the side-panel report and archive.
 - 后台重启后，尝试恢复页面实例及来源仍可确认的跨进程框架 WebSocket；已导航、失效或范围外的连接继续跳过。 / Resume cross-process frame WebSockets after worker restart when the document and origin can be verified; continue skipping navigated, invalid, or out-of-scope connections.
 - 后台重启时重新核验已授权的跨进程框架连接和当前网址，继续采集可确认框架的后续网络请求；无效或范围外连接不会恢复。 / Revalidate previously authorized cross-process frame connections and current URLs after a worker restart, resuming eligible network capture while rejecting invalid or out-of-scope connections.

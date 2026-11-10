@@ -6,6 +6,11 @@ import { unzipSync, strFromU8 } from "fflate";
 import { buildCatalog, buildResourceMap } from "../src/analysis.js";
 
 const server = http.createServer((req, res) => {
+  if (req.url === "/api/pending") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.flushHeaders();
+    return;
+  }
   if (req.url === "/api/customer" || req.url === "/api/frame") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end('{"customer":"示例"}');
@@ -132,6 +137,27 @@ try {
   await page.waitForTimeout(700);
   await Promise.all([page.waitForResponse((response) => response.url().endsWith("/api/customer")), page.locator("#request").click()]);
   await page.waitForTimeout(500);
+  await page.evaluate(() => { fetch("/api/pending").catch(() => {}); });
+  const pendingDeadline = Date.now() + 5000;
+  let pendingSaved = false;
+  while (Date.now() < pendingDeadline && !pendingSaved) {
+    pendingSaved = await panel.evaluate(async (id) => {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open("logic-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const events = await new Promise((resolve, reject) => {
+        const request = db.transaction("events").objectStore("events").index("session").getAll(id);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return events.some((event) => event.kind === "network.request" && event.payload.url.endsWith("/api/pending"));
+    }, started.value.id);
+    if (!pendingSaved) await page.waitForTimeout(50);
+  }
+  if (!pendingSaved) throw new Error("关闭浏览器前未保存进行中的请求");
   await context.close();
   context = null;
   context = await chromium.launchPersistentContext(profile, options);
@@ -150,6 +176,9 @@ try {
   const eventsText = metadata.eventChunks.map((name) => strFromU8(files[name])).join("\n");
   if (!eventsText.includes("浏览器关闭前的客户")) throw new Error("未恢复浏览器关闭前的操作");
   const events = eventsText.split("\n").filter(Boolean).map(JSON.parse);
+  const pending = events.find((event) => event.kind === "network.request" && event.payload?.url?.endsWith("/api/pending"));
+  if (!pending || events.some((event) => ["network.finished", "network.failed", "network.incomplete"].includes(event.kind) && event.payload?.requestId === pending.payload.requestId))
+    throw new Error("未复现结束状态缺失的请求");
   const networkRequest = events.find((event) => event.kind === "network.request" && event.payload?.url?.endsWith("/api/customer"));
   if (networkRequest?.payload.sourceFrame !== "main" || networkRequest.payload.documentUrl !== `http://127.0.0.1:${server.address().port}/`) throw new Error("接口请求未保存主页面来源");
   const embeddedRequest = events.find((event) => event.kind === "network.request" && event.payload?.url?.endsWith("/api/frame"));
@@ -211,6 +240,13 @@ try {
   await context.route("**/api/**", (route) => { replayRequests++; return route.abort(); });
   await recovered.getByRole("button", { name: "导入记录包" }).click();
   await recovered.locator('input[type="file"]').first().setInputFiles(zipPath);
+  await recovered.getByRole("button", { name: "报告", exact: true }).click();
+  const missingRequest = recovered.locator(".catalog-row").filter({ hasText: "/api/pending" });
+  await missingRequest.getByText("请求结果未记录").waitFor();
+  await missingRequest.getByText("实际结果无法确认", { exact: false }).waitFor();
+  await missingRequest.click();
+  if (!(await recovered.locator(".detail-content pre").first().textContent()).includes("/api/pending"))
+    throw new Error("缺口提示未跳转到原请求详情");
   await recovered.getByRole("button", { name: "复现", exact: true }).click();
   await recovered.getByRole("button", { name: "页面", exact: true }).click();
   const replayPage = recovered.frameLocator('iframe[title="逐步复现页面"]');

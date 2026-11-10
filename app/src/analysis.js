@@ -2,6 +2,23 @@ import { compareEvents } from "./event-order.js";
 import { createResourceScope } from "./resource-scope.js";
 export { compareEvents } from "./event-order.js";
 
+export function findRequestsWithoutOutcome(events) {
+  const open = new Map(), missing = [];
+  const ordered = [...events].sort((a, b) =>
+    (Number(a.seq) || 0) - (Number(b.seq) || 0) || compareEvents(a, b));
+  for (const event of ordered) {
+    const id = event.payload?.requestId;
+    if (typeof id !== "string" || !id) continue;
+    if (event.kind === "network.request") {
+      if (open.has(id)) missing.push(open.get(id));
+      open.set(id, event);
+    } else if (["network.finished", "network.failed", "network.incomplete"].includes(event.kind)) {
+      open.delete(id);
+    }
+  }
+  return [...missing, ...open.values()];
+}
+
 export function buildResourceMap(events, tabId, upTo, context) {
   const requests = new Map();
   const resources = new Map();

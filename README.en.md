@@ -48,6 +48,7 @@ npm run build
 
 While a recording is being finalized, repeated stop requests return a wait message and the original finalization continues. A genuine finalization failure is marked as interrupted.
 Requests still in progress at the end are individually marked in the archive and capture report; this does not mean the requests failed. The report also distinguishes requests that completed while response-body capture remained unfinished. Older recordings may lack these markers.
+When viewing a recording, the report also identifies saved requests with no recorded outcome and links to their original events. This helps with interrupted and older recordings, but cannot determine the actual network result or recover events that were never saved.
 
 Keep the side panel open until the browser finishes the download. An interrupted download displays an error and can be retried.
 
