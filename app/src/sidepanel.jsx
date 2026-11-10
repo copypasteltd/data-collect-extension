@@ -32,6 +32,7 @@ function App() {
   const appliedRefresh = useRef(0);
   const batchInFlight = useRef(false);
   const preferredSession = useRef("");
+  const uncertainStop = useRef("");
 
   const refreshBatches = useCallback(() => {
     if (batchInFlight.current) return;
@@ -57,6 +58,10 @@ function App() {
       if (request >= appliedRefresh.current) {
         appliedRefresh.current = request;
         setStatusError("");
+        if (uncertainStop.current && next.active?.id !== uncertainStop.current) {
+          uncertainStop.current = "";
+          setError((previous) => previous === "后台响应超时，请等待状态刷新" ? "" : previous);
+        }
         setState((previous) => ({ ...previous, active: next.active }));
       }
     } catch (reason) {
@@ -81,6 +86,7 @@ function App() {
     if (operation.current) return;
     const currentOperation = { type: "starting" };
     operation.current = currentOperation;
+    uncertainStop.current = "";
     setError("");
     setBusy("starting");
     try {
@@ -107,13 +113,16 @@ function App() {
   async function stop() {
     if (operation.current && operation.current.type !== "starting") return;
     const currentOperation = { type: "stopping" };
+    const sessionId = state.active?.id;
     operation.current = currentOperation;
+    uncertainStop.current = "";
     setError("");
     setBusy("stopping");
     try {
-      const session = await call("STOP");
+      const session = await call("STOP", { sessionId });
       await refresh(session.id).catch(() => {});
     } catch (reason) {
+      if (reason.message === "后台响应超时，请等待状态刷新" && sessionId) uncertainStop.current = sessionId;
       setError(reason.message);
       await refresh().catch(() => {});
     } finally {

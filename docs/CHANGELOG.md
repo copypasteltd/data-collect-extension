@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.1.5 - 2026-11-11
+
+- 修复后台重启后录制状态读取失败导致无法停止：独立清理采集，并以事务标记中断，保留已完成批次；写入或清理失败时报告。 / Stop and clean up after worker recovery read failures, transactionally marking unfinished batches interrupted while preserving completed batches; report write or cleanup failures.
+- 停止时核对批次标识并拒绝重复请求；停止回复超时后，状态确认结束时清除过期提示。 / Match Stop to the selected active session, reject duplicates, and clear a stale timeout after status confirms completion.
+- 故障注入覆盖恢复读取、写入失败及恢复、旧批次请求、重复停止、中断数据导出和迟到回复；尚未完成 macOS 真机验证。 / Fault-injection tests cover recovery read and write failures, stale and duplicate stops, partial-data export, and delayed replies; macOS hardware has not yet been tested.
+
 ## 0.1.4 - 2026-11-11
 
 - 批次创建后提前确认启动，标签页准备按每阶段最多四个并发执行；准备期间仍可停止。 / Acknowledge startup after batch creation and prepare up to four tabs concurrently per phase; Stop remains available during preparation.

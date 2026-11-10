@@ -1,4 +1,4 @@
-import { all, get, put, putMany, putIdempotentEvents, removeSession } from "./db.js";
+import { all, get, put, putMany, putIdempotentEvents, removeSession, interruptSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
@@ -37,6 +37,8 @@ let sequence = 0;
 let writeChain = Promise.resolve();
 let outstandingWrites = 0;
 let childStorageChain = Promise.resolve();
+let stopInFlight = false;
+let recoveryCleanup;
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -370,6 +372,7 @@ async function init() {
 }
 let ready;
 function ensureReady() {
+  if (recoveryCleanup) return recoveryCleanup.then(() => ensureReady());
   if (!ready) {
     const current = init();
     ready = current;
@@ -1172,20 +1175,22 @@ async function interrupt(session, reason) {
   pending.clear();
 }
 
-async function clearActiveResources(session) {
+async function clearActiveResources(session, onFailure = () => {}) {
   if (screenshotTimer) clearTimeout(screenshotTimer);
   screenshotTimer = null;
   screenshotPending = [];
   await Promise.all(Object.values(session.tabs || {}).map(async (target) => {
     await withDeadline(chrome.tabs
       .sendMessage(target.id, { type: "STOP_CAPTURE", sessionId: session.id }), 2000, "采集器关闭")
-      .catch(() => {});
+      .catch((error) => {
+        if (!/Receiving end does not exist|No tab with id/i.test(String(error))) onFailure("采集器关闭", error);
+      });
     if (target.debuggerAttached)
-      await withDeadline(detachTab(target), 3000, "调试连接关闭").catch(() => {});
+      await withDeadline(detachTab(target), 3000, "调试连接关闭").catch((error) => onFailure("调试连接关闭", error));
   }));
   await withDeadline(chrome.scripting
     .unregisterContentScripts({ ids: [session.scriptId || "recorder"] }), 2000, "页面采集器清理")
-    .catch(() => {});
+    .catch((error) => { if (session.scriptRegistered) onFailure("页面采集器清理", error); });
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
@@ -1197,17 +1202,61 @@ async function clearActiveResources(session) {
   unknownDialogTabs.clear();
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
-  await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch(() => {});
-  await withDeadline(removeSessionState(session), 2000, "录制状态清理").catch(() => {});
+  await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch((error) => onFailure("框架恢复信息清理", error));
+  await withDeadline(removeSessionState(session), 2000, "录制状态清理").catch((error) => onFailure("录制状态清理", error));
   if (active === session) active = null;
-  await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch(() => {});
-  await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch(() => {});
+  await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch((error) => onFailure("录制标记清理", error));
+  await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch((error) => onFailure("录制标题清理", error));
 }
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
     if (message.type === "GET_STATUS" && active)
       return { active: { id: active.id, status: active.status } };
+    if (message.type === "STOP") {
+      if (stopInFlight) throw new Error("录制任务正在停止，请稍候");
+      stopInFlight = true;
+      try {
+        try {
+          await ensureReady();
+        } catch (error) {
+          const session = active;
+          if (!session || (message.sessionId && message.sessionId !== session.id)) throw error;
+          if (!["preparing", "recording"].includes(session.status)) throw error;
+          session.status = "stopping";
+          const cleanup = (async () => {
+            let saved, saveError;
+            try {
+              saved = await interruptSession(session, "后台恢复失败，录制已中断；已保存的数据可供导出。");
+            } catch (reason) { saveError = reason; }
+            const cleanupFailures = [];
+            await clearActiveResources(session, (stage, reason) => {
+              cleanupFailures.push(stage);
+              console.warn(`${stage}失败`, reason);
+            });
+            writeChain = Promise.resolve();
+            pending.clear();
+            if (saveError) throw new Error(`已请求停止，但无法更新本地批次：${String(saveError)}`);
+            if (cleanupFailures.length)
+              throw new Error(`已请求停止，但部分清理未能确认：${[...new Set(cleanupFailures)].join("、")}`);
+            return saved;
+          })();
+          recoveryCleanup = cleanup;
+          try { return await cleanup; }
+          finally { if (recoveryCleanup === cleanup) recoveryCleanup = undefined; }
+        }
+        if (message.sessionId && active?.id !== message.sessionId)
+          throw new Error("录制状态已变化，请刷新后重试");
+        let stopping;
+        try {
+          return await stop((session) => { stopping = session; });
+        } catch (error) {
+          if (stopping && active === stopping)
+            await interrupt(stopping, "录制异常结束，已保存可用的部分记录");
+          throw error;
+        }
+      } finally { stopInFlight = false; }
+    }
     await ensureReady();
     if (message.type === "GET_STATUS")
       return { active: active ? { id: active.id, status: active.status } : null };
@@ -1241,16 +1290,6 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       } catch (error) {
         if (created && active === created && ["preparing", "recording"].includes(created.status))
           await interrupt(created, "录制准备失败，已保存可用的部分记录");
-        throw error;
-      }
-    }
-    if (message.type === "STOP") {
-      let stopping;
-      try {
-        return await stop((session) => { stopping = session; });
-      } catch (error) {
-        if (stopping && active === stopping)
-          await interrupt(stopping, "录制异常结束，已保存可用的部分记录");
         throw error;
       }
     }

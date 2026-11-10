@@ -1,7 +1,7 @@
 {
   "name": "logic-recorder",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -18,6 +18,8 @@
     "test:db-upgrade": "node tests/db-upgrade.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",
     "test:recovery": "node tests/recovery.e2e.mjs",
+    "test:recovery-stop": "node tests/recovery-stop.e2e.mjs",
+    "test:stop-timeout": "node tests/stop-timeout.e2e.mjs",
     "test:query-parameters": "node tests/query-parameters.e2e.mjs",
     "test:concurrent-stop": "node tests/concurrent-stop.e2e.mjs",
     "test:event-ack": "node tests/event-ack.e2e.mjs",

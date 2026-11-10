@@ -119,6 +119,30 @@ export async function put(store, value) {
     tx.onabort = () => { clear(); reject(tx.error || new Error("存储事务已中断")); };
   });
 }
+export async function interruptSession(session, reason) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("sessions", "readwrite");
+    const clear = limitWrite(tx, reject);
+    const store = tx.objectStore("sessions");
+    let result;
+    try {
+      const read = store.get(session.id);
+      read.onsuccess = () => {
+        const existing = read.result;
+        if (existing && !["preparing", "recording", "stopping"].includes(existing.status)) {
+          result = existing;
+          return;
+        }
+        result = { ...(existing || session), status: "interrupted", interruptedAt: Date.now(), notice: reason };
+        store.put(result);
+      };
+    } catch (error) { clear(); try { tx.abort(); } catch {} reject(error); return; }
+    tx.oncomplete = () => { clear(); resolve(result); };
+    tx.onerror = () => { clear(); reject(tx.error); };
+    tx.onabort = () => { clear(); reject(tx.error || new Error("存储事务已中断")); };
+  });
+}
 export async function putMany(store, values) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
