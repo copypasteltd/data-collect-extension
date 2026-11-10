@@ -109,7 +109,7 @@ screenshots/<id>.jpg             captured screenshots
 integrity.json                   sizes and SHA-256 hashes
 ```
 
-Exports use version 2; the viewer supports versions 1 and 2. The integrity list detects changes, but **does not authenticate the source or encrypt the archive**. The current side-panel importer accepts ZIP files up to 300 MB, individual expanded files up to 50 MB, and an expanded total up to 1 GB. Highly compressible valid recordings are accepted while actual expanded sizes remain checked; split long workflows into smaller recordings.
+Exports use version 2; the viewer supports versions 1 and 2. The integrity list detects changes, but **does not authenticate the source or encrypt the archive**. The current side-panel importer accepts ZIP files up to 300 MB, individual expanded files up to 50 MB, an expanded total up to 1 GB, up to one million events, and individual event lines up to ten million UTF-16 code units; ZIP directory limits also apply. Export checks these limits and warns when the archive can be downloaded for backup but cannot be imported by the current side panel. Existing recordings cannot be split automatically; record long workflows in shorter parts. Highly compressible valid recordings are accepted while actual expanded sizes remain checked.
 
 ## Permissions
 

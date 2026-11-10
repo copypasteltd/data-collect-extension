@@ -78,7 +78,8 @@ export async function createArchive(id, onProgress = () => {}) {
   let after = 0,
     eventCount = 0,
     batch = [],
-    batchSize = 0;
+    batchSize = 0,
+    oversizedEvent = false;
   async function flushEvents() {
     if (!batch.length) return;
     const bytes = new Uint8Array(batchSize);
@@ -97,7 +98,9 @@ export async function createArchive(id, onProgress = () => {}) {
     const events = await eventPage(id, after);
     if (!events.length) break;
     for (const event of events) {
-      const encoded = strToU8(JSON.stringify(event) + "\n");
+      const json = JSON.stringify(event);
+      if (json.length > 10000000) oversizedEvent = true;
+      const encoded = strToU8(json + "\n");
       if (batchSize && batchSize + encoded.length > 2000000)
         await flushEvents();
       batch.push(encoded);
@@ -154,7 +157,17 @@ export async function createArchive(id, onProgress = () => {}) {
   zip.add(index);
   index.push(strToU8(JSON.stringify(integrity, null, 2)), true);
   zip.end();
-  return finished;
+  const blob = await finished;
+  const importIssues = [];
+  if (blob.size > 300000000) importIssues.push("ZIP 超过 300 MB");
+  if (eventCount > 1000000) importIssues.push("事件超过 100 万条");
+  if (oversizedEvent) importIssues.push("单条事件超过 1000 万个 UTF-16 代码单元");
+  try {
+    await inspectZip(blob);
+  } catch (error) {
+    importIssues.push(error.message);
+  }
+  return { blob, importIssues };
 }
 async function inspectZip(blob) {
   const tailOffset = Math.max(0, blob.size - 65557);
@@ -218,8 +231,10 @@ async function inspectZip(blob) {
       throw new Error("ZIP 含不安全或重复路径");
     names.set(name, size);
     total += size;
-    if (size > 50000000 || total > 1000000000)
-      throw new Error("ZIP 展开体积超过限制");
+    if (size > 50000000)
+      throw new Error("ZIP 展开体积超过限制：单个文件超过 50 MB");
+    if (total > 1000000000)
+      throw new Error("ZIP 展开体积超过限制：总计超过 1 GB");
     pos += 46 + nameLen + extraLen + commentLen;
   }
   if (pos !== bytes.length) throw new Error("ZIP 目录长度不匹配");

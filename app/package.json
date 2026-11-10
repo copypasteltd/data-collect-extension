@@ -9,6 +9,7 @@
     "test": "node --test tests/privacy.test.js tests/response-body.test.js tests/analysis.test.js tests/archive.test.js tests/openapi.test.js tests/db.test.js tests/database-value.test.js tests/delivery.test.js tests/downloads.test.js tests/background-style.test.js tests/scroll-state.test.js tests/screenshots.test.js tests/stylesheets.test.js tests/replay-outcome.test.js tests/request-snapshot.test.js tests/network-recovery.test.js",
     "test:e2e": "node tests/e2e.mjs",
     "test:archive-roundtrip": "node tests/archive-roundtrip.e2e.mjs",
+    "test:archive-limits": "node tests/archive-limits.e2e.mjs",
     "test:input-length": "node tests/input-length.e2e.mjs",
     "test:storage-capture": "node tests/storage-capture.e2e.mjs",
     "test:database-values": "node tests/database-values.e2e.mjs",
