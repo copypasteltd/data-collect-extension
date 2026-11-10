@@ -10,6 +10,7 @@ import { assessScreenshotTiming, canPlaceScreenshotTarget, findStepScreenshots }
 import { attachPageReplay } from "./page-replay.js";
 import { restoreScrollState } from "./scroll-state.js";
 import { MAX_INPUT_LENGTH } from "./capture-limits.js";
+import { normalizeNumericConstraint } from "./numeric-constraints.js";
 
 const names = {
   "interaction.click": "点击",
@@ -224,26 +225,35 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
     viewport?.width &&
     viewport?.height &&
     canPlaceScreenshotTarget(step, shot, timing);
+  const targetType = typeof target.type === "string" ? target.type.toLowerCase() : "";
   const canType =
     step.kind === "interaction.input" &&
     typeof step.payload.value === "string" &&
     step.payload.value !== "[已隐藏]" &&
     !target.sensitive &&
+    (target.type == null || typeof target.type === "string") &&
     (["input", "textarea"].includes(target.tag) || target.editable) &&
     ![
       "file",
       "password",
       "checkbox",
       "radio",
-      "range",
-      "color",
       "button",
       "submit",
       "reset",
       "image",
       "hidden",
-    ].includes(String(target.type || "").toLowerCase());
+    ].includes(targetType);
   const InputControl = target.tag === "textarea" || target.editable ? "textarea" : "input";
+  const numeric = target.numericConstraints;
+  const numericType = ["range", "number"].includes(targetType) && numeric && typeof numeric === "object" && !Array.isArray(numeric);
+  const inputType = numericType ? targetType : targetType === "color" && typeof step.payload.value === "string" && /^#[0-9a-f]{6}$/i.test(step.payload.value) ? "color" : "text";
+  const numericProp = (name) => normalizeNumericConstraint(name, numeric?.[name]) ?? undefined;
+  const inputProps = InputControl === "input" ? {
+    type: inputType,
+    ...(numericType ? { min: numericProp("min"), max: numericProp("max"), step: numericProp("step") } : {}),
+  } : {};
+  const displayedInput = inputType === "color" && !/^#[0-9a-f]{6}$/i.test(inputValue) ? "#000000" : inputValue;
   const next = () => {
     if (index >= steps.length - 1) setCompleted(true);
     else setIndex((value) => Math.min(steps.length - 1, value + 1));
@@ -365,7 +375,8 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
                     className="replay-input"
                     aria-label="输入记录值"
                     style={position}
-                    value={inputValue}
+                    {...inputProps}
+                    value={displayedInput}
                     onChange={(event) => updateInputValue(event.target.value)}
                   />
                 ) : (
@@ -424,7 +435,8 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
         <InputControl
           className="replay-fallback-input"
           aria-label="输入记录值"
-          value={inputValue}
+          {...inputProps}
+          value={displayedInput}
           onChange={(event) => updateInputValue(event.target.value)}
         />
       )}

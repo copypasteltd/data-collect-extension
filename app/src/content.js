@@ -107,6 +107,15 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
     return path.join(" > ");
   };
+  // Keep this local so the injectable content script remains a standalone bundle.
+  const readNumericConstraints = (el) => Object.fromEntries(["min", "max", "step"].map((name) => {
+    const raw = el.getAttribute(name);
+    if (typeof raw !== "string" || raw.length > 64) return [name, null];
+    if (name === "step" && raw.toLowerCase() === "any") return [name, "any"];
+    const valid = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(raw) &&
+      Number.isFinite(Number(raw)) && (name !== "step" || Number(raw) > 0);
+    return [name, valid ? raw : null];
+  }));
   const describe = (el) => {
     if (!(el instanceof Element)) return {};
     const rect = el.getBoundingClientRect();
@@ -131,6 +140,9 @@ import { encodeDatabaseValue } from "./database-value.js";
       tag: el.localName,
       nodeId: nodeId(el),
       type: el.getAttribute("type"),
+      ...(!sensitive && el instanceof HTMLInputElement && ["range", "number"].includes(el.type)
+        ? { numericConstraints: readNumericConstraints(el) }
+        : {}),
       editable: el instanceof HTMLElement && el.isContentEditable,
       role: el.getAttribute("role"),
       name: sensitive

@@ -908,6 +908,17 @@ select:focus-visible {
   border: 1px solid #b6cbc1;
   border-radius: 4px;
 }
+.replay-fallback-input[type="range"] {
+  height: 32px;
+  padding: 0;
+  border: 0;
+  accent-color: #26765d;
+}
+.replay-fallback-input[type="color"] {
+  width: 56px;
+  height: 38px;
+  padding: 2px;
+}
 textarea.replay-input {
   resize: none;
 }

@@ -1,4 +1,5 @@
 import { MAX_INPUT_LENGTH } from "./capture-limits.js";
+import { normalizeNumericConstraint, readNumericConstraints } from "./numeric-constraints.js";
 
 function unique(root, selector) {
   if (typeof selector !== "string" || !selector || selector.length > 1024) return null;
@@ -32,6 +33,12 @@ export function attachPageReplay(frame, step, options) {
   const node = resolveReplayTarget(doc, step.payload?.target);
   if (!node) return { ok: false, reason: "当前操作的页面元素无法唯一定位" };
   const { control, canType, inputBefore, choiceInitial, onInput, onChoice, onSelection, onNext } = options;
+  const constraints = step.payload?.target?.numericConstraints;
+  if (canType && node.localName === "input" && ["range", "number"].includes(node.type) && constraints && typeof constraints === "object") {
+    const current = readNumericConstraints(node);
+    if (["min", "max", "step"].some((name) => current[name] !== normalizeNumericConstraint(name, constraints[name])))
+      return { ok: false, reason: "页面快照中的数值范围与操作记录不一致" };
+  }
   let clickable = step.kind === "interaction.click";
   if (step.kind === "interaction.submit" && node.localName === "form") {
     const submitters = node.querySelectorAll('button:not([type]),button[type="submit"],input[type="submit"],input[type="image"]');
