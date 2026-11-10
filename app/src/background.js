@@ -22,6 +22,7 @@ let screenshotTimer;
 let screenshotPending = [];
 let screenshotChain = Promise.resolve();
 const pending = new Set();
+const tabActivationVersions = new Map();
 const requests = new Map();
 const childScopes = new Map();
 const childTargets = new Map();
@@ -682,6 +683,7 @@ async function captureOne() {
     const delay = (target?.debuggerAttached ? 200 : 600) - (Date.now() - screenshotLast);
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     if (!active || active.id !== sessionId) throw new Error("录制任务已结束");
+    const activationVersion = tabActivationVersions.get(windowId) || 0;
     const [tab] = await chrome.tabs.query({ active: true, windowId });
     if (tab?.id !== tabId) throw new Error("目标标签不在前台");
     const topFrame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 });
@@ -737,6 +739,8 @@ async function captureOne() {
     const afterInspection = await inspectSensitive(tabId);
     if (JSON.stringify(inspection) !== JSON.stringify(afterInspection))
       throw new Error("截图期间页面或敏感区域发生变化");
+    if ((tabActivationVersions.get(windowId) || 0) !== activationVersion)
+      throw new Error("截图期间标签曾切换");
     let blob = await (await fetch(data)).blob();
     const bitmap = await createImageBitmap(blob);
     try {
@@ -1730,12 +1734,16 @@ chrome.tabs.onCreated.addListener(
     track(chrome.storage.session.set({ active }));
   }),
 );
+chrome.tabs.onActivated.addListener(({ windowId }) => {
+  tabActivationVersions.set(windowId, (tabActivationVersions.get(windowId) || 0) + 1);
+});
 chrome.tabs.onActivated.addListener(
   afterReady(({ tabId, windowId }) => {
     if (active?.status === "recording" && active.tabs[tabId])
       track(append("tab.activated", { tabId, windowId }));
   }),
 );
+chrome.windows.onRemoved.addListener((windowId) => tabActivationVersions.delete(windowId));
 chrome.webNavigation.onHistoryStateUpdated.addListener(
   afterReady((details) => {
     if (

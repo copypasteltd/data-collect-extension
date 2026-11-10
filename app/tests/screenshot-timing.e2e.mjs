@@ -21,7 +21,7 @@ try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  manifest.host_permissions = ["http://*/*", "https://*/*"];
+  manifest.host_permissions = ["<all_urls>"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   context = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.CHROME_BIN || chromium.executablePath(),
@@ -40,7 +40,7 @@ try {
   if (!started.ok) throw new Error("截图录制未启动");
   async function events() {
     return panel.evaluate(() => new Promise((resolve, reject) => {
-      const open = indexedDB.open("logic-recorder", 2);
+      const open = indexedDB.open("logic-recorder");
       open.onerror = () => reject(open.error);
       open.onsuccess = () => {
         const db = open.result;
@@ -50,11 +50,11 @@ try {
       };
     }));
   }
-  async function waitForShot(selector) {
+  async function waitForShot(selector, sessionId = started.value.id) {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) {
       const all = await events();
-      const click = all.find((event) => event.kind === "interaction.click" && event.payload?.target?.selector === selector);
+      const click = all.find((event) => event.sessionId === sessionId && event.kind === "interaction.click" && event.payload?.target?.selector === selector);
       const shot = all.find((event) => event.kind === "screenshot" && event.payload?.eventIds?.includes(click?.id));
       if (shot) return { click, shot };
       await page.waitForTimeout(100);
@@ -75,7 +75,7 @@ try {
   const password = await page.locator('input[type="password"]').boundingBox();
   const pixel = await panel.evaluate(async ({ assetId, password, viewport }) => {
     const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open("logic-recorder", 2);
+      const request = indexedDB.open("logic-recorder");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -124,6 +124,88 @@ try {
   const newTabOutcome = findReplayOutcome(newEvents, openingClick);
   if (newTabOutcome?.label !== "后续激活的新标签页状态（按时间关联）" || !newTabOutcome.event.payload.html.includes("新标签已打开"))
     throw new Error(`未关联实际打开的新标签页：${JSON.stringify(newEvents.filter((event) => ["tab.created", "tab.activated", "page.snapshot"].includes(event.kind)).map((event) => ({ kind: event.kind, time: event.time, tabId: event.tabId, payload: { tabId: event.payload?.tabId, openerTabId: event.payload?.openerTabId, url: event.payload?.url } })))}`);
+  await page.bringToFront();
+  const thirdStart = await panel.evaluate((tab) => chrome.runtime.sendMessage({ type: "START", tab, options: { screenshots: true, scope: "site" } }), tab);
+  if (!thirdStart.ok) throw new Error("标签切换截图录制未启动");
+  const readyDeadline = Date.now() + 10000;
+  let initialShot;
+  while (Date.now() < readyDeadline) {
+    const all = (await events()).filter((event) => event.sessionId === thirdStart.value.id);
+    const ready = all.find((event) => event.kind === "session.ready");
+    initialShot = all.find((event) => event.kind === "screenshot" && event.payload?.eventIds?.includes(ready?.id));
+    if (initialShot) break;
+    await page.waitForTimeout(50);
+  }
+  if (!initialShot) throw new Error("录制开始截图未完成");
+  await worker.evaluate(() => {
+    const command = chrome.debugger.sendCommand.bind(chrome.debugger);
+    let armed = true;
+    chrome.debugger.sendCommand = async (...args) => {
+      const result = await command(...args);
+      if (armed && args[1] === "Page.captureScreenshot") {
+        armed = false;
+        await new Promise((resolve) => { globalThis.releaseSwitchScreenshot = resolve; });
+      }
+      return result;
+    };
+  });
+  await page.locator("#first").click();
+  const gateDeadline = Date.now() + 10000;
+  while (Date.now() < gateDeadline && !(await worker.evaluate(() => !!globalThis.releaseSwitchScreenshot)))
+    await page.waitForTimeout(50);
+  if (!(await worker.evaluate(() => !!globalThis.releaseSwitchScreenshot))) throw new Error("未能控制截图时序");
+  await panel.bringToFront();
+  await page.bringToFront();
+  await page.waitForTimeout(100);
+  await worker.evaluate(() => globalThis.releaseSwitchScreenshot());
+  const switched = await waitForShot("#first", thirdStart.value.id);
+  if (switched.shot.payload.status !== "unavailable" || switched.shot.payload.assetId ||
+      !switched.shot.payload.reason.includes("截图期间标签曾切换"))
+    throw new Error(`切走又切回后的截图未标记为不可用：${JSON.stringify(switched.shot.payload)}`);
+  const thirdStop = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
+  if (!thirdStop.ok) throw new Error("标签切换截图录制未能停止");
+  await worker.evaluate(() => {
+    chrome.debugger.attach = async () => { throw new Error("模拟调试连接不可用"); };
+  });
+  const fourthStart = await panel.evaluate((tab) => chrome.runtime.sendMessage({ type: "START", tab, options: { screenshots: true, scope: "site" } }), tab);
+  if (!fourthStart.ok) throw new Error("备用截图录制未启动");
+  const fallbackReadyDeadline = Date.now() + 10000;
+  let fallbackInitial;
+  while (Date.now() < fallbackReadyDeadline) {
+    const all = (await events()).filter((event) => event.sessionId === fourthStart.value.id);
+    const ready = all.find((event) => event.kind === "session.ready");
+    fallbackInitial = all.find((event) => event.kind === "screenshot" && event.payload?.eventIds?.includes(ready?.id));
+    if (fallbackInitial) break;
+    await page.waitForTimeout(50);
+  }
+  if (!fallbackInitial?.payload.assetId) throw new Error(`备用截图未准备就绪：${JSON.stringify(fallbackInitial?.payload)}`);
+  await worker.evaluate(() => {
+    const capture = chrome.tabs.captureVisibleTab.bind(chrome.tabs);
+    chrome.tabs.captureVisibleTab = (...args) => new Promise((resolve, reject) => {
+      globalThis.takeSwitchedScreenshot = async () => {
+        try {
+          const data = await capture(...args);
+          globalThis.finishSwitchedScreenshot = () => resolve(data);
+        } catch (error) { reject(error); }
+      };
+    });
+  });
+  await page.locator("#first").click();
+  const fallbackGateDeadline = Date.now() + 10000;
+  while (Date.now() < fallbackGateDeadline && !(await worker.evaluate(() => !!globalThis.takeSwitchedScreenshot)))
+    await page.waitForTimeout(50);
+  if (!(await worker.evaluate(() => !!globalThis.takeSwitchedScreenshot))) throw new Error("未能控制备用截图时序");
+  await panel.bringToFront();
+  await worker.evaluate(() => globalThis.takeSwitchedScreenshot());
+  await page.bringToFront();
+  await page.waitForTimeout(100);
+  await worker.evaluate(() => globalThis.finishSwitchedScreenshot());
+  const fallbackSwitched = await waitForShot("#first", fourthStart.value.id);
+  if (fallbackSwitched.shot.payload.status !== "unavailable" || fallbackSwitched.shot.payload.assetId ||
+      !fallbackSwitched.shot.payload.reason.includes("截图期间标签曾切换"))
+    throw new Error(`备用截图未识别切走又切回：${JSON.stringify(fallbackSwitched.shot.payload)}`);
+  const fourthStop = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
+  if (!fourthStop.ok) throw new Error("备用截图录制未能停止");
   console.log("连续操作的独立截图与捕获时序通过");
 } finally {
   if (context) await context.close();

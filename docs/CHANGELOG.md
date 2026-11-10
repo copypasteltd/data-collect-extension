@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 收到截图期间的标签切换通知时，即使切回原标签也放弃截图并记录原因；修复截图测试使用旧数据库版本的问题。 / Discard screenshots when a tab switch is observed during capture even if the original tab is restored, and fix screenshot tests opening the old database version.
 - 校验后的导入包自动保存到本机记录，可在浏览器重启后查看、原样下载或删除；保存失败仍可临时查看并提示。 / Persist validated imported archives locally for viewing, unchanged download, or deletion after restart; preserve the current view and report local storage failures.
 - 逐步复现结束时检查已记录的标签关闭事件，避免将已关闭标签的旧快照展示为最终页面。 / Check recorded tab closures at the end of step replay instead of presenting a closed tab's old snapshot as the final page.
 - 下载记录包时检查当前导入器的体积、目录和事件限制，对无法导入的包明确提示原因，同时保留下载备份。 / Check archive size, directory, and event limits on export, explaining when the current importer cannot read a package while retaining backup downloads.
