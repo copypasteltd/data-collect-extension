@@ -9,8 +9,8 @@ const media = path.resolve(appRoot, "../docs/media");
 const temp = await fs.mkdtemp(path.join(appRoot, ".demo-"));
 const fixture = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>客户管理演示</title>
 <style>body{margin:0;background:#f4f7f6;color:#22362f;font:15px Arial,sans-serif}header{background:#174c3e;color:white;padding:18px 28px;font-weight:bold}main{max-width:920px;margin:32px auto;padding:0 24px}h1{font-size:24px;margin:0 0 8px}p{color:#62766f}section{background:white;border:1px solid #dce7e2;border-radius:6px;padding:22px;margin-top:20px}button{border:0;border-radius:4px;background:#216b55;color:white;padding:10px 16px;cursor:pointer}input{border:1px solid #bdcec6;border-radius:4px;padding:10px;width:190px}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{border-bottom:1px solid #e3ebe7;padding:12px;text-align:left}th{font-size:12px;color:#71867d}#details{margin-top:15px;padding:12px;background:#edf6f1;border-left:3px solid #308566}#details[hidden]{display:none}</style>
-<header>示例工作台　/　客户管理</header><main><h1>客户管理</h1><p>本地演示数据</p><section><button id="open">查看客户详情</button><div id="details" hidden>示例客户 A　·　状态：已预约</div></section><section><label>客户编号 <input id="query" placeholder="输入客户编号"></label> <button id="search">查询</button><table><thead><tr><th>编号</th><th>客户</th><th>状态</th></tr></thead><tbody id="result"><tr><td>C001</td><td>示例客户 A</td><td>待查询</td></tr></tbody></table></section></main>
-<script>document.querySelector('#open').onclick=()=>{document.querySelector('#details').hidden=false};document.querySelector('#search').onclick=async()=>{const response=await fetch('/api/customers?code='+encodeURIComponent(document.querySelector('#query').value));const data=await response.json();document.querySelector('#result').innerHTML='<tr><td>'+data.code+'</td><td>'+data.name+'</td><td>'+data.status+'</td></tr>'}</script></html>`;
+<header>示例工作台　/　客户管理</header><main><h1>客户管理</h1><p>本地演示数据</p><section><strong>预约趋势</strong><canvas id="demo-chart" width="300" height="80" style="display:block;max-width:100%;margin-top:10px"></canvas></section><section><button id="open">查看客户详情</button><div id="details" hidden>示例客户 A　·　状态：已预约</div></section><section><label>客户编号 <input id="query" placeholder="输入客户编号"></label> <button id="search">查询</button><table><thead><tr><th>编号</th><th>客户</th><th>状态</th></tr></thead><tbody id="result"><tr><td>C001</td><td>示例客户 A</td><td>待查询</td></tr></tbody></table></section></main>
+<script>const chart=document.querySelector('#demo-chart').getContext('2d');chart.fillStyle='#edf6f1';chart.fillRect(0,0,300,80);[28,48,36,62,52,70].forEach((height,index)=>{chart.fillStyle=index===5?'#d09b49':'#438b72';chart.fillRect(18+index*46,75-height,27,height)});document.querySelector('#open').onclick=()=>{document.querySelector('#details').hidden=false};document.querySelector('#search').onclick=async()=>{const response=await fetch('/api/customers?code='+encodeURIComponent(document.querySelector('#query').value));const data=await response.json();document.querySelector('#result').innerHTML='<tr><td>'+data.code+'</td><td>'+data.name+'</td><td>'+data.status+'</td></tr>'}</script></html>`;
 const server = http.createServer((req, res) => {
   if (req.url.startsWith("/api/customers")) {
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -89,6 +89,30 @@ try {
   await replay.locator("#details").getByText("示例客户 A", { exact: false }).waitFor();
   await panel.screenshot({ path: path.join(media, "06-replay.png") });
   await panel.waitForTimeout(1500);
+  const canvasSnapshotId = await panel.evaluate(async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("logic-recorder");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const events = await new Promise((resolve, reject) => {
+      const request = db.transaction("events").objectStore("events").getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return events.filter((event) => event.kind === "page.snapshot" && event.payload?.canvas?.captured > 0 &&
+      event.payload?.html?.includes('id="demo-chart"')).sort((a, b) => b.seq - a.seq)[0]?.id;
+  });
+  if (!canvasSnapshotId) throw new Error("演示画布快照未采集");
+  await panel.getByRole("button", { name: "时间线", exact: true }).click();
+  await panel.getByPlaceholder("搜索记录").fill(canvasSnapshotId);
+  await panel.locator(".timeline-item").first().click();
+  await panel.frameLocator('iframe[title="页面快照"]').locator("#demo-chart").waitFor({ state: "visible" });
+  await panel.locator(".detail-content").evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await panel.waitForTimeout(700);
+  await panel.screenshot({ path: path.join(media, "07-canvas.png") });
+  await panel.waitForTimeout(1200);
   await browser.close();
   browser = null;
   await fs.copyFile(await video.path(), path.join(media, "workflow.webm"));

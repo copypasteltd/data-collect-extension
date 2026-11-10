@@ -8,6 +8,8 @@ import { encodeDatabaseValue } from "./database-value.js";
   const abort = new AbortController();
   const MAX_INPUT_LENGTH = 10000;
   let stopped = false;
+  let canvasMode = "pending";
+  let canvasPendingSnapshot = false;
   const secret =
     /pass(word|wd)?|pwd|token|secret|auth|cookie|session|credential|api.?key|csrf|xsrf|jwt|验证码|密码|令牌|身份证|bank.?card|credit.?card|card.?number|cc-number|cc-csc|\bcvv\b|\bcvc\b|verification.?code|one.?time.?code|\botp\b/i;
   const isSensitive = (element) =>
@@ -452,7 +454,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
     return truncated;
   }
-  function captureShadowSnapshots(original, clone, fontReferences) {
+  function captureShadowSnapshots(original, clone, fontReferences, captureCanvas) {
     const result = { roots: 0, captured: 0, omitted: 0, stylesUnavailable: 0, truncated: false, scrollPositions: [] };
     const pending = [[original, clone, false]];
     let visited = 0, shadowNodes = 0;
@@ -460,6 +462,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       if (++visited > 20000) { result.truncated = true; break; }
       const [source, copy, inShadow] = pending.pop();
       if (!(source instanceof Element) || !(copy instanceof Element)) continue;
+      if (source instanceof HTMLCanvasElement) captureCanvas(source);
       const sourceChildren = [...source.children], copyChildren = [...copy.children];
       for (let i = 0; i < Math.min(sourceChildren.length, copyChildren.length); i++)
         pending.push([sourceChildren[i], copyChildren[i], inShadow]);
@@ -518,11 +521,51 @@ import { encodeDatabaseValue } from "./database-value.js";
   }
   function snapshot(reason) {
     try {
+      const canvas = { status: canvasMode === "enabled" ? "captured" : canvasMode, total: 0, captured: 0, omitted: 0, unavailable: 0, reasons: {}, geometryOmitted: 0, geometry: [], items: [] };
+      let canvasBytes = 0, canvasAttempts = 0, canvasDeadline;
+      const canvasGap = (kind, reason) => {
+        canvas[kind]++;
+        canvas.reasons[reason] = (canvas.reasons[reason] || 0) + 1;
+      };
+      const captureCanvas = (source) => {
+        canvas.total++;
+        canvasDeadline ??= performance.now() + 100;
+        if (canvas.geometry.length < 50 && performance.now() <= canvasDeadline) {
+          try {
+            const style = getComputedStyle(source);
+            const dimension = (value) => /^\d{1,5}(?:\.\d{1,6})?px$/.test(value) ? value : null;
+            const width = dimension(style.width), height = dimension(style.height);
+            if (width === null || height === null) canvas.geometryOmitted++;
+            else canvas.geometry.push({ nodeId: nodeId(source), width, height, inline: style.display === "inline" });
+          } catch { canvas.geometryOmitted++; }
+        } else canvas.geometryOmitted++;
+        if (canvasMode !== "enabled") return;
+        for (let node = source; node instanceof Element; node = node.parentElement || node.getRootNode()?.host)
+          if (isSensitive(node)) { canvasGap("omitted", "sensitive"); return; }
+        if (++canvasAttempts > 5) { canvasGap("omitted", "count_limit"); return; }
+        if (performance.now() > canvasDeadline) { canvasGap("omitted", "time_limit"); return; }
+        if (!source.width || !source.height) { canvasGap("omitted", "zero_size"); return; }
+        if (source.width * source.height > 500000) { canvasGap("omitted", "pixel_limit"); return; }
+        try {
+          const captureStartedAt = Date.now();
+          const data = source.toDataURL("image/png");
+          const capturedAt = Date.now();
+          if (!/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(data)) { canvasGap("unavailable", "invalid_image"); return; }
+          if (data.length > 150000) { canvasGap("omitted", "image_size_limit"); return; }
+          if (canvasBytes + data.length > 400000) { canvasGap("omitted", "total_size_limit"); return; }
+          canvasBytes += data.length;
+          canvas.items.push({ nodeId: nodeId(source), data, pixelWidth: source.width,
+            pixelHeight: source.height, captureStartedAt, capturedAt });
+          canvas.captured++;
+        } catch (error) { canvasGap("unavailable", error?.name === "SecurityError" ? "cross_origin" : "read_error"); }
+      };
       const inert = document.implementation.createHTMLDocument("");
       const clone = inert.importNode(document.documentElement, true);
       markNodes(document.documentElement, clone);
       const fontReferences = new WeakSet();
-      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences);
+      const shadow = captureShadowSnapshots(document.documentElement, clone, fontReferences, captureCanvas);
+      if (shadow.truncated) canvas.scanTruncated = true;
+      if (canvasMode === "pending" && canvas.total) canvasPendingSnapshot = true;
       clone.removeAttribute("data-logic-background");
       clone
         .querySelectorAll("[data-logic-background]")
@@ -721,6 +764,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         truncatedNodes,
         scroll: { positions: scrollPositions, truncated: scrollTruncated },
         shadow,
+        canvas,
         styles: {
           captured: stylesCaptured,
           unavailable: stylesUnavailable,
@@ -1634,6 +1678,14 @@ import { encodeDatabaseValue } from "./database-value.js";
     }
   };
   chrome.runtime.onMessage.addListener(onMessage);
+  chrome.runtime.sendMessage({ type: "CANVAS_OPTIONS" }).then((result) => {
+    canvasMode = result?.ok && typeof result.value?.enabled === "boolean"
+      ? (result.value.enabled ? "enabled" : "disabled") : "unavailable";
+    if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
+  }).catch(() => {
+    canvasMode = "unavailable";
+    if (canvasPendingSnapshot && !stopped) scheduleSnapshot("canvas-ready");
+  });
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", () => snapshot("initial"), {
       once: true,

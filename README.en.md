@@ -18,7 +18,7 @@ The demo uses fictional local customer data and an isolated test browser with th
 | :---: | :---: | :---: |
 | <img src="docs/media/01-ready.png" width="220" alt="Recording settings in the side panel"> | <img src="docs/media/05-flow.png" width="220" alt="Recorded flow and candidate request"> | <img src="docs/media/06-replay.png" width="220" alt="Isolated page replay in the side panel"> |
 
-[Recording](docs/media/02-recording.png) · [Record list](docs/media/03-history.png) · [Timeline](docs/media/04-timeline.png) · [Example site](docs/media/sample-site.png)
+[Recording](docs/media/02-recording.png) · [Record list](docs/media/03-history.png) · [Timeline](docs/media/04-timeline.png) · [Canvas snapshot](docs/media/07-canvas.png) · [Example site](docs/media/sample-site.png)
 
 ## Use Cases
 
@@ -41,7 +41,7 @@ npm run build
 1. Open `chrome://extensions` in Chrome and enable **Developer mode**.
 2. Choose **Load unpacked** and select this repository's **`app/dist`** directory. The build generates `dist`; it is not committed to Git.
 3. Open an HTTP or HTTPS page you are authorized to record, then open Logic Recorder from the extension toolbar.
-4. Choose the scope and optional screenshots or non-authentication cookie values. Confirm the authorization statement, start recording, and approve Chrome's permission request.
+4. Choose the scope and whether to capture screenshots, static canvas images, or non-authentication cookie values. Confirm the authorization statement, start recording, and approve Chrome's permission request.
 5. Wait for the recording state, then perform the workflow. To capture initial page requests, refresh or revisit the page after recording starts.
 6. Stop recording and wait for finalization. Open the record from the list or use its download button to export a ZIP.
 7. On the receiving machine, load the same extension and choose **导入记录包** in the side panel. Viewing, replay, and exports stay in the side panel.
@@ -76,6 +76,7 @@ Chunked ZIP + SHA-256 manifest → side-panel timeline / pages / flows / APIs / 
 | Scope | The current site and its new tabs, or authorized HTTP/HTTPS pages across the browser. Restricted pages cannot be recorded. |
 | Pages and actions | Best-effort capture of clicks, input, selections, submits, keyboard and pointer events, focus, scroll, drag/drop, some clipboard events, snapshots and DOM changes. Some open and closed Shadow DOM is supported; clipboard content is not guaranteed. |
 | Screenshots | Screenshots are attempted around actions with masking for recognizable sensitive areas. Capture timing, sharing, and failure states are recorded; rapid actions may share an image. |
+| Canvas | Optionally capture static Canvas images and layout from pages and components. Unreadable, oversized, or recognized sensitive canvases are flagged; animations and later drawing may be incomplete. |
 | Network | Observable requests, responses, redirects, and some request/response bodies; best-effort WebSocket text and EventSource messages. Binary and oversized content may be omitted. |
 | Site state | Cookie metadata and changes; non-authentication values require explicit opt-in. `localStorage` and `sessionStorage` are polled once per second and sampled again when stopping or leaving a page. IndexedDB and Cache Storage get limited start/end snapshots; cached request metadata is recorded without response bodies. |
 | Resources | Attempts to preserve observed images, WOFF/WOFF2 fonts, and available styles. Images already loaded at recording start may be captured only as a static PNG preview, subject to cross-origin restrictions. |
@@ -86,6 +87,7 @@ API draft evidence distinguishes finished, failed, incomplete, and unrecorded re
 The current-site scope is limited to the same scheme, host, and port; a new tab that crosses that origin is outside the scope.
 At the end of step replay, a recorded tab closure without another confirmed page is reported as an unavailable final state instead of displaying the closed tab's old snapshot. Unrecorded tab switches or closures can still affect this assessment.
 If a tab-switch notification arrives during capture, the screenshot is discarded even when the user switches back; the reason is recorded. When the debugger is unavailable, fallback screenshots also require suitable Chrome active-tab permission and are reported unavailable when permission is missing.
+Static canvas capture is enabled by default and can be switched off independently of screenshots. Each page snapshot attempts at most five canvases of up to 500,000 pixels each, with a 150,000-character per-image limit, a 400,000-character total limit, layout for at most 50 canvases, and an approximately 100 ms capture budget. Cross-origin tainting, GPU rendering, page changes, or limits may produce missing or blank images; the viewer reports known gaps. Canvas pixels are not redacted; inspect recordings before sharing. Missing canvas images cannot be recovered from older recordings.
 Network scope follows the originating page: cross-origin API requests made by an in-scope page are captured when available, while requests made by an out-of-scope embedded page are excluded. Requests with an unconfirmed source are skipped and reported. WebSocket connections are checked using their handshake origin; existing connections with an unconfirmed origin may be skipped.
 Browsers share cookies by domain rather than port, and cookie change events do not reliably identify the originating page. Changes from other ports on the same domain may therefore appear. Older recordings may contain data from out-of-scope embedded pages; inspect them before sharing.
 For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default) before redaction. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.

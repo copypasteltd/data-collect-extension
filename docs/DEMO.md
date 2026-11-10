@@ -2,7 +2,7 @@
 
 ## 内容 / Contents
 
-- `media/01-ready.png`、`02-recording.png`、`03-history.png`、`04-timeline.png`、`05-flow.png`、`06-replay.png`：扩展侧边栏真实界面截图。 / Screenshots of the actual extension side-panel interface.
+- `media/01-ready.png`、`02-recording.png`、`03-history.png`、`04-timeline.png`、`05-flow.png`、`06-replay.png`、`07-canvas.png`：扩展侧边栏真实界面截图。 / Screenshots of the actual extension side-panel interface.
 - `media/sample-site.png`：本地示例业务页面。 / The local example business page.
 - `media/workflow.webm`：Playwright 对侧边栏界面的实际录制。 / Actual Playwright recording of the side-panel interface.
 - `media/workflow.mp4`：由 WebM 转码的 H.264 版本。 / H.264 transcode of the WebM.
@@ -10,6 +10,9 @@
 
 示例站点由 `app/scripts/capture-readme.mjs` 在本机临时启动，只包含虚构数据；脚本使用独立临时浏览器配置，并在测试扩展的临时副本中预授予示例站点权限以便自动化。截图展示真实扩展界面，但不是对 Chrome 原生权限弹窗接受/拒绝行为的验证。脚本结束会关闭浏览器和临时服务，并清理本次创建的临时目录。<br>
 The script starts a local fixture containing fictional data, uses an isolated temporary browser profile, and pre-grants host permission in a temporary extension copy for automation. The images show the real extension UI, but do not verify acceptance or denial of Chrome's native permission dialog. The script closes its browser and server and removes its own temporary directory.
+
+演示站点包含虚构的画布图表；录制末尾展示侧边栏中的静态画布快照。画布采样和重放另由 `npm run test:canvas-snapshot` 验证。<br>
+The demo site includes a fictional canvas chart; the recording ends with its static snapshot in the side panel. Canvas capture and replay are also verified by `npm run test:canvas-snapshot`.
 
 ## 重新生成 / Regenerate
 

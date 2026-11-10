@@ -5,6 +5,8 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 增加可独立关闭的 Canvas 静态画面与布局采样，支持侧边栏页面复现并报告跨域、敏感区域及资源上限导致的缺口。 / Add separately configurable static Canvas image and layout capture for side-panel replay, reporting gaps from cross-origin restrictions, sensitive targets, and resource limits.
+- 更新中英文 README 演示截图、录屏与 GIF，并补充本地虚构画布图表的回看截图。 / Refresh bilingual README screenshots, video, and GIF, including a static replay of a fictional local canvas chart.
 - 逐步复现支持滑块、数字和颜色输入；新录制保留有效数值范围与步长，页面范围不一致时切换备用控件。 / Support range, number, and color inputs in step replay, preserving valid numeric bounds and step values and falling back when snapshot constraints differ.
 - 操作记录新增文档内元素标识，页面还原及逐步复现核对目标与选项身份，避免将旧状态套用到替换或不唯一的控件；旧记录无法确认时给出提示。 / Record document-local element IDs and validate target and option identity during page restoration and step replay, reporting cases that cannot be confirmed in older recordings.
 - 接口规范草稿保留每次请求的完成、失败或未完成状态，区分未取得状态码的占位响应；修正字面花括号路径及规范化后相同接口的样本合并。 / Preserve finished, failed, incomplete, and unrecorded request outcomes in API draft evidence, label missing-status placeholders, and merge samples for equivalent normalized paths with literal braces.

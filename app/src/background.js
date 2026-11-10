@@ -992,6 +992,10 @@ async function stop(onStopping) {
       (event) =>
         event.kind === "screenshot" && event.payload.status === "unavailable",
     ).length,
+    canvasGaps: recorded.filter((event) => event.kind === "page.snapshot" &&
+      ((event.payload.canvas?.total > 0 && (event.payload.canvas.status !== "captured" ||
+        event.payload.canvas.omitted > 0 || event.payload.canvas.unavailable > 0 || event.payload.canvas.geometryOmitted > 0)) ||
+        event.payload.canvas?.scanTruncated)).length,
     inputGaps: recorded.filter(
       (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
         (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||
@@ -1122,6 +1126,11 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       if (active?.id === message.id) throw new Error("无法删除正在录制的任务");
       await removeSession(message.id);
       return true;
+    }
+    if (message.type === "CANVAS_OPTIONS") {
+      if (!active || !active.tabs[sender.tab?.id] || !allowedUrl(sender.url) ||
+          !["preparing", "recording"].includes(active.status)) return { enabled: false };
+      return { enabled: active.options?.canvasSnapshots === true };
     }
     if (message.type === "EVENTS") {
       if (

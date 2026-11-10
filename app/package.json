@@ -28,6 +28,7 @@
     "test:replay": "node tests/replay-controls.e2e.mjs",
     "test:numeric-replay": "node tests/numeric-replay.e2e.mjs",
     "test:page-replay": "node tests/page-replay.e2e.mjs",
+    "test:canvas-snapshot": "node tests/canvas-snapshot.e2e.mjs",
     "test:form-state-identity": "node tests/form-state-identity.e2e.mjs",
     "test:closed-tab-replay": "node tests/closed-tab-replay.e2e.mjs",
     "test:screenshot-timing": "node tests/screenshot-timing.e2e.mjs",

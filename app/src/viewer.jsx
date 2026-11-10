@@ -95,6 +95,20 @@ function snapshotIssues(payload) {
   if (payload.shadow?.stylesUnavailable) issues.push(`组件样式无法读取：${payload.shadow.stylesUnavailable} 个`);
   if (payload.shadow?.stylesTruncated) issues.push("组件样式超过采集上限");
   if (payload.shadow?.truncated || payload.shadow?.unavailable) issues.push("组件内部结构检查不完整");
+  if (payload.canvas?.total > 0 && payload.canvas.status === "disabled") issues.push("画布静态画面采集已关闭");
+  if (payload.canvas?.total > 0 && payload.canvas.status === "pending") issues.push("画布采集设置尚未就绪");
+  if (payload.canvas?.total > 0 && payload.canvas.status === "unavailable") issues.push("画布采集设置不可用");
+  if (payload.canvas?.omitted) issues.push(`画布静态画面未采集：${payload.canvas.omitted} 个`);
+  if (payload.canvas?.unavailable) issues.push(`画布静态画面无法读取：${payload.canvas.unavailable} 个`);
+  if (payload.canvas?.geometryOmitted) issues.push(`画布布局未采集：${payload.canvas.geometryOmitted} 个`);
+  for (const [reason, label] of Object.entries({ sensitive: "识别为敏感的画布", count_limit: "画布数量超过上限",
+    time_limit: "画布采集超过时间预算", zero_size: "画布尺寸为空", pixel_limit: "画布像素超过上限",
+    image_size_limit: "单张画布数据超过上限", total_size_limit: "画布数据总量超过上限",
+    cross_origin: "画布受跨域限制", invalid_image: "画布图像格式不可用", read_error: "画布读取失败" })) {
+    const count = payload.canvas?.reasons?.[reason];
+    if (Number.isSafeInteger(count) && count > 0) issues.push(`${label}：${count} 个`);
+  }
+  if (payload.canvas?.scanTruncated) issues.push("画布检查可能不完整");
   return issues;
 }
 function databaseIssue(payload) {
@@ -150,6 +164,8 @@ function Report({ archive, showEvent }) {
           e.payload.styles?.backgroundUnavailable > 0 ||
           e.payload.styles?.backgroundTruncated ||
           e.payload.scroll?.truncated ||
+          (e.payload.canvas?.total > 0 && (e.payload.canvas.status !== "captured" || e.payload.canvas.omitted > 0 || e.payload.canvas.unavailable > 0 || e.payload.canvas.geometryOmitted > 0)) ||
+          e.payload.canvas?.scanTruncated ||
           e.payload.shadow?.roots > 0 ||
           e.payload.shadow?.truncated ||
           e.payload.shadow?.unavailable)) ||
@@ -539,6 +555,49 @@ export default function Viewer({ onBack, sessionId }) {
     }
     if (missingImages) result.issues.push(`图片资源未取得：${missingImages} 个`);
     if (missingBackgrounds) result.issues.push(`背景图片未取得：${missingBackgrounds} 个`);
+    const canvasData = snapshotEvent.payload.canvas;
+    const canvasItems = Array.isArray(canvasData?.items) ? canvasData.items : [];
+    const canvasGeometry = Array.isArray(canvasData?.geometry) ? canvasData.geometry : [];
+    if (canvasData && ((canvasData.items != null && !Array.isArray(canvasData.items)) ||
+        (canvasData.geometry != null && !Array.isArray(canvasData.geometry))))
+      result.issues.push("部分画布数据或目标无法确认");
+    if (canvasItems.length || canvasGeometry.length) {
+      const canvases = new Map();
+      for (const root of snapshotRoots) for (const node of root.querySelectorAll("canvas[data-logic-node]")) {
+        const id = node.getAttribute("data-logic-node");
+        if (canvases.has(id)) canvases.set(id, null);
+        else canvases.set(id, node);
+      }
+      let applied = 0, invalid = 0, total = 0;
+      const geometries = new Set(), appliedIds = new Set();
+      for (const item of canvasGeometry.slice(0, 50)) {
+        const node = canvases.get(item?.nodeId);
+        if (!node || geometries.has(item.nodeId) ||
+            !["width", "height"].every((name) => typeof item[name] === "string" && /^\d{1,5}(?:\.\d{1,6})?px$/.test(item[name]))) { invalid++; continue; }
+        geometries.add(item.nodeId);
+        for (const dimension of ["width", "height"]) {
+          node.style.setProperty(dimension, item[dimension], "important");
+        }
+        if (item.inline === true) node.style.setProperty("display", "inline-block", "important");
+        node.replaceChildren();
+      }
+      if (canvasGeometry.length > 50) invalid += canvasGeometry.length - 50;
+      for (const item of canvasItems.slice(0, 5)) {
+        const data = item?.data, node = canvases.get(item?.nodeId);
+        if (typeof data !== "string" || data.length > 150000 ||
+            !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(data) ||
+            !node || !geometries.has(item?.nodeId) || appliedIds.has(item?.nodeId) || total + data.length > 400000) { invalid++; continue; }
+        total += data.length;
+        appliedIds.add(item.nodeId);
+        node.style.setProperty("background-image", `url("${data}")`, "important");
+        node.style.setProperty("background-size", "100% 100%", "important");
+        node.style.setProperty("background-repeat", "no-repeat", "important");
+        applied++;
+      }
+      if (canvasItems.length > 5) invalid += canvasItems.length - 5;
+      if (applied) result.issues.push("画布仅显示快照时采集的静态画面");
+      if (invalid) result.issues.push("部分画布数据或目标无法确认");
+    }
     return {
       html: "<!doctype html>" + doc.documentElement.outerHTML,
       scrollState,
@@ -1118,7 +1177,9 @@ export default function Viewer({ onBack, sessionId }) {
                         {JSON.stringify(
                           selected.payload,
                           (key, value) =>
-                            key === "html"
+                            selected.kind === "page.snapshot" && key === "data" && typeof value === "string" && value.startsWith("data:image/png;base64,")
+                              ? `[画布静态图像，${value.length} 字符]`
+                              : key === "html"
                               ? `[页面快照，${value?.length || 0} 字符]`
                               : value,
                           2,
