@@ -46,6 +46,8 @@ npm run build
 6. Stop recording and wait for finalization. Open the record from the list or use its download button to export a ZIP.
 7. On the receiving machine, load the same extension and choose **导入记录包** in the side panel. Viewing, replay, and exports stay in the side panel.
 
+While a recording is being finalized, repeated stop requests return a wait message and the original finalization continues. A genuine finalization failure is marked as interrupted.
+
 Keep the side panel open until the browser finishes the download. An interrupted download displays an error and can be retried.
 
 After modifying source and rebuilding, reload the extension in `chrome://extensions`. See the [Chinese usage guide](docs/插件安装与使用说明.md) for detailed operation and recovery instructions.
@@ -145,6 +147,7 @@ npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
+npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture

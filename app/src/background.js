@@ -735,13 +735,14 @@ function requestScreenshot(eventId, tabId, frameId, documentId, url) {
   screenshotPending.push({ eventId, tabId, frameId, documentId, url });
   scheduleScreenshot();
 }
-async function stop() {
+async function stop(onStopping) {
   await ready;
   if (!active) throw new Error("没有正在录制的任务");
   const session = active;
   if (session.status !== "recording")
     throw new Error("录制任务正在准备或停止，请稍候");
   session.status = "stopping";
+  onStopping(session);
   session.stopRequestedAt = Date.now();
   await put("sessions", session);
   await chrome.storage.session.set({ active: session });
@@ -977,11 +978,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       }
     }
     if (message.type === "STOP") {
+      let stopping;
       try {
-        return await stop();
+        return await stop((session) => { stopping = session; });
       } catch (error) {
-        if (active?.status === "stopping")
-          await interrupt(active, "录制异常结束，已保存可用的部分记录");
+        if (stopping && active === stopping && stopping.status === "stopping")
+          await interrupt(stopping, "录制异常结束，已保存可用的部分记录");
         throw error;
       }
     }

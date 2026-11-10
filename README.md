@@ -46,6 +46,8 @@ npm run build
 6. 点击“停止录制”，等待整理完成；在“录制记录”中查看，或点击下载图标导出 ZIP。
 7. 接收方加载相同扩展后，在侧边栏选择“导入记录包”。查看、复现和导出均在侧边栏完成。
 
+停止整理期间若收到重复停止请求，插件会提示等待，原任务继续收尾；实际收尾失败时会标记异常中断。
+
 导出时请保持侧边栏打开，直至浏览器下载完成；下载中断会显示错误，可重新下载。
 
 源码修改并重新构建后，在 `chrome://extensions` 中刷新扩展。完整说明及异常恢复见[安装与使用说明](docs/插件安装与使用说明.md)。
@@ -145,6 +147,7 @@ npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
+npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture

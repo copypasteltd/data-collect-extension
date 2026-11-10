@@ -22,6 +22,7 @@
     "test:screenshot-timing": "node tests/screenshot-timing.e2e.mjs",
     "test:recovery": "node tests/recovery.e2e.mjs",
     "test:browser-restart": "node tests/browser-restart.e2e.mjs",
+    "test:concurrent-stop": "node tests/concurrent-stop.e2e.mjs",
     "test:scroll": "node tests/scroll-replay.e2e.mjs"
   },
   "dependencies": {
