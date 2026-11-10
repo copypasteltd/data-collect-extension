@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 支持对浏览器以 Base64 返回的可识别文本响应按声明字符集解码后脱敏；对于编码或内容无效、超限或声明非空但返回为空的响应显示采集提示。 / Decode and redact recognized Base64 text responses using the declared charset; report invalid encodings or content, oversized responses, and inconsistent empty responses.
 - 修复当前站点模式可能记录同主机其他端口嵌入页面的请求、WebSocket 消息和对话框的问题；对来源不明的连接给出采集提示，并标明 Cookie 变更的来源不可确认。 / Restrict same-host cross-port embedded-page requests, WebSocket messages, and dialogs in current-site mode; report unconfirmed connection origins and label cookie changes with unconfirmed sources.
 - 避免将同一毫秒的截图误判为操作前画面；页面实例、网址或截图时序无法确认时不再标示近似操作位置，并提供相应提示。 / Avoid treating same-millisecond captures as pre-action images; hide approximate target markers when document identity, URL, or timing is unconfirmed, and explain why.
 - 页面持续变化时，为合并快照设置约 2 秒的最长等待时间；页面离开时尝试保存待处理快照，减少页面状态遗漏。 / Bound snapshot debouncing to about two seconds during continuous page changes and attempt pending snapshots when leaving a page.

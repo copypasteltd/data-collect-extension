@@ -107,6 +107,10 @@ function Report({ archive, showEvent }) {
           "captured_redacted_best_effort",
           "empty",
         ].includes(e.payload.body?.status)) ||
+      (e.kind === "network.finished" &&
+        ["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable"].includes(
+          e.payload.body?.status,
+        )) ||
       (e.kind === "screenshot" && e.payload.status === "unavailable") ||
       (e.kind === "page.snapshot" &&
         (e.payload.status !== "captured" ||
@@ -215,6 +219,14 @@ function Report({ archive, showEvent }) {
                   : null) ||
                 (e.payload.formState?.optionsTruncated
                   ? "选项数量超过复现控件上限"
+                  : null) ||
+                (e.kind === "network.finished"
+                  ? {
+                      unavailable: "响应体无法读取",
+                      omitted_size: "响应体超过大小限制",
+                      omitted_encoding: "响应体编码无法解析",
+                      omitted_unparseable: "响应体内容无法解析",
+                    }[e.payload.body?.status]
                   : null) ||
                 bodyStatus[e.payload.body?.status] ||
                 e.payload.body?.reason ||

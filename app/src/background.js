@@ -1,5 +1,6 @@
 import { all, get, put, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
+import { cleanDebuggerResponse } from "./response-body.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -890,7 +891,9 @@ async function stop() {
     responseGaps: recorded.filter(
       (event) =>
         event.kind === "network.finished" &&
-        ["unavailable", "omitted_size"].includes(event.payload.body?.status),
+        ["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable"].includes(
+          event.payload.body?.status,
+        ),
     ).length,
   };
   session.status =
@@ -1372,9 +1375,7 @@ chrome.debugger.onEvent.addListener(
               "Network.getResponseBody",
               { requestId: rawRequestId },
             );
-            body = result.base64Encoded
-              ? { value: null, status: "omitted_binary" }
-              : cleanBody(result.body, mime);
+            body = cleanDebuggerResponse(result, item.response, item.method);
           } catch (error) {
             body = {
               value: null,
