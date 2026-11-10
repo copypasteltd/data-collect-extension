@@ -20,7 +20,9 @@
 
 ## 安装
 
-需要 Chrome 125 或更高版本、Node.js 20 或更高版本和 npm。
+需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.0.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
+
+也可从源码构建；此方式还需要 Node.js 20 或更高版本和 npm：
 
 ```powershell
 cd app
@@ -61,6 +63,8 @@ resources/                    已保存的图片、字体等资源
 ## 使用解析技能
 
 仓库提供 [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md)，用于校验记录包、整理页面和操作证据，并按要求基于已观察流程构建复现项目。技能在插件之外运行，不改变侧边栏功能。解析工具需要 Python 3.9 或更高版本，无需安装额外 Python 库。
+
+也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.0.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
 
 Windows PowerShell 中，从项目根目录安装到当前用户的 Codex 技能目录：
 

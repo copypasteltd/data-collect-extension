@@ -3,7 +3,9 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
-## Unreleased / 未发布
+## 0.1.0 - 2026-11-10
+
+- 提供可直接解压加载的 Chrome 扩展包、独立技能包和 SHA-256 校验文件。 / Provide unpacked Chrome extension and standalone skill archives with SHA-256 checksums.
 
 - 新增 `$extension-logic-clone` 技能及本地 ZIP 校验、SQLite 事件索引工具，提供证据追溯和已观察流程重建规则。 / Add the `$extension-logic-clone` skill with local ZIP validation, SQLite event indexing, evidence tracing, and observed-workflow reconstruction guidance.
 - 侧边栏仅保留开始、停止、批次选择和导出；移除采集内容查看、导入、复现及其他入口，默认尝试录制所有已授权网页。 / Limit the side panel to start, stop, batch selection, and export; remove content viewing, import, replay, and other entry points, and record authorized pages by default.
@@ -61,7 +63,9 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 - 修复高度重复的合法页面记录包因压缩比过高而无法导入的问题；仍限制单文件与累计展开大小并校验实际解压量。 / Allow highly compressible legitimate recordings to be imported while retaining per-file and total expanded-size limits and checks on actual output.
 - 下载记录包、页面清单或接口草稿时等待浏览器的最终结果；下载中断或状态不可确认时显示错误，并清理下载资源。 / Archive, catalog and API draft exports now wait for the browser's final download state, report interruption or an unknown status, and release download resources.
 
-## 0.1.0 - 2026-11-10
+## 历史初始实现 / Historical Initial Implementation
+
+以下记录为早期开发状态，不代表本次发布的当前功能；以本文件顶部和当前安装说明为准。 / The entries below describe an earlier development state, not the current release; use the top of this file and the current installation guide.
 
 ### 新增 / Added
 

@@ -20,7 +20,9 @@ The demo uses fictional local data in an isolated test browser. The side panel o
 
 ## Install
 
-Chrome 125 or later, Node.js 20 or later, and npm are required.
+Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
+
+To build from source instead, you also need Node.js 20 or later and npm:
 
 ```powershell
 cd app
@@ -61,6 +63,8 @@ resources/                    Captured images, fonts, and other resources
 ## Recording Analysis Skill
 
 The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
+
+Alternatively, download `extension-logic-clone-v0.1.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
 
 From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
 
