@@ -39,7 +39,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
     if (!nodeIds.has(node)) nodeIds.set(node, String(++nextNodeId));
     return nodeIds.get(node);
   };
-  const cleanStored = (value, depth = 0) => {
+  const cleanStored = (value, depth = 0, maxStringLength = 10000) => {
     if (depth > 12) return "[层级过深]";
     if (Array.isArray(value))
       return value.map((v) => cleanStored(v, depth + 1));
@@ -60,7 +60,7 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
           ]),
       );
     if (typeof value === "string") {
-      if (value.length > 10000) return "[超过大小限制]";
+      if (value.length > maxStringLength) return "[超过大小限制]";
       if (/bearer\s|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./i.test(value))
         return "[已隐藏]";
       return value
@@ -661,10 +661,19 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
       for (const root of roots) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       while (walker.nextNode()) {
-        const cleaned = cleanStored(walker.currentNode.nodeValue);
-        if (walker.currentNode.nodeValue.length > 10000 || cleaned.length > 10000) truncatedNodes++;
-        const limited = cleaned.slice(0, 10000);
-        walker.currentNode.nodeValue = walker.currentNode.parentElement?.localName === "style"
+        const original = walker.currentNode.nodeValue;
+        const isStyle = walker.currentNode.parentElement?.localName === "style";
+        const limit = isStyle ? 500000 : 10000;
+        const cleaned = cleanStored(isStyle ? original.slice(0, limit) : original, 0, limit);
+        if (original.length > limit || cleaned.length > limit) {
+          truncatedNodes++;
+          if (isStyle) {
+            if (root === clone) stylesTruncated = true;
+            else shadow.stylesTruncated = true;
+          }
+        }
+        const limited = cleaned.slice(0, limit);
+        walker.currentNode.nodeValue = isStyle
           ? limited.replace(/<\/style/gi, "<\\2f style")
           : limited;
       }

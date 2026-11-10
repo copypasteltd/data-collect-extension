@@ -80,6 +80,7 @@ Network scope follows the originating page: cross-origin API requests made by an
 Browsers share cookies by domain rather than port, and cookie change events do not reliably identify the originating page. Changes from other ports on the same domain may therefore appear. Older recordings may contain data from out-of-scope embedded pages; inspect them before sharing.
 For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default) before redaction. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.
 For continuously changing pages, the recorder attempts a snapshot after about two seconds instead of postponing it indefinitely; a pending snapshot is also attempted when leaving a page. Browser throttling, busy pages, or page destruction can still delay or omit states.
+Readable page and component styles are retained in snapshots up to 500,000 UTF-16 code units per style text; exceeding this limit is reported. Styles already lost in older recordings cannot be restored automatically.
 Ordinary text inputs and their prior values are recorded up to 10,000 UTF-16 code units. Longer values retain their prefix and are flagged in reports and replay. Older recordings may have been truncated at 4,000 code units without a flag.
 Each web storage area is limited to 200 keys; non-sensitive values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
 Screenshots remain available for reference. Replay marks an approximate target only when the document, URL, tab, timing, and viewport can be confirmed. Older recordings missing document identity or capture start time may not show a target marker.
@@ -148,6 +149,7 @@ npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture
 npm run test:snapshot-scheduling
+npm run test:large-styles
 npm run test:screenshot-identity
 npm run test:network-origin
 npm run test:response-encoding

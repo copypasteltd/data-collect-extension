@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 修复页面和组件中较大的可读取样式被替换为占位内容、导致侧边栏回看丢失样式的问题；超过单个样式上限时标记截断。 / Preserve larger readable page and component styles in snapshots instead of replacing them with a placeholder; flag styles that exceed the per-style limit.
 - 补充匹配 Playwright 浏览器版本的安装和测试说明，避免 `CHROME_BIN` 意外覆盖；完整端到端流程已在匹配版本上通过一次。 / Document installation and testing with the matching Playwright browser and how to avoid an unintended `CHROME_BIN` override; the full end-to-end flow passed once with the matched version.
 - 支持对浏览器以 Base64 返回的可识别文本响应按声明字符集解码后脱敏；对于编码或内容无效、超限或声明非空但返回为空的响应显示采集提示。 / Decode and redact recognized Base64 text responses using the declared charset; report invalid encodings or content, oversized responses, and inconsistent empty responses.
 - 修复当前站点模式可能记录同主机其他端口嵌入页面的请求、WebSocket 消息和对话框的问题；对来源不明的连接给出采集提示，并标明 Cookie 变更的来源不可确认。 / Restrict same-host cross-port embedded-page requests, WebSocket messages, and dialogs in current-site mode; report unconfirmed connection origins and label cookie changes with unconfirmed sources.
