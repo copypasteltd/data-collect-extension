@@ -196,8 +196,7 @@ async function inspectZip(blob) {
   for (let i = 0; i < entries; i++) {
     if (pos + 46 > bytes.length || dirView.getUint32(pos, true) !== 0x02014b50)
       throw new Error("ZIP 目录无效");
-    const compressed = dirView.getUint32(pos + 20, true),
-      size = dirView.getUint32(pos + 24, true),
+    const size = dirView.getUint32(pos + 24, true),
       nameLen = dirView.getUint16(pos + 28, true),
       extraLen = dirView.getUint16(pos + 30, true),
       commentLen = dirView.getUint16(pos + 32, true);
@@ -219,11 +218,7 @@ async function inspectZip(blob) {
       throw new Error("ZIP 含不安全或重复路径");
     names.set(name, size);
     total += size;
-    if (
-      size > 50000000 ||
-      total > 1000000000 ||
-      (size > 1000000 && size / Math.max(compressed, 1) > 500)
-    )
+    if (size > 50000000 || total > 1000000000)
       throw new Error("ZIP 展开体积超过限制");
     pos += 46 + nameLen + extraLen + commentLen;
   }

@@ -91,7 +91,7 @@ screenshots/<id>.jpg             采集到的截图
 integrity.json                   文件大小与 SHA-256 校验信息
 ```
 
-导出为版本 2；查看器兼容版本 1 和版本 2。校验可发现文件变化，**不证明来源真实，也不提供加密**。当前侧边栏导入限制为 ZIP 300 MB、展开总量 1 GB；较长流程建议分段录制。
+导出为版本 2；查看器兼容版本 1 和版本 2。校验可发现文件变化，**不证明来源真实，也不提供加密**。当前侧边栏导入限制为 ZIP 300 MB、单文件展开 50 MB、展开总量 1 GB；较长流程建议分段录制。合法记录即使压缩率很高也可以导入，仍会核对实际展开大小。
 
 ## 权限
 
@@ -136,6 +136,7 @@ npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
+npm run test:archive-roundtrip
 npm run test:permissions
 npm run test:e2e
 ```

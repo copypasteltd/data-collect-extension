@@ -91,7 +91,7 @@ screenshots/<id>.jpg             captured screenshots
 integrity.json                   sizes and SHA-256 hashes
 ```
 
-Exports use version 2; the viewer supports versions 1 and 2. The integrity list detects changes, but **does not authenticate the source or encrypt the archive**. The current side-panel importer accepts ZIP files up to 300 MB and an expanded total up to 1 GB; split long workflows into smaller recordings.
+Exports use version 2; the viewer supports versions 1 and 2. The integrity list detects changes, but **does not authenticate the source or encrypt the archive**. The current side-panel importer accepts ZIP files up to 300 MB, individual expanded files up to 50 MB, and an expanded total up to 1 GB. Highly compressible valid recordings are accepted while actual expanded sizes remain checked; split long workflows into smaller recordings.
 
 ## Permissions
 
@@ -136,6 +136,7 @@ npm run test:screenshot-timing
 npm run test:scroll
 npm run test:recovery
 npm run test:browser-restart
+npm run test:archive-roundtrip
 npm run test:permissions
 npm run test:e2e
 ```
