@@ -123,6 +123,8 @@ integrity.json                   sizes and SHA-256 hashes
 
 Exports use version 2; the viewer supports versions 1 and 2. The integrity list detects changes, but **does not authenticate the source or encrypt the archive**. The current side-panel importer accepts ZIP files up to 300 MB, individual expanded files up to 50 MB, an expanded total up to 1 GB, up to one million events, and individual event lines up to ten million UTF-16 code units; ZIP directory limits also apply. Export checks these limits and warns when the archive can be downloaded for backup but cannot be imported by the current side panel. Existing recordings cannot be split automatically; record long workflows in shorter parts. Highly compressible valid recordings are accepted while actual expanded sizes remain checked.
 
+Deleting a recording from another side panel waits while that recording is being read or packaged. Export rechecks the session and event and asset counts before downloading and asks for a retry if they changed; count checks cannot detect external replacements that preserve the same counts.
+
 ## Permissions
 
 | Permission | Purpose |
@@ -184,6 +186,7 @@ npm run test:worker-socket-recovery
 npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:archive-roundtrip
+npm run test:archive-concurrency
 npm run test:input-length
 npm run test:storage-capture
 npm run test:database-values

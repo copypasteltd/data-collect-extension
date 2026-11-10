@@ -23,6 +23,7 @@ try {
   await panel.goto(
     `chrome-extension://${new URL(worker.url()).host}/sidepanel.html`,
   );
+  assert.equal((await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }))).ok, true);
   const htmlLength = await panel.evaluate(async () => {
     const html = `<div>${"x".repeat(5000)}</div>`.repeat(260);
     const db = await new Promise((resolve, reject) => {

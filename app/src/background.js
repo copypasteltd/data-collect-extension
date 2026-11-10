@@ -2,6 +2,7 @@ import { all, get, put, removeSession } from "./db.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
+import { withSessionLock } from "./session-lock.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -1132,7 +1133,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     }
     if (message.type === "DELETE") {
       if (active?.id === message.id) throw new Error("无法删除正在录制的任务");
-      await removeSession(message.id);
+      await withSessionLock(message.id, "exclusive", () => removeSession(message.id));
       return true;
     }
     if (message.type === "CANVAS_OPTIONS") {

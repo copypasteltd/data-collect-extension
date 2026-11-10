@@ -128,11 +128,16 @@ function App() {
   }
   async function remove(session) {
     if (!confirm(`删除“${session.title}”的录制记录？`)) return;
+    setBusy(true);
+    setProgress({ phase: "正在删除记录", current: 0, total: 0 });
     try {
       await call("DELETE", { id: session.id });
       await refresh();
     } catch (e) {
       setError(e.message);
+    } finally {
+      setBusy(false);
+      setProgress(null);
     }
   }
   const active = state.active;
@@ -339,6 +344,7 @@ function App() {
                 <button
                   className="icon"
                   title="查看记录"
+                  disabled={busy}
                   onClick={() => {
                     setViewSession(session.id);
                     setPage("viewer");
@@ -358,7 +364,7 @@ function App() {
                 </button>
                 <button
                   className="icon"
-                  disabled={session.id === active?.id}
+                  disabled={busy || session.id === active?.id}
                   title="删除记录"
                   onClick={() => remove(session)}
                 >
@@ -371,6 +377,7 @@ function App() {
       </section>
       <button
         className="viewer-link"
+        disabled={busy}
         onClick={() => {
           setViewSession(null);
           setPage("viewer");

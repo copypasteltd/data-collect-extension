@@ -123,6 +123,8 @@ integrity.json                   文件大小与 SHA-256 校验信息
 
 导出为版本 2；查看器兼容版本 1 和版本 2。校验可发现文件变化，**不证明来源真实，也不提供加密**。当前侧边栏导入限制为 ZIP 300 MB、单文件展开 50 MB、展开总量 1 GB、100 万条事件及单条事件 1000 万个 UTF-16 代码单元，并有 ZIP 目录限制；较长流程建议分段录制。导出时会检查这些限制；超限的 ZIP 仍可下载备份，但当前侧边栏无法导入，也不能自动拆分现有记录。合法记录即使压缩率很高也可以导入，仍会核对实际展开大小。
 
+查看或打包记录期间，其他侧边栏发起的同一记录删除会等待当前读取完成。打包结束时会复核会话、事件和资源数量；数量发生变化时需重新下载。此检查不能发现数量相同的外部数据替换。
+
 ## 权限
 
 | 权限 | 用途 |
@@ -184,6 +186,7 @@ npm run test:worker-socket-recovery
 npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:archive-roundtrip
+npm run test:archive-concurrency
 npm run test:input-length
 npm run test:storage-capture
 npm run test:database-values

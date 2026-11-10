@@ -34,6 +34,7 @@ try {
   const extensionId = new URL(worker.url()).host;
   let panel = await context.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  assert.equal((await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }))).ok, true);
   await panel.evaluate(async () => {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open("logic-recorder");

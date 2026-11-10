@@ -75,6 +75,15 @@ export async function countEvents(sessionId) {
     request.onerror = () => reject(request.error);
   });
 }
+export async function countAssets(sessionId) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("assets").objectStore("assets").index("session")
+      .count(IDBKeyRange.only(sessionId));
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
 export async function put(store, value) {
   const db = await openDB();
   return new Promise((resolve, reject) => {

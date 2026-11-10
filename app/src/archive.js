@@ -7,13 +7,17 @@ import {
   Unzip,
   UnzipInflate,
 } from "fflate";
-import { all, get, eventPage, countEvents, saveImport } from "./db.js";
+import { all, get, eventPage, countEvents, countAssets, saveImport } from "./db.js";
+import { withSessionLock } from "./session-lock.js";
 
 const digest = async (bytes) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
 export async function readLocalSession(id) {
+  return withSessionLock(id, "shared", () => readLocalSessionData(id));
+}
+async function readLocalSessionData(id) {
   const session = await get("sessions", id);
   if (!session) throw new Error("记录不存在");
   if (session.imported) {
@@ -48,6 +52,9 @@ export async function readLocalSession(id) {
   };
 }
 export async function createArchive(id, onProgress = () => {}) {
+  return withSessionLock(id, "shared", () => createArchiveData(id, onProgress));
+}
+async function createArchiveData(id, onProgress) {
   const session = await get("sessions", id);
   if (!session || !["ready", "interrupted"].includes(session.status))
     throw new Error("记录尚未结束，无法导出");
@@ -168,6 +175,12 @@ export async function createArchive(id, onProgress = () => {}) {
   index.push(strToU8(JSON.stringify(integrity, null, 2)), true);
   zip.end();
   const blob = await finished;
+  const [latest, finalEvents, finalAssets] = await Promise.all([
+    get("sessions", id), countEvents(id), countAssets(id),
+  ]);
+  if (!latest || !["ready", "interrupted"].includes(latest.status) ||
+      finalEvents !== eventCount || finalAssets !== assets.length)
+    throw new Error("记录在打包期间发生变化，请重新下载");
   const importIssues = [];
   if (blob.size > 300000000) importIssues.push("ZIP 超过 300 MB");
   if (eventCount > 1000000) importIssues.push("事件超过 100 万条");
