@@ -300,6 +300,7 @@ function App() {
                 <strong title={session.title}>{session.title}</strong>
                 <small>
                   {new Date(session.startedAt).toLocaleString()} ·{" "}
+                  {session.imported && "已导入 · "}
                   {session.status === "ready"
                     ? session.coverage?.warnings ||
                       session.coverage?.snapshotGaps ||

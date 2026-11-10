@@ -14,7 +14,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import { readArchive, readLocalSession } from "./archive.js";
+import { readArchive, readLocalSession, saveImportedArchive } from "./archive.js";
 import { buildCatalog, buildResourceMap, findRequestsWithoutOutcome } from "./analysis.js";
 import Replay, { replayableKinds } from "./replay.jsx";
 import { buildOpenApi } from "./openapi.js";
@@ -297,6 +297,7 @@ export default function Viewer({ onBack, sessionId }) {
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [error, setError] = useState(""),
+    [info, setInfo] = useState(""),
     [playing, setPlaying] = useState(false),
     [speed, setSpeed] = useState(1),
     [imageUrl, setImageUrl] = useState(""),
@@ -576,12 +577,19 @@ export default function Viewer({ onBack, sessionId }) {
     const file = event.target.files?.[0];
     if (!file) return;
     setError("");
+    setInfo("");
     setPlaying(false);
     setLoading(0);
     try {
       const result = await readArchive(file, (current, total) =>
         setLoading(Math.round((current / total) * 100)),
       );
+      try {
+        await saveImportedArchive(file, result.manifest);
+        setInfo("记录包已保存到本机录制记录，内容保持原样。");
+      } catch {
+        setError("记录包已打开，但无法保存到本机；关闭后需重新导入。");
+      }
       setArchive(result);
       setReplayFrom(null);
       setSelected(result.events[0] || null);
@@ -667,6 +675,7 @@ export default function Viewer({ onBack, sessionId }) {
           <AlertTriangle size={16} /> {error}
         </div>
       )}
+      {info && <div className="notice" role="status">{info}</div>}
       {loading !== null && (
         <div className="viewer-progress">正在读取记录包 · {loading}%</div>
       )}

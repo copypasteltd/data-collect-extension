@@ -10,6 +10,8 @@
     "test:e2e": "node tests/e2e.mjs",
     "test:archive-roundtrip": "node tests/archive-roundtrip.e2e.mjs",
     "test:archive-limits": "node tests/archive-limits.e2e.mjs",
+    "test:import-persistence": "node tests/import-persistence.e2e.mjs",
+    "test:db-upgrade": "node tests/db-upgrade.e2e.mjs",
     "test:input-length": "node tests/input-length.e2e.mjs",
     "test:storage-capture": "node tests/storage-capture.e2e.mjs",
     "test:database-values": "node tests/database-values.e2e.mjs",

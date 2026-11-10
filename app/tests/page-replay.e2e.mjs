@@ -91,7 +91,7 @@ try {
   await panel.getByText("录制停止时的页面状态").waitFor();
   await frame.locator("#ending").getByText("保存成功").waitFor();
   await panel.getByRole("button", { name: "上一步" }).click();
-  if (await panel.getByRole("status").count()) throw new Error("返回上一步后仍显示流程已结束");
+  if (await panel.getByRole("status").filter({ hasText: "已到达记录末尾" }).count()) throw new Error("返回上一步后仍显示流程已结束");
   async function openScenario(records, title) {
     await panel.locator('.viewer-top input[type="file"]').setInputFiles({ name: "scenario.zip", mimeType: "application/zip", buffer: archiveFor(records, title) });
     await panel.getByRole("heading", { name: title }).waitFor();

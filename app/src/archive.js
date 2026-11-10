@@ -7,7 +7,7 @@ import {
   Unzip,
   UnzipInflate,
 } from "fflate";
-import { all, get, eventPage, countEvents } from "./db.js";
+import { all, get, eventPage, countEvents, saveImport } from "./db.js";
 
 const digest = async (bytes) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
@@ -16,6 +16,11 @@ const digest = async (bytes) =>
 export async function readLocalSession(id) {
   const session = await get("sessions", id);
   if (!session) throw new Error("记录不存在");
+  if (session.imported) {
+    const stored = await get("imports", id);
+    if (!(stored?.blob instanceof Blob)) throw new Error("已导入的记录包不存在");
+    return readArchive(stored.blob);
+  }
   const events = (await all("events", id)).sort((a, b) => a.seq - b.seq);
   const assets = await all("assets", id);
   const files = {
@@ -46,6 +51,11 @@ export async function createArchive(id, onProgress = () => {}) {
   const session = await get("sessions", id);
   if (!session || !["ready", "interrupted"].includes(session.status))
     throw new Error("记录尚未结束，无法导出");
+  if (session.imported) {
+    const stored = await get("imports", id);
+    if (!(stored?.blob instanceof Blob)) throw new Error("已导入的记录包不存在");
+    return { blob: stored.blob, importIssues: [] };
+  }
   const assets = await all("assets", id);
   if (assets.length > 25000) throw new Error("截图和资源数量超过单包上限");
   const count = await countEvents(id),
@@ -168,6 +178,20 @@ export async function createArchive(id, onProgress = () => {}) {
     importIssues.push(error.message);
   }
   return { blob, importIssues };
+}
+export async function saveImportedArchive(blob, manifest) {
+  const original = manifest.session;
+  const session = {
+    id: crypto.randomUUID(),
+    title: original.title,
+    origin: typeof original.origin === "string" ? original.origin : "",
+    startedAt: original.startedAt,
+    status: manifest.partial ? "interrupted" : "ready",
+    imported: true,
+    importedAt: Date.now(),
+  };
+  await saveImport(session, blob);
+  return session;
 }
 async function inspectZip(blob) {
   const tailOffset = Math.max(0, blob.size - 65557);

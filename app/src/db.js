@@ -4,7 +4,7 @@ export function openDB() {
   if (!promise) {
     let opening;
     opening = new Promise((resolve, reject) => {
-      const request = indexedDB.open(NAME, 2);
+      const request = indexedDB.open(NAME, 3);
       request.onupgradeneeded = (event) => {
         const db = request.result;
         let events;
@@ -17,6 +17,8 @@ export function openDB() {
         } else events = request.transaction.objectStore("events");
         if (!events.indexNames.contains("sessionSeq"))
           events.createIndex("sessionSeq", ["sessionId", "seq"]);
+        if (!db.objectStoreNames.contains("imports"))
+          db.createObjectStore("imports", { keyPath: "id" });
       };
       request.onsuccess = () => {
         const db = request.result;
@@ -102,11 +104,28 @@ export async function all(store, sessionId) {
     req.onerror = () => reject(req.error);
   });
 }
+export async function saveImport(session, blob) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(["sessions", "imports"], "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("保存事务已中断"));
+    try {
+      tx.objectStore("sessions").add(session);
+      tx.objectStore("imports").add({ id: session.id, blob });
+    } catch (error) {
+      tx.abort();
+      reject(error);
+    }
+  });
+}
 export async function removeSession(id) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(["sessions", "events", "assets"], "readwrite");
+    const tx = db.transaction(["sessions", "events", "assets", "imports"], "readwrite");
     tx.objectStore("sessions").delete(id);
+    tx.objectStore("imports").delete(id);
     for (const name of ["events", "assets"]) {
       const request = tx
         .objectStore(name)
