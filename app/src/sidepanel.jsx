@@ -303,6 +303,7 @@ function App() {
                   {session.status === "ready"
                     ? session.coverage?.warnings ||
                       session.coverage?.snapshotGaps ||
+                      session.coverage?.databaseGaps ||
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.inputGaps ||

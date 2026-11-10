@@ -863,6 +863,12 @@ async function stop(onStopping) {
     snapshotGaps: recorded.filter(
       (event) => event.kind === "page.snapshot" && event.payload.status !== "captured",
     ).length,
+    databaseGaps: recorded.filter(
+      (event) => event.kind === "database.snapshot" &&
+        (event.payload.status || event.payload.database?.status !== "captured" ||
+          event.payload.database?.storesTruncated ||
+          event.payload.database?.stores?.some((store) => store.truncated)),
+    ).length,
     initialResourceGaps: recorded.filter(
       (event) => event.kind === "resource.initialSummary" && event.payload.status !== "captured",
     ).length,

@@ -86,6 +86,7 @@ Cookie 由浏览器按域共享，不区分端口；Cookie 变更事件无法可
 页面快照中的单个正文文本节点最多保留 500,000 个 UTF-16 代码单元，超限时保留前缀并提示；单个快照仍受整体大小限制。快照之间的变化记录有更低的单项限制，旧记录中已经丢失的正文不能自动恢复。
 普通文本输入及其操作前值最多记录 10,000 个 UTF-16 代码单元；超限时保存前缀并在报告和复现中提示。早期记录可能已在 4,000 个代码单元处截断且没有标记。
 每种网页存储最多读取 200 个键，非敏感值超过 4,000 个 UTF-16 代码单元时不保存原值；超限或不可读会在报告中提示。轮询间的短暂变化仍可能遗漏，旧版记录中被隐藏的会话存储无法恢复。
+数据库快照中的大整数、映射和集合等值以带类型标记的 JSON 表示，日期保存为 ISO 字符串；二进制内容、循环引用和超限部分不会完整保存，并会在记录与报告中标记。旧记录中未保存的值无法补回。
 截图仍可作为参考查看；只有页面实例、网址、标签页、时序和视口等条件能够确认时，复现界面才会标示近似操作位置。旧记录缺少页面实例或截图开始时间时可能无法标示。
 
 ### 记录包
@@ -154,6 +155,7 @@ npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture
+npm run test:database-values
 npm run test:snapshot-scheduling
 npm run test:large-styles
 npm run test:long-page-text

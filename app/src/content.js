@@ -1,5 +1,6 @@
 import { createEventDelivery } from "./delivery.js";
 import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
+import { encodeDatabaseValue } from "./database-value.js";
 
 (() => {
   if (globalThis.__logicRecorderInstalled) return;
@@ -1327,27 +1328,37 @@ import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
                     return;
                   }
                   try {
-                    const cleaned =
+                    const encodedKey = encodeDatabaseValue(row.key, (key) => secret.test(key), cleanStored);
+                    const encoded =
                       secret.test(name) || secret.test(String(row.key))
-                        ? "[已隐藏]"
-                        : cleanStored(row.value);
-                    const serialized = JSON.stringify(cleaned);
+                        ? { value: "[已隐藏]", issues: [] }
+                        : encodeDatabaseValue(row.value, (key) => secret.test(key), cleanStored);
+                    const serialized = JSON.stringify(encoded.value);
                     const tooLarge =
                       serialized?.length > 10000 ||
                       serialized?.length > remainingChars;
-                    const safe = tooLarge ? "[超过大小限制]" : cleaned;
-                    if (tooLarge) entry.truncated = true;
+                    const safe = tooLarge ? "[超过大小限制]" : encoded.value;
+                    const issues = [...new Set([
+                      ...encodedKey.issues,
+                      ...encoded.issues,
+                      ...(tooLarge ? ["value_size_limit"] : []),
+                    ])];
+                    if (issues.length) entry.truncated = true;
                     entry.records.push({
-                      key: cleanStored(row.key),
+                      key: encodedKey.value,
                       value: safe,
+                      ...(issues.length ? { issues } : {}),
                     });
                     remainingRecords--;
                     remainingChars -=
-                      safe === cleaned ? serialized?.length || 0 : 0;
+                      !tooLarge ? serialized?.length || 0 : 0;
                   } catch {
+                    entry.truncated = true;
+                    remainingRecords--;
                     entry.records.push({
                       key: "[不可读取]",
                       value: "[不可读取]",
+                      issues: ["unavailable"],
                     });
                   }
                   row.continue();

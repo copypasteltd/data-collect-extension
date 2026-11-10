@@ -93,6 +93,20 @@ function snapshotIssues(payload) {
   if (payload.shadow?.truncated || payload.shadow?.unavailable) issues.push("组件内部结构检查不完整");
   return issues;
 }
+function databaseIssue(payload) {
+  const status = payload.status || payload.database?.status;
+  if (status && status !== "captured")
+    return {
+      unavailable: "数据库快照无法读取",
+      timeout: "数据库快照采集超时",
+      blocked: "数据库快照读取受阻",
+      failed: "数据库快照采集失败",
+      truncated: "数据库数量超过采集上限",
+    }[status] || `数据库快照状态：${status}`;
+  if (payload.database?.storesTruncated || payload.database?.stores?.some((store) => store.truncated))
+    return "数据库部分内容未采集或超过上限";
+  return null;
+}
 function Report({ archive, showEvent }) {
   const events = archive.events;
   const warnings = events.filter(
@@ -200,7 +214,8 @@ function Report({ archive, showEvent }) {
             <small>
               {e.kind === "page.snapshot"
                 ? snapshotIssues(e.payload).join("；")
-                : e.payload.message ||
+                : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
+                e.payload.message ||
                 e.payload.reason ||
                 e.payload.errorText ||
                 (e.kind === "resource.initialSummary"

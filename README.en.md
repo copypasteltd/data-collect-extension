@@ -86,6 +86,7 @@ Readable page and component styles are retained in snapshots up to 500,000 UTF-1
 Each page snapshot retains up to 500,000 UTF-16 code units per text node, keeping the prefix and reporting truncation when exceeded; the complete snapshot has a separate size limit. Changes between snapshots have lower per-item limits, and text already lost in older recordings cannot be restored automatically.
 Ordinary text inputs and their prior values are recorded up to 10,000 UTF-16 code units. Longer values retain their prefix and are flagged in reports and replay. Older recordings may have been truncated at 4,000 code units without a flag.
 Each web storage area is limited to 200 keys; non-sensitive values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
+Database snapshots encode values such as big integers, maps, and sets as type-tagged JSON; dates are stored as ISO strings. Binary contents, circular references, and over-limit data are not preserved in full and are flagged in records and reports. Values missing from older recordings cannot be recovered.
 Screenshots remain available for reference. Replay marks an approximate target only when the document, URL, tab, timing, and viewport can be confirmed. Older recordings missing document identity or capture start time may not show a target marker.
 
 ### Archive Format
@@ -154,6 +155,7 @@ npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
 npm run test:storage-capture
+npm run test:database-values
 npm run test:snapshot-scheduling
 npm run test:large-styles
 npm run test:long-page-text

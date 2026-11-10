@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 数据库快照现在能够以类型标记保存大整数、映射、集合等复杂值；二进制、循环引用和超限数据标记缺口，并在录制列表及报告中提示。 / Database snapshots now encode complex values such as big integers, maps, and sets with type tags; binary, circular, and over-limit data are flagged in the recording list and report.
 - 修复较长页面及组件正文被替换为占位文字的问题；单个文本节点超限时保留前缀，并在录制列表标记快照截断或缺失。 / Preserve longer page and component text in snapshots, keep a truncated prefix when a text node exceeds its limit, and flag incomplete snapshots in the recording list.
 - 改进网址片段中常见敏感名称的识别，覆盖一次百分号编码，并处理页面快照中视频封面地址；命中时隐藏整个片段。 / Improve detection of common sensitive names in URL fragments, including percent-encoded forms and video poster URLs in snapshots; matching fragments are hidden in full.
 - 修复多个停止请求并发时，后来的请求可能错误中断正在整理的录制；真正的收尾失败仍标记异常中断。 / Prevent concurrent stop requests from interrupting an ongoing finalization; genuine finalization failures remain marked as interrupted.
