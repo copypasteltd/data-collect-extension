@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 新增 `$extension-logic-clone` 技能及本地 ZIP 校验、SQLite 事件索引工具，提供证据追溯和已观察流程重建规则。 / Add the `$extension-logic-clone` skill with local ZIP validation, SQLite event indexing, evidence tracing, and observed-workflow reconstruction guidance.
 - 侧边栏仅保留开始、停止、批次选择和导出；移除采集内容查看、导入、复现及其他入口，默认尝试录制所有已授权网页。 / Limit the side panel to start, stop, batch selection, and export; remove content viewing, import, replay, and other entry points, and record authorized pages by default.
 - 页面状态新增独立的原始 DOM 序列化内容并随 ZIP 保存，超限或不可读取时在记录中标记。 / Preserve serialized raw DOM separately in page snapshots and ZIP exports, recording size or read failures.
 - 对无法按字符集解码或超过文本解析限制的 CDP 响应，在大小允许时保留浏览器提供的 Base64 原始数据，并在记录中标记。 / Retain browser-provided Base64 response data when charset decoding fails or decoded text exceeds its limit, and record the text issue.

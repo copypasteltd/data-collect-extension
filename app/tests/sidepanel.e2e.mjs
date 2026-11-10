@@ -4,6 +4,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import { unzipSync, strFromU8 } from "fflate";
+import { execFileSync } from "node:child_process";
 
 const server = http.createServer((request, response) => {
   if (request.url.startsWith("/api")) {
@@ -74,6 +75,14 @@ try {
     const archive = JSON.parse(strFromU8(files["manifest.json"]));
     assert.equal(archive.session.id, sessions[index].id);
     const events = archive.eventChunks.flatMap((chunk) => strFromU8(files[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    if (process.env.LOGIC_SKILL_INDEX_CHECK === "1") {
+      const skill = process.env.LOGIC_SKILL_INDEX_SCRIPT || path.resolve("skills/extension-logic-clone/scripts/index_archive.py");
+      const indexPath = path.join(profile, `batch-${index}.sqlite3`);
+      const output = execFileSync(process.env.PYTHON_BIN || "python", [skill, archivePath, "--output", indexPath],
+        { encoding: "utf8", env: { ...process.env, PYTHONUTF8: "1" } });
+      assert.equal(JSON.parse(output).events, events.length);
+      assert.ok(!output.includes("fixture-token"));
+    }
     assert.ok(events.some((event) => event.kind === "interaction.input" && event.payload.value === expectedValue));
     assert.ok(events.some((event) => event.kind === "page.snapshot" && event.payload.sourceHtml?.includes("window.fixtureLoaded=true")));
     if (index === 1) {

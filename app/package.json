@@ -7,6 +7,7 @@
     "build": "vite build",
     "docs:capture": "node scripts/capture-readme.mjs",
     "test": "node --test tests/privacy.test.js tests/response-body.test.js tests/analysis.test.js tests/archive.test.js tests/openapi.test.js tests/db.test.js tests/database-value.test.js tests/delivery.test.js tests/downloads.test.js tests/background-style.test.js tests/scroll-state.test.js tests/screenshots.test.js tests/stylesheets.test.js tests/replay-outcome.test.js tests/request-snapshot.test.js tests/network-recovery.test.js tests/numeric-constraints.test.js",
+    "test:skill": "python tests/skill_archive_test.py",
     "test:e2e": "node tests/sidepanel.e2e.mjs",
     "test:db-upgrade": "node tests/db-upgrade.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",

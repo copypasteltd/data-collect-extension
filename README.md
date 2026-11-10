@@ -58,6 +58,34 @@ resources/                    已保存的图片、字体等资源
 
 事件中的 `page.snapshot.payload.sourceHtml` 是原始 DOM，`html` 是用于隔离展示的快照；`sourceStatus` 标明原始 DOM 是否取得。网络事件通过 `requestId` 关联请求、响应和结束状态。文本响应无法解码时，在大小允许的范围内会保留带 `encoding: "base64"` 的浏览器原始数据及 `textStatus`。ZIP 中的校验只能发现文件变化，不证明来源真实，也不提供加密。
 
+## 使用解析技能
+
+仓库提供 [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md)，用于校验记录包、整理页面和操作证据，并按要求基于已观察流程构建复现项目。技能在插件之外运行，不改变侧边栏功能。解析工具需要 Python 3.9 或更高版本，无需安装额外 Python 库。
+
+Windows PowerShell 中，从项目根目录安装到当前用户的 Codex 技能目录：
+
+```powershell
+$skillRoot = Join-Path $env:USERPROFILE '.codex\skills'
+New-Item -ItemType Directory -Force -Path $skillRoot | Out-Null
+$skillTarget = Join-Path $skillRoot 'extension-logic-clone'
+if (Test-Path -LiteralPath $skillTarget) { throw '技能目录已存在，请先检查后再更新' }
+Copy-Item -LiteralPath '.\app\skills\extension-logic-clone' -Destination $skillTarget -Recurse
+```
+
+在 Codex 中开启新会话后，指定 ZIP 和希望保存结果的位置，例如：
+
+```text
+$extension-logic-clone 解析 D:\recordings\session.zip，整理已访问页面、操作和接口证据，在 D:\work\reconstruction 中复现已观察流程。
+```
+
+也可以直接生成可查询的索引，输出文件必须尚不存在：
+
+```powershell
+python .\app\skills\extension-logic-clone\scripts\index_archive.py D:\recordings\session.zip --output D:\work\recording-index.sqlite3
+```
+
+索引包含完整原始事件，可能含密码和凭据；请勿将其提交到仓库。详细读取规则、查询示例和限制见[技能使用说明](docs/技能使用说明.md)。
+
 ## 能力边界
 
 - 开始前的操作和请求无法补录；受限页面、跨域框架、调试连接中断及浏览器未提供的数据可能缺失。
@@ -77,6 +105,7 @@ npm test
 npm run test:e2e
 npm run test:query-parameters
 npm run test:response-encoding
+npm run test:skill
 ```
 
-浏览器测试需要 Playwright Chromium；可运行 `npx playwright install chromium`，或通过 `CHROME_BIN` 指定兼容的 Chrome/Chromium。测试使用本地虚构数据，并关闭其创建的浏览器及临时服务。不使用 Docker 或 WSL。`app/tests/` 中早期查看器相关的测试文件保留作历史参考，不属于当前侧边栏测试入口。
+浏览器测试需要 Playwright Chromium；可运行 `npx playwright install chromium`，或通过 `CHROME_BIN` 指定兼容的 Chrome/Chromium。技能测试需要 Python 3.9+。测试使用本地虚构数据，并关闭其创建的浏览器及临时服务。不使用 Docker 或 WSL。`app/tests/` 中早期查看器相关的测试文件保留作历史参考，不属于当前侧边栏测试入口。

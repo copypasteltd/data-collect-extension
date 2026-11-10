@@ -58,6 +58,34 @@ resources/                    Captured images, fonts, and other resources
 
 `page.snapshot.payload.sourceHtml` holds the serialized DOM; `html` is a separate sanitized snapshot, and `sourceStatus` describes whether the DOM was captured. Network events use `requestId` to associate requests, responses, and outcomes. When text decoding fails, browser-provided bytes may be retained with `encoding: "base64"` and a `textStatus`. Checksums detect changes but do not establish authenticity or provide encryption.
 
+## Recording Analysis Skill
+
+The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
+
+From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
+
+```powershell
+$skillRoot = Join-Path $env:USERPROFILE '.codex\skills'
+New-Item -ItemType Directory -Force -Path $skillRoot | Out-Null
+$skillTarget = Join-Path $skillRoot 'extension-logic-clone'
+if (Test-Path -LiteralPath $skillTarget) { throw 'Skill directory already exists; inspect it before updating' }
+Copy-Item -LiteralPath '.\app\skills\extension-logic-clone' -Destination $skillTarget -Recurse
+```
+
+Start a new Codex session and provide the ZIP and output location, for example:
+
+```text
+$extension-logic-clone Analyze D:\recordings\session.zip, document the observed pages, actions, and requests, and rebuild the observed workflow in D:\work\reconstruction.
+```
+
+To build a queryable index directly, choose an output file that does not already exist:
+
+```powershell
+python .\app\skills\extension-logic-clone\scripts\index_archive.py D:\recordings\session.zip --output D:\work\recording-index.sqlite3
+```
+
+The index contains complete raw events and may include passwords and credentials; do not commit it to a repository. See the [skill guide](docs/技能使用说明.md) for reading rules, queries, and limits.
+
 ## Limitations
 
 - Activity before recording starts cannot be recovered. Restricted pages, cross-origin frames, debugger interruptions, and data unavailable to Chrome can create gaps.
@@ -77,6 +105,7 @@ npm test
 npm run test:e2e
 npm run test:query-parameters
 npm run test:response-encoding
+npm run test:skill
 ```
 
-Browser tests need Playwright Chromium. Run `npx playwright install chromium`, or set `CHROME_BIN` to a compatible Chrome/Chromium executable. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
+Browser tests need Playwright Chromium. Run `npx playwright install chromium`, or set `CHROME_BIN` to a compatible Chrome/Chromium executable. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
