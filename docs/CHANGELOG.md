@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 修复当前站点模式可能记录同主机其他端口嵌入页面的请求、WebSocket 消息和对话框的问题；对来源不明的连接给出采集提示，并标明 Cookie 变更的来源不可确认。 / Restrict same-host cross-port embedded-page requests, WebSocket messages, and dialogs in current-site mode; report unconfirmed connection origins and label cookie changes with unconfirmed sources.
 - 避免将同一毫秒的截图误判为操作前画面；页面实例、网址或截图时序无法确认时不再标示近似操作位置，并提供相应提示。 / Avoid treating same-millisecond captures as pre-action images; hide approximate target markers when document identity, URL, or timing is unconfirmed, and explain why.
 - 页面持续变化时，为合并快照设置约 2 秒的最长等待时间；页面离开时尝试保存待处理快照，减少页面状态遗漏。 / Bound snapshot debouncing to about two seconds during continuous page changes and attempt pending snapshots when leaving a page.
 - 修复 `sessionStorage` 整体被隐藏及停止前短暂存储变更可能遗漏的问题；分别报告存储不可读、键数量和单值超限，并保留特殊键。 / Preserve non-sensitive `sessionStorage`, sample storage when stopping or leaving a page, report inaccessible and oversized storage, and retain special keys.

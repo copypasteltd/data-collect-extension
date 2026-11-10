@@ -21,6 +21,11 @@ let screenshotChain = Promise.resolve();
 const pending = new Set();
 const requests = new Map();
 const childScopes = new Map();
+const socketScopes = new Map();
+const unknownSocketTabs = new Set();
+const unknownRequestTabs = new Set();
+const unknownDialogTabs = new Set();
+const dialogScopes = new Map();
 let sequence = 0;
 let writeChain = Promise.resolve();
 let outstandingWrites = 0;
@@ -112,6 +117,19 @@ function allowedUrl(raw) {
   } catch {
     return false;
   }
+}
+function isHttpUrl(raw) {
+  try {
+    return ["http:", "https:"].includes(new URL(raw).protocol);
+  } catch {
+    return false;
+  }
+}
+function clearTabContexts(tabId) {
+  for (const [id, item] of socketScopes)
+    if (item.tabId === tabId) socketScopes.delete(id);
+  for (const id of dialogScopes.keys())
+    if (id.startsWith(`${tabId}:`)) dialogScopes.delete(id);
 }
 async function register(origin, scope) {
   const parsed = new URL(origin);
@@ -883,6 +901,11 @@ async function stop() {
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
+  socketScopes.clear();
+  unknownSocketTabs.clear();
+  unknownRequestTabs.clear();
+  unknownDialogTabs.clear();
+  dialogScopes.clear();
   screenshotChain = Promise.resolve();
   await chrome.action.setBadgeText({ text: "" });
   await chrome.action.setTitle({ title: "打开逻辑记录" });
@@ -917,6 +940,11 @@ async function clearActiveResources(session) {
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
+  socketScopes.clear();
+  unknownSocketTabs.clear();
+  unknownRequestTabs.clear();
+  unknownDialogTabs.clear();
+  dialogScopes.clear();
   screenshotChain = Promise.resolve();
   await chrome.storage.session.remove("active").catch(() => {});
   await chrome.action.setBadgeText({ text: "" }).catch(() => {});
@@ -1012,6 +1040,10 @@ chrome.debugger.onEvent.addListener(
     if (!active || !active.tabs[source.tabId]) return;
     if (method === "Target.detachedFromTarget") {
       childScopes.delete(params.sessionId);
+      dialogScopes.delete(`${source.tabId}:${params.sessionId}`);
+      for (const [id, item] of socketScopes)
+        if (item.tabId === source.tabId && item.sessionId === params.sessionId)
+          socketScopes.delete(id);
       return;
     }
     if (method === "Target.attachedToTarget") {
@@ -1058,10 +1090,24 @@ chrome.debugger.onEvent.addListener(
       method === "Page.javascriptDialogOpening" &&
       active.status === "recording"
     ) {
+      const dialogKey = `${source.tabId}:${source.sessionId || "root"}`;
+      const inScope =
+        active.tabs[source.tabId].inScope &&
+        (!source.sessionId || childScopes.get(source.sessionId)) &&
+        allowedUrl(params.url);
       if (
         active.tabs[source.tabId].inScope &&
-        (!source.sessionId || childScopes.get(source.sessionId))
-      )
+        (!source.sessionId || childScopes.get(source.sessionId)) &&
+        !isHttpUrl(params.url) &&
+        !unknownDialogTabs.has(source.tabId)
+      ) {
+        unknownDialogTabs.add(source.tabId);
+        track(warning("对话框来源页面无法确认，未采集该对话框", {
+          tabId: source.tabId,
+        }));
+      }
+      dialogScopes.set(dialogKey, inScope);
+      if (inScope)
         track(
           append(
             "dialog.open",
@@ -1079,8 +1125,11 @@ chrome.debugger.onEvent.addListener(
       method === "Page.javascriptDialogClosed" &&
       active.status === "recording"
     ) {
+      const dialogKey = `${source.tabId}:${source.sessionId || "root"}`;
+      const inScope = dialogScopes.get(dialogKey);
+      dialogScopes.delete(dialogKey);
       if (
-        active.tabs[source.tabId].inScope &&
+        inScope && active.tabs[source.tabId].inScope &&
         (!source.sessionId || childScopes.get(source.sessionId))
       )
         track(
@@ -1146,11 +1195,29 @@ chrome.debugger.onEvent.addListener(
       }
       if (source.sessionId && params.type === "Document")
         childScopes.set(source.sessionId, allowedUrl(params.request.url));
+      const isMainFrame = Boolean(
+        params.frameId && target.mainFrameId && params.frameId === target.mainFrameId,
+      );
+      const unknownDocument = params.documentURL
+        ? !isHttpUrl(params.documentURL)
+        : !isMainFrame;
+      if (
+        target.inScope && unknownDocument &&
+        (!source.sessionId || childScopes.get(source.sessionId)) &&
+        !unknownRequestTabs.has(source.tabId)
+      ) {
+        unknownRequestTabs.add(source.tabId);
+        track(warning("部分请求来源页面无法确认，未采集这些请求", {
+          tabId: source.tabId,
+        }));
+      }
       if (
         !target.inScope ||
-        (source.sessionId &&
-          (!childScopes.get(source.sessionId) ||
-            (params.documentURL && !allowedUrl(params.documentURL))))
+        (source.sessionId && !childScopes.get(source.sessionId)) ||
+        (params.documentURL && !allowedUrl(params.documentURL)) ||
+        (params.type === "Document" && !isMainFrame &&
+          !allowedUrl(params.request.url)) ||
+        (!params.documentURL && !isMainFrame)
       )
         return;
       const req = params.request;
@@ -1377,32 +1444,78 @@ chrome.debugger.onEvent.addListener(
         ),
       );
       requests.delete(requestId);
-    } else if (
-      method === "Network.webSocketCreated" ||
-      method === "Network.webSocketClosed"
-    ) {
+    } else if (method === "Network.webSocketCreated") {
       if (
         !target.inScope ||
         (source.sessionId && !childScopes.get(source.sessionId))
       )
         return;
+      socketScopes.set(requestId, {
+        tabId: source.tabId,
+        sessionId: source.sessionId || null,
+        url: cleanUrl(params.url || ""),
+        createdAt: Date.now(),
+        allowed: false,
+      });
+    } else if (method === "Network.webSocketWillSendHandshakeRequest") {
+      const socket = socketScopes.get(requestId);
+      if (!socket) return;
+      const origin = Object.entries(params.request?.headers || {}).find(
+        ([name]) => name.toLowerCase() === "origin",
+      )?.[1];
+      if (typeof origin !== "string" || !origin || origin === "null") {
+        if (!unknownSocketTabs.has(source.tabId)) {
+          unknownSocketTabs.add(source.tabId);
+          track(warning("WebSocket 来源无法确认，未采集该连接", {
+            tabId: source.tabId,
+          }));
+        }
+        return;
+      }
+      if (
+        !target.inScope || !allowedUrl(origin) ||
+        (source.sessionId && !childScopes.get(source.sessionId))
+      ) {
+        return;
+      }
+      socket.allowed = true;
       track(
         append(
           "network.websocket",
           {
             requestId,
-            type: method.split(".").pop(),
-            url: cleanUrl(params.url || ""),
+            type: "webSocketCreated",
+            url: socket.url,
           },
-          { tabId: source.tabId },
+          { tabId: source.tabId, time: socket.createdAt },
         ),
       );
+    } else if (method === "Network.webSocketClosed") {
+      const socket = socketScopes.get(requestId);
+      socketScopes.delete(requestId);
+      if (
+        socket?.allowed && target.inScope &&
+        (!source.sessionId || childScopes.get(source.sessionId))
+      )
+        track(append("network.websocket", {
+          requestId, type: "webSocketClosed", url: "",
+        }, { tabId: source.tabId }));
     } else if (
       method === "Network.webSocketFrameReceived" ||
       method === "Network.webSocketFrameSent"
     ) {
       if (
-        !target.inScope ||
+        target.inScope && !socketScopes.has(requestId) &&
+        (!source.sessionId || childScopes.get(source.sessionId)) &&
+        !unknownSocketTabs.has(source.tabId)
+      ) {
+        unknownSocketTabs.add(source.tabId);
+        track(warning("WebSocket 来源无法确认，未采集该连接", {
+          tabId: source.tabId,
+        }));
+      }
+      if (
+        !target.inScope || !socketScopes.get(requestId)?.allowed ||
         (source.sessionId && !childScopes.get(source.sessionId))
       )
         return;
@@ -1426,6 +1539,7 @@ chrome.debugger.onEvent.addListener(
 );
 chrome.debugger.onDetach.addListener(
   afterReady((source, reason) => {
+    clearTabContexts(source.tabId);
     if (active?.tabs[source.tabId] && active.status === "recording") {
       active.tabs[source.tabId].debuggerAttached = false;
       if (reason !== "target_closed" && !active.tabs[source.tabId].closed)
@@ -1519,6 +1633,10 @@ chrome.webNavigation.onCommitted.addListener(
 );
 chrome.tabs.onRemoved.addListener(
   afterReady((tabId) => {
+    clearTabContexts(tabId);
+    unknownSocketTabs.delete(tabId);
+    unknownRequestTabs.delete(tabId);
+    unknownDialogTabs.delete(tabId);
     if (active?.tabs[tabId]) {
       active.tabs[tabId].closed = true;
       track(append("tab.closed", { tabId }));
@@ -1582,6 +1700,7 @@ chrome.cookies.onChanged.addListener(
         path: cookie.path,
         removed,
         cause,
+        source: "domain_scope_unconfirmed",
         ...cleanCookieValue(
           cookie.name,
           cookie.value,
