@@ -41,3 +41,16 @@ it("记录到新标签页被激活时显示该标签的后续页面", () => {
   assert.equal(existing.event.id, "child");
   assert.equal(existing.label, "后续激活的标签页状态");
 });
+
+it("最终标签关闭后不把旧快照当作当前页面", () => {
+  const closed = { kind: "tab.closed", time: 3, seq: 3, payload: { tabId: 1 } };
+  const original = snapshot("original", 2);
+  assert.equal(findReplayOutcome([original, closed], step), null);
+  assert.equal(findReplayOutcome([closed, snapshot("late", 4)], step), null);
+  assert.equal(findReplayOutcome([original, { ...closed, payload: { tabId: 3 } }], step).event.id, "original");
+  const activated = { kind: "tab.activated", time: 4, seq: 4, payload: { tabId: 2 } };
+  const other = snapshot("other", 5, { tabId: 2 });
+  assert.equal(findReplayOutcome([original, closed, activated, other], step).event.id, "other");
+  const otherClosed = { kind: "tab.closed", time: 6, seq: 6, payload: { tabId: 2 } };
+  assert.equal(findReplayOutcome([original, closed, activated, other, otherClosed], step), null);
+});

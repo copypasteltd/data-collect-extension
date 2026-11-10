@@ -111,6 +111,12 @@ try {
   await frame.locator("#apply").click();
   await panel.getByText("未取得最后操作后的页面状态").waitFor();
   if (await panel.locator('iframe[title="逐步复现页面"]').count()) throw new Error("跳转后错误显示了跳转前的页面");
+  const closeTab = { kind: "tab.closed", id: "closed-tab", seq: 4, time: 4, payload: { tabId: 1 } };
+  const beforeClose = { ...initial, id: "before-close", seq: 3, time: 3 };
+  await openScenario([initial, lastClick, beforeClose, closeTab], "末尾关闭标签测试");
+  await frame.locator("#apply").click();
+  await panel.getByText("未取得最后操作后的页面状态").waitFor();
+  if (await panel.locator('iframe[title="逐步复现页面"]').count()) throw new Error("关闭标签后错误显示了关闭前的页面");
   const created = { kind: "tab.created", id: "tab-created", seq: 3, time: 3, payload: { tabId: 2, openerTabId: 1 } };
   const activated = { kind: "tab.activated", id: "tab-activated", seq: 4, time: 4, payload: { tabId: 2 } };
   const childSnapshot = { id: "child-final", seq: 5, time: 5, tabId: 2, frameId: 0, documentId: "child", kind: "page.snapshot", payload: { url: "https://example.test/new-tab", status: "captured", html: '<!doctype html><html><body><div id="new-tab">新标签内容</div></body></html>' } };

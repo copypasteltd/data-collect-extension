@@ -16,6 +16,11 @@ export function findReplayOutcome(events, step) {
     event.payload?.openerTabId === step.tabId && event.payload?.tabId === otherTabId &&
     event.time >= step.time && event.time - step.time <= 1000 && compareEvents(event, lastActivation) <= 0);
   const isNavigation = (event) => /^(navigation|navigation\.spa|navigation\.committed|navigation\.hash|navigation\.popstate)$/.test(event.kind || "");
+  const outcomeTabId = otherTabId ?? step.tabId;
+  const tabClosed = afterStep.some((event) => event.kind === "tab.closed" &&
+    event.payload?.tabId === outcomeTabId &&
+    (!lastActivation || compareEvents(event, lastActivation) > 0));
+  if (tabClosed) return null;
   if (otherTabId != null) {
     const tabEvents = afterStep.filter((event) => sameFrame(event, { tabId: otherTabId, frameId: 0 }) && compareEvents(event, lastActivation) > 0);
     const tabSnapshot = tabEvents.filter((event) => event.kind === "page.snapshot" && event.payload?.html).at(-1);
