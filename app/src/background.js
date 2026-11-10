@@ -23,6 +23,7 @@ let screenshotChain = Promise.resolve();
 const pending = new Set();
 const requests = new Map();
 const childScopes = new Map();
+const childTargets = new Map();
 const socketScopes = new Map();
 const unknownSocketTabs = new Set();
 const unknownRequestTabs = new Set();
@@ -31,6 +32,7 @@ const dialogScopes = new Map();
 let sequence = 0;
 let writeChain = Promise.resolve();
 let outstandingWrites = 0;
+let childStorageChain = Promise.resolve();
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -127,11 +129,39 @@ function isHttpUrl(raw) {
     return false;
   }
 }
+function persistChildTargets() {
+  const owner = active?.id;
+  if (!owner || !["preparing", "recording"].includes(active.status)) return;
+  const task = childStorageChain.then(async () => {
+    if (active?.id !== owner || !["preparing", "recording"].includes(active.status)) return;
+    await chrome.storage.session.set({ recorderFrames: { owner, entries: [...childTargets] } });
+  });
+  childStorageChain = task.catch(async (error) => {
+    if (active?.id === owner && ["preparing", "recording"].includes(active.status))
+      await warning("框架恢复信息保存失败，后台重启后可能缺失网络记录", { error: String(error) });
+  });
+  track(childStorageChain);
+}
+function setChildScope(sessionId, tabId, allowed) {
+  childScopes.set(sessionId, allowed);
+  const previous = childTargets.get(sessionId);
+  if (allowed) childTargets.set(sessionId, tabId);
+  else childTargets.delete(sessionId);
+  if (previous !== (allowed ? tabId : undefined)) persistChildTargets();
+}
 function clearTabContexts(tabId) {
   for (const [id, item] of socketScopes)
     if (item.tabId === tabId) socketScopes.delete(id);
   for (const id of dialogScopes.keys())
     if (id.startsWith(`${tabId}:`)) dialogScopes.delete(id);
+  let changed = false;
+  for (const [sessionId, ownerTab] of childTargets) {
+    if (ownerTab !== tabId) continue;
+    childScopes.delete(sessionId);
+    childTargets.delete(sessionId);
+    changed = true;
+  }
+  if (changed) persistChildTargets();
 }
 async function register(origin, scope) {
   const parsed = new URL(origin);
@@ -154,7 +184,7 @@ async function register(origin, scope) {
   ]);
 }
 async function init() {
-  const state = await chrome.storage.session.get("active");
+  const state = await chrome.storage.session.get(["active", "recorderFrames"]);
   if (state.active) {
     active = state.active;
     currentOrigin = active.origin;
@@ -182,6 +212,30 @@ async function init() {
     }
     const events = await all("events", active.id);
     sequence = events.reduce((n, e) => Math.max(n, e.seq || 0), 0);
+    const storedFrames = state.recorderFrames?.owner === active.id && Array.isArray(state.recorderFrames.entries)
+      ? state.recorderFrames.entries : [];
+    if (storedFrames.length > 1000)
+      await warning("框架数量超过后台恢复上限，部分网络记录可能缺失", { total: storedFrames.length, limit: 1000 });
+    const validTabs = new Map();
+    await Promise.all(storedFrames.slice(0, 1000).map(async (entry) => {
+      if (!Array.isArray(entry) || entry.length !== 2) return;
+      const [sessionId, tabId] = entry;
+      const tab = active?.tabs[tabId];
+      if (typeof sessionId !== "string" || !sessionId || !Number.isSafeInteger(tabId) ||
+          !tab || tab.closed || !tab.inScope || !tab.debuggerAttached) return;
+      try {
+        if (!validTabs.has(tabId))
+          validTabs.set(tabId, withDeadline(chrome.webNavigation.getFrame({ tabId, frameId: 0 }), 1500, "页面范围检查"));
+        const [top, child] = await Promise.all([
+          validTabs.get(tabId),
+          withDeadline(chrome.debugger.sendCommand({ tabId, sessionId }, "Target.getTargetInfo"), 1500, "框架范围检查"),
+        ]);
+        if (top && allowedUrl(top.url) && child?.targetInfo?.type === "iframe" && allowedUrl(child.targetInfo.url)) {
+          childScopes.set(sessionId, true);
+          childTargets.set(sessionId, tabId);
+        }
+      } catch {}
+    }));
     for (const [key, item] of recoverPendingRequests(events, active.tabs)) {
       requests.set(key, item);
       if (item.postData?.status === "pending") {
@@ -258,6 +312,8 @@ async function start(tab, options, onCreated) {
   };
   active = session;
   onCreated(session);
+  childTargets.clear();
+  await chrome.storage.session.remove("recorderFrames");
   currentOrigin = origin;
   sequence = 0;
   if (options.scope === "browser") {
@@ -941,6 +997,7 @@ async function stop(onStopping) {
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
+  childTargets.clear();
   socketScopes.clear();
   unknownSocketTabs.clear();
   unknownRequestTabs.clear();
@@ -949,7 +1006,8 @@ async function stop(onStopping) {
   screenshotChain = Promise.resolve();
   await chrome.action.setBadgeText({ text: "" });
   await chrome.action.setTitle({ title: "打开逻辑记录" });
-  await chrome.storage.session.remove("active");
+  await withDeadline(childStorageChain, 2000, "框架恢复信息收尾").catch(() => {});
+  await chrome.storage.session.remove(["active", "recorderFrames"]);
   return session;
 }
 
@@ -980,13 +1038,15 @@ async function clearActiveResources(session) {
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
+  childTargets.clear();
   socketScopes.clear();
   unknownSocketTabs.clear();
   unknownRequestTabs.clear();
   unknownDialogTabs.clear();
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
-  await chrome.storage.session.remove("active").catch(() => {});
+  await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch(() => {});
+  await chrome.storage.session.remove(["active", "recorderFrames"]).catch(() => {});
   await chrome.action.setBadgeText({ text: "" }).catch(() => {});
   await chrome.action.setTitle({ title: "打开逻辑记录" }).catch(() => {});
 }
@@ -1081,6 +1141,7 @@ chrome.debugger.onEvent.addListener(
     if (!active || !active.tabs[source.tabId]) return;
     if (method === "Target.detachedFromTarget") {
       childScopes.delete(params.sessionId);
+      if (childTargets.delete(params.sessionId)) persistChildTargets();
       dialogScopes.delete(`${source.tabId}:${params.sessionId}`);
       for (const [id, item] of socketScopes)
         if (item.tabId === source.tabId && item.sessionId === params.sessionId)
@@ -1098,7 +1159,7 @@ chrome.debugger.onEvent.addListener(
         );
         return;
       }
-      childScopes.set(params.sessionId, true);
+      setChildScope(params.sessionId, source.tabId, true);
       const sessionId = active.id;
       const task = (async () => {
         try {
@@ -1235,7 +1296,7 @@ chrome.debugger.onEvent.addListener(
         target.inScope = allowedUrl(params.request.url);
       }
       if (source.sessionId && params.type === "Document")
-        childScopes.set(source.sessionId, allowedUrl(params.request.url));
+        setChildScope(source.sessionId, source.tabId, allowedUrl(params.request.url));
       const isMainFrame = Boolean(
         params.frameId && target.mainFrameId && params.frameId === target.mainFrameId,
       );

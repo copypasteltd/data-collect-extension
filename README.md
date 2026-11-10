@@ -83,6 +83,7 @@ Cookie 由浏览器按域共享，不区分端口；Cookie 变更事件无法可
 对浏览器以 Base64 返回的可识别文本响应，插件尝试按声明字符集解码（未声明时使用 UTF-8）后脱敏；无法解码、超限或响应长度与返回内容明显不一致时，会在报告中提示。
 录制后台重启后，插件会尝试恢复已落盘且仍有调试连接的进行中请求；未完成的请求体读取及重启期间的部分事件、已有 WebSocket 或跨进程框架消息仍可能缺失，并会提示。
 对于此前已确认授权、属于顶层调试会话且当前页面实例仍可确认的 WebSocket，后台重启后会尝试继续记录消息；录制前已建立、页面身份不明或跨进程框架中的连接可能无法恢复。
+后台重启时，插件也会重新核验已保存的跨进程框架连接及其当前网址，尝试继续采集授权范围内的新请求；无法验证、失效或超出恢复数量上限的框架可能缺失。
 页面持续变化时，快照采集会尽力在约 2 秒内执行一次，避免持续更新使快照长期推迟；页面离开时也会尝试保存待处理快照。浏览器节流、页面繁忙或页面销毁仍可能导致状态延迟或遗漏。
 快照中的可读取样式和组件样式按单个样式文本最多 500,000 个 UTF-16 代码单元保留，超过上限时会提示；旧记录中已经丢失的样式不能自动恢复。
 页面快照中的单个正文文本节点最多保留 500,000 个 UTF-16 代码单元，超限时保留前缀并提示；单个快照仍受整体大小限制。快照之间的变化记录有更低的单项限制，旧记录中已经丢失的正文不能自动恢复。
@@ -157,6 +158,7 @@ npm run test:recovery
 npm run test:browser-restart
 npm run test:worker-network-recovery
 npm run test:worker-socket-recovery
+npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
@@ -175,7 +177,7 @@ npm run test:permissions
 npm run test:e2e
 ```
 
-以上环境变量示例适用于 Bash；PowerShell 可使用 `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` 和 `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`。安装及运行测试时应保持相同的 `PLAYWRIGHT_BROWSERS_PATH`；更新 Playwright 依赖后重新执行浏览器安装命令，以使用匹配版本。`CHROME_BIN` 会覆盖该浏览器，若需要指定本机 Chrome/Chromium，应自行验证兼容性；版本不匹配可能影响测试稳定性。部分测试在临时浏览器配置中预授权站点；`test:permissions` 也检查权限请求等待及模拟结果，但不代表已自动接受或拒绝真实系统授权弹窗。完整端到端测试在部分 Windows 环境的浏览器重启阶段可能超时；应查看日志并运行独立重启恢复测试。
+以上环境变量示例适用于 Bash；PowerShell 可使用 `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` 和 `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`。安装及运行测试时应保持相同的 `PLAYWRIGHT_BROWSERS_PATH`；更新 Playwright 依赖后重新执行浏览器安装命令，以使用匹配版本。`CHROME_BIN` 会覆盖该浏览器，若需要指定本机 Chrome/Chromium，应自行验证兼容性；版本不匹配可能影响测试稳定性。部分测试在临时浏览器配置中预授权站点；`test:permissions` 也检查权限请求等待及模拟结果，但不代表已自动接受或拒绝真实系统授权弹窗。当前 Windows 测试环境曾出现扩展后台启动或浏览器重启超时，原因未完全确定；应查看日志并运行相关独立恢复测试。
 
 演示素材的生成依赖 Playwright 视频组件和 FFmpeg，步骤见 [docs/DEMO.md](docs/DEMO.md)。开发时不需要 Docker 或 WSL。
 

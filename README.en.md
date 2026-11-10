@@ -83,6 +83,7 @@ Browsers share cookies by domain rather than port, and cookie change events do n
 For recognized textual responses returned by the browser as Base64, the extension attempts decoding with the declared charset (UTF-8 by default) before redaction. Invalid encodings, size limits, and clearly inconsistent empty responses are reported.
 After the recording worker restarts, the extension attempts to reconnect already-saved in-flight requests when the debugger remains attached. Pending request-body reads and some events, existing WebSocket messages, or cross-process frame messages may still be missing; the report flags the restart.
 The recorder also attempts to resume WebSocket messages for previously authorized connections in the root debugger session when the current document can be confirmed. Connections established before recording, with uncertain document identity, or in cross-process frames may not be restored.
+After a worker restart, saved cross-process frame connections and their current URLs are checked again before capturing new in-scope requests. Frames that cannot be verified, have expired, or exceed the recovery limit may be missing.
 For continuously changing pages, the recorder attempts a snapshot after about two seconds instead of postponing it indefinitely; a pending snapshot is also attempted when leaving a page. Browser throttling, busy pages, or page destruction can still delay or omit states.
 Readable page and component styles are retained in snapshots up to 500,000 UTF-16 code units per style text; exceeding this limit is reported. Styles already lost in older recordings cannot be restored automatically.
 Each page snapshot retains up to 500,000 UTF-16 code units per text node, keeping the prefix and reporting truncation when exceeded; the complete snapshot has a separate size limit. Changes between snapshots have lower per-item limits, and text already lost in older recordings cannot be restored automatically.
@@ -157,6 +158,7 @@ npm run test:recovery
 npm run test:browser-restart
 npm run test:worker-network-recovery
 npm run test:worker-socket-recovery
+npm run test:worker-frame-recovery
 npm run test:concurrent-stop
 npm run test:archive-roundtrip
 npm run test:input-length
@@ -175,7 +177,7 @@ npm run test:permissions
 npm run test:e2e
 ```
 
-The environment-variable example above uses Bash. In PowerShell, use `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` and `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`. Keep the same `PLAYWRIGHT_BROWSERS_PATH` when installing and running tests, and reinstall the browser after updating Playwright dependencies to use a matching version. `CHROME_BIN` overrides that browser; verify compatibility if using a local Chrome/Chromium executable, as a version mismatch can affect test stability. Some tests use a temporary browser profile with host permissions pre-granted. `test:permissions` checks pending permission requests and simulated outcomes; it does not claim to automatically accept or reject the real native prompt. The long end-to-end test can time out while restarting Chrome in some Windows environments; inspect its output and run the dedicated restart recovery test.
+The environment-variable example above uses Bash. In PowerShell, use `$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.playwright-browsers'` and `Remove-Item Env:CHROME_BIN -ErrorAction SilentlyContinue`. Keep the same `PLAYWRIGHT_BROWSERS_PATH` when installing and running tests, and reinstall the browser after updating Playwright dependencies to use a matching version. `CHROME_BIN` overrides that browser; verify compatibility if using a local Chrome/Chromium executable, as a version mismatch can affect test stability. Some tests use a temporary browser profile with host permissions pre-granted. `test:permissions` checks pending permission requests and simulated outcomes; it does not claim to automatically accept or reject the real native prompt. Extension-worker startup or browser restart has occasionally timed out in the current Windows test environment; the cause is not fully understood. Inspect the output and run the relevant dedicated recovery tests.
 
 Demo media generation requires Playwright's video component and FFmpeg; see [docs/DEMO.md](docs/DEMO.md). Docker and WSL are not required for development.
 

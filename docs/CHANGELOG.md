@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 后台重启时重新核验已授权的跨进程框架连接和当前网址，继续采集可确认框架的后续网络请求；无效或范围外连接不会恢复。 / Revalidate previously authorized cross-process frame connections and current URLs after a worker restart, resuming eligible network capture while rejecting invalid or out-of-scope connections.
 - 录制后台重启后，尝试恢复此前已授权且页面实例仍可确认的顶层调试会话 WebSocket 消息采集；无法确认来源或页面身份的连接继续跳过。 / Resume WebSocket capture after worker restart for previously authorized root-session connections with a confirmed current document; continue skipping unverified origins or documents.
 - 录制后台重启后尝试恢复已保存的进行中网络请求及响应关联；未完成的请求体读取标记为不可用，并提示重启期间可能缺失的事件。 / Restore saved in-flight network request context after a recording worker restart, mark unfinished request-body reads unavailable, and report potential gaps during the restart.
 - 按请求发起时的页面和导航上下文关联接口事件，避免跳转、刷新后把旧页面或延迟响应误关联到其他页面；无法确认时显示提示。 / Associate network events with the page and navigation context at request initiation, avoiding stale-page or delayed-response mismatches and reporting unknown context.
@@ -39,4 +40,4 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 - 这是开发验证版；不能保证完整采集、还原未访问分支、执行原站脚本或重建服务端逻辑。 / Development preview: complete capture, unvisited branches, original scripts, and server-side reconstruction are not guaranteed.
 - 自动脱敏并不完整，ZIP 默认不加密；分享前必须检查。 / Redaction is incomplete and ZIP files are not encrypted by default; inspect them before sharing.
-- 某些 Windows 环境中，长端到端测试重启浏览器可能超时；可同时运行独立恢复测试并检查日志。 / The long end-to-end test can time out restarting Chrome on some Windows setups; also run the dedicated recovery test and inspect its output.
+- 当前 Windows 测试环境曾出现扩展后台启动或长端到端测试重启浏览器超时，原因未完全确定；可同时运行相关独立恢复测试并检查日志。 / Extension-worker startup or browser restart during the long end-to-end test has occasionally timed out in the current Windows environment; the cause remains unclear. Run the relevant recovery tests and inspect the output.
