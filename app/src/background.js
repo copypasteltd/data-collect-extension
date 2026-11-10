@@ -933,7 +933,8 @@ async function stop(onStopping) {
     warnings: recorded.filter((event) => event.kind === "warning").length,
     pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
     snapshotGaps: recorded.filter(
-      (event) => event.kind === "page.snapshot" && event.payload.status !== "captured",
+      (event) => event.kind === "page.snapshot" && (event.payload.status !== "captured" ||
+        (event.payload.sourceStatus && event.payload.sourceStatus !== "captured")),
     ).length,
     databaseGaps: recorded.filter(
       (event) => event.kind === "database.snapshot" &&
@@ -989,9 +990,9 @@ async function stop(onStopping) {
     responseGaps: recorded.filter(
       (event) =>
         event.kind === "network.finished" &&
-        ["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable"].includes(
+        (["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable"].includes(
           event.payload.body?.status,
-        ),
+        ) || Boolean(event.payload.body?.textStatus)),
     ).length,
   };
   session.status =

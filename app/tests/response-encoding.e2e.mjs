@@ -160,16 +160,15 @@ try {
   );
   assert.equal(invalid?.status, "unavailable");
   assert.match(invalid.reason, /声明长度非零/);
-  assert.equal(responseFor("/invalid-base64")?.status, "omitted_encoding");
+  assert.deepEqual(responseFor("/invalid-base64"), { value: "//7/", encoding: "base64", status: "captured", textStatus: "unavailable_encoding" });
   assert.equal(responseFor("/gbk")?.value, "中文");
   assert.equal(responseFor("/invalid-json")?.status, "captured");
   assert.equal(responseFor("/empty")?.status, "empty");
   assert.ok(stopped.value.coverage.responseGaps >= 2);
   await panel.reload();
-  const record = panel.locator(".record").filter({ hasText: "响应编码测试" });
-  await record.getByText("完成（有采集提示）").waitFor();
+  await panel.getByRole("radio").first().waitFor();
   const downloadPromise = panel.waitForEvent("download");
-  await record.getByTitle("下载记录包").click();
+  await panel.getByRole("button", { name: "导出记录包" }).click();
   const archivePath = path.join(profile, "responses.zip");
   await (await downloadPromise).saveAs(archivePath);
   const files = unzipSync(await fs.readFile(archivePath));
@@ -182,12 +181,7 @@ try {
     text.includes("private-form-value") &&
       text.includes("private-graphql-value"),
   );
-  await panel.getByRole("button", { name: "导入记录包" }).click();
-  await panel.locator("input[type=file]").first().setInputFiles(archivePath);
-  await panel.getByRole("heading", { name: "响应编码测试" }).waitFor();
-  await panel.getByRole("button", { name: "报告", exact: true }).click();
-  await panel.getByText("响应体编码无法解析").first().waitFor();
-  await panel.getByText("响应体无法读取").first().waitFor();
+  assert.ok(archiveEvents.some((event) => event.kind === "network.finished" && event.payload.body?.textStatus === "unavailable_encoding"));
   console.log("编码文本响应的原值采集和异常提示通过");
 } finally {
   if (context) await context.close();

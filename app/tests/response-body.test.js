@@ -44,31 +44,34 @@ it("解码 Base64 文本并保留原始字段值", () => {
     { value: "AQID", encoding: "base64", status: "captured" });
 });
 
-it("按声明的字符集解码，并拒绝无效或不支持的编码", () => {
+it("按声明的字符集解码，无法解码时保留原始字节", () => {
   const response = { headers: { "content-type": 'text/plain; charset="gbk"' } };
   assert.equal(
     cleanDebuggerResponse({ body: "1tDOxA==", base64Encoded: true }, response)
       .value,
     "中文",
   );
-  assert.equal(
+  assert.deepEqual(
     cleanDebuggerResponse(
       { body: "//7/", base64Encoded: true },
       { mimeType: "text/plain" },
-    ).status,
-    "omitted_encoding",
+    ),
+    { value: "//7/", encoding: "base64", status: "captured", textStatus: "unavailable_encoding" },
   );
-  assert.equal(
+  assert.deepEqual(
     cleanDebuggerResponse(
       { body: "eA==", base64Encoded: true },
       { headers: { "Content-Type": "text/plain; charset=unknown-charset" } },
-    ).status,
-    "omitted_encoding",
+    ),
+    { value: "eA==", encoding: "base64", status: "captured", textStatus: "unavailable_encoding" },
   );
   assert.equal(
     cleanDebuggerResponse({ body: "!", base64Encoded: true }, response).status,
     "omitted_encoding",
   );
+  const large = Buffer.from("x".repeat(1000001)).toString("base64");
+  assert.deepEqual(cleanDebuggerResponse({ body: large, base64Encoded: true }, { mimeType: "text/plain" }),
+    { value: large, encoding: "base64", status: "captured", textStatus: "omitted_size" });
 });
 
 it("限制解码体积，并辨别可疑空响应与合法空响应", () => {

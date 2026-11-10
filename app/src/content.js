@@ -544,6 +544,16 @@ import { encodeDatabaseValue } from "./database-value.js";
           canvas.captured++;
         } catch (error) { canvasGap("unavailable", error?.name === "SecurityError" ? "cross_origin" : "read_error"); }
       };
+      let sourceHtml = null, sourceStatus = "captured", sourceLength = 0;
+      try {
+        const doctype = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : "";
+        const source = doctype + document.documentElement.outerHTML;
+        sourceLength = source.length;
+        if (sourceLength > 1500000) sourceStatus = "omitted_size";
+        else sourceHtml = source;
+      } catch {
+        sourceStatus = "unavailable";
+      }
       const inert = document.implementation.createHTMLDocument("");
       const clone = inert.importNode(document.documentElement, true);
       markNodes(document.documentElement, clone);
@@ -738,6 +748,9 @@ import { encodeDatabaseValue } from "./database-value.js";
         url: location.href,
         title: document.title,
         html,
+        sourceHtml,
+        sourceStatus,
+        sourceLength,
         status: truncated
           ? "omitted_size"
           : truncatedNodes

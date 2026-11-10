@@ -38,20 +38,28 @@ export function cleanDebuggerResponse(result, response = {}, method = "") {
     return { value: null, status: "omitted_size" };
   if (!/^(text\/|application\/(?:json|[^;]*\+json|javascript|xml|[^;]*\+xml|x-www-form-urlencoded|graphql)|image\/svg\+xml)/i.test(bodyType))
     return { value: result.body, encoding: "base64", status: "captured" };
+  let binary;
   try {
-    const binary = atob(result.body);
-    if (binary.length > 4000000) return { value: null, status: "omitted_size" };
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    binary = atob(result.body);
+  } catch {
+    return { value: null, status: "omitted_encoding" };
+  }
+  if (binary.length > 4000000) return { value: null, status: "omitted_size" };
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  try {
     const match =
       /(?:^|;)\s*charset\s*=\s*(?:"([^"]+)"|'([^']+)'|([^;\s]+))/i.exec(
         contentType,
       );
     const charset = match?.[1] || match?.[2] || match?.[3] || "utf-8";
-    return cleanBody(
+    const decoded = cleanBody(
       new TextDecoder(charset, { fatal: true }).decode(bytes),
       bodyType,
     );
+    return decoded.status === "omitted_size"
+      ? { value: result.body, encoding: "base64", status: "captured", textStatus: "omitted_size" }
+      : decoded;
   } catch {
-    return { value: null, status: "omitted_encoding" };
+    return { value: result.body, encoding: "base64", status: "captured", textStatus: "unavailable_encoding" };
   }
 }

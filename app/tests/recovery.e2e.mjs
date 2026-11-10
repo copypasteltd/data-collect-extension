@@ -22,6 +22,8 @@ try {
   await panel.goto(
     `chrome-extension://${new URL(firstWorker.url()).host}/sidepanel.html`,
   );
+  const initial = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
+  if (!initial.ok) throw new Error("后台初始化失败");
   const cdp = await context.newCDPSession(panel);
   await cdp.send("ServiceWorker.enable");
   for (const [name, storedStatus, activeStatus, expectedStatus] of [
