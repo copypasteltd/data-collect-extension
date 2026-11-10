@@ -63,6 +63,7 @@ const labels = {
   "cookie.change": "Cookie 变更",
   "storage.snapshot": "站点存储状态",
   "storage.unavailable": "站点存储不可用",
+  "state.capture": "站点状态采集",
   "tab.created": "打开标签",
   "tab.closed": "关闭标签",
 };
@@ -172,6 +173,7 @@ function Report({ archive, showEvent }) {
           e.payload.shadow?.unavailable)) ||
       (e.kind === "page.mutation" && e.payload.status !== "captured") ||
       (e.kind === "cache.snapshot" && !!cacheIssue(e.payload)) ||
+      (e.kind === "state.capture" && ["timeout", "failed"].includes(e.payload.status)) ||
       e.kind === "storage.unavailable" ||
       (e.kind === "storage.snapshot" && e.payload.coverage &&
         Object.values(e.payload.coverage).some((item) => item?.status !== "captured")) ||
@@ -260,6 +262,9 @@ function Report({ archive, showEvent }) {
                 ? snapshotIssues(e.payload).join("；")
                 : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
                 (e.kind === "cache.snapshot" ? cacheIssue(e.payload) : null) ||
+                (e.kind === "state.capture"
+                  ? `${e.payload.reason === "initial" ? "开始" : "结束"}时${e.payload.source === "database" ? "数据库" : "缓存"}采集${e.payload.status === "timeout" ? "超时" : "失败"}`
+                  : null) ||
                 (e.kind === "network.incomplete"
                   ? e.payload.reason === "response_capture_incomplete"
                     ? "请求已结束，但响应内容未完成采集"

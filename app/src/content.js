@@ -1533,10 +1533,23 @@ import { encodeDatabaseValue } from "./database-value.js";
       });
     }
   }
-  const initialState = Promise.allSettled([
-    captureDatabases("initial"),
-    captureCache("initial"),
-  ]);
+  function beginStateCapture(source, reason, run) {
+    const capture = { source, reason, status: "pending" };
+    capture.promise = Promise.resolve().then(run).then(
+      () => finishStateCapture(capture, "completed"),
+      () => finishStateCapture(capture, "failed"),
+    );
+    return capture;
+  }
+  function finishStateCapture(capture, status) {
+    if (capture.status !== "pending") return;
+    capture.status = status;
+    emit("state.capture", { source: capture.source, reason: capture.reason, status });
+  }
+  const initialCaptures = [
+    beginStateCapture("database", "initial", () => captureDatabases("initial")),
+    beginStateCapture("cache", "initial", () => captureCache("initial")),
+  ];
   const onMessage = (msg, _sender, reply) => {
     if (msg.type === "SENSITIVE_CHECK") {
       let elements;
@@ -1630,22 +1643,20 @@ import { encodeDatabaseValue } from "./database-value.js";
       abort.abort();
       observer.disconnect();
       clearInterval(storageTimer);
-      const snapshots = Promise.allSettled([
-        initialState,
-        captureDatabases("stop"),
-        captureCache("stop"),
-      ]);
+      const captures = [
+        ...initialCaptures,
+        beginStateCapture("database", "stop", () => captureDatabases("stop")),
+        beginStateCapture("cache", "stop", () => captureCache("stop")),
+      ];
+      const snapshots = Promise.all(captures.map((capture) => capture.promise));
+      let timeout;
       Promise.race([
         snapshots.then(() => false),
-        new Promise((resolve) => setTimeout(() => resolve(true), 4000)),
+        new Promise((resolve) => { timeout = setTimeout(() => resolve(true), 4000); }),
       ])
         .then((timedOut) => {
-          if (timedOut)
-            emit("database.snapshot", {
-              reason: "stop",
-              status: "timeout",
-              note: "站点状态采集超时",
-            });
+          clearTimeout(timeout);
+          if (timedOut) for (const capture of captures) finishStateCapture(capture, "timeout");
           stopped = true;
           return send();
         })

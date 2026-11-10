@@ -315,6 +315,7 @@ function App() {
                       session.coverage?.snapshotGaps ||
                       session.coverage?.databaseGaps ||
                       session.coverage?.cacheGaps ||
+                      session.coverage?.stateCaptureGaps ||
                       session.coverage?.initialResourceGaps ||
                       session.coverage?.screenshotsUnavailable ||
                       session.coverage?.canvasGaps ||

@@ -16,6 +16,7 @@
     "test:storage-capture": "node tests/storage-capture.e2e.mjs",
     "test:database-values": "node tests/database-values.e2e.mjs",
     "test:cache-metadata": "node tests/cache-metadata.e2e.mjs",
+    "test:state-finalization": "node tests/state-finalization.e2e.mjs",
     "test:snapshot-scheduling": "node tests/snapshot-scheduling.e2e.mjs",
     "test:large-styles": "node tests/large-styles.e2e.mjs",
     "test:long-page-text": "node tests/long-page-text.e2e.mjs",

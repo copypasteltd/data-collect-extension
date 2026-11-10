@@ -5,6 +5,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## Unreleased / 未发布
 
+- 分别记录数据库与缓存开始、结束采集过程的完成或超时状态；停止时未完成的阶段独立标记，避免误报阶段并在空结果时保留检查记录。 / Record separate initial and final database and cache collection completion or timeout states, identifying unfinished stages independently and preserving evidence of empty collections.
 - 改进操作流程中的候选请求：标识已记录的跳转边界，保留可确认主页面新网址的跳转后请求，并按事件顺序避免关联同毫秒内尚未发生的操作。 / Improve flow request candidates by labeling recorded navigation boundaries, retaining requests on a matching new main-page URL, and respecting event order within the same millisecond.
 - 修复嵌入页面操作后主页面跳转、或标签离开录制范围时，逐步复现可能把旧页面当作最终状态的问题；记录不包含范围外网址的边界，重新进入后核对页面实例，并兼容旧版范围提示。 / Avoid presenting stale pages as the final state after an embedded-frame action followed by main-page navigation or a tab leaving the recording scope; record boundaries without outside URLs, verify the document after reentry, and recognize older scope warnings.
 - 增加可独立关闭的 Canvas 静态画面与布局采样，支持侧边栏页面复现并报告跨域、敏感区域及资源上限导致的缺口。 / Add separately configurable static Canvas image and layout capture for side-panel replay, reporting gaps from cross-origin restrictions, sensitive targets, and resource limits.

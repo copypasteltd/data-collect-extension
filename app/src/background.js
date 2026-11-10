@@ -985,6 +985,8 @@ async function stop(onStopping) {
       (event) => event.kind === "cache.snapshot" &&
         (event.payload.truncated || !["metadata_only", "name_only"].includes(event.payload.status)),
     ).length,
+    stateCaptureGaps: recorded.filter((event) => event.kind === "state.capture" &&
+      ["timeout", "failed"].includes(event.payload.status)).length,
     initialResourceGaps: recorded.filter(
       (event) => event.kind === "resource.initialSummary" && event.payload.status !== "captured",
     ).length,

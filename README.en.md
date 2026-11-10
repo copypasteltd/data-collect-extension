@@ -103,6 +103,8 @@ Step replay supports range, number, and color inputs. New recordings retain vali
 Each web storage area is limited to 200 keys; non-sensitive values over 4,000 UTF-16 code units are omitted. Reports identify unavailable or incomplete storage. Transient changes between polls may still be missed, and session storage hidden in older recordings cannot be recovered.
 Database snapshots encode values such as big integers, maps, and sets as type-tagged JSON; dates are stored as ISO strings. Binary contents, circular references, and over-limit data are not preserved in full and are flagged in records and reports. Values missing from older recordings cannot be recovered.
 Cache snapshots retain a limited set of request URLs, methods, and modes, without request headers or response bodies. Listing requests requires opening an existing cache; if it is deleted between the check and open, an empty cache may be recreated. See the [usage guide](docs/插件安装与使用说明.md) for limits.
+
+Database and cache collection each record whether their initial and final sampling processes finished. A stage still running after the roughly four-second finalization wait is reported as timed out. Completion means the sampling process ended, not that every item was captured; inspect individual collection warnings.
 Screenshots remain available for reference. Replay marks an approximate target only when the document, URL, tab, timing, and viewport can be confirmed. Older recordings missing document identity or capture start time may not show a target marker.
 
 ### Archive Format
@@ -182,6 +184,7 @@ npm run test:input-length
 npm run test:storage-capture
 npm run test:database-values
 npm run test:cache-metadata
+npm run test:state-finalization
 npm run test:snapshot-scheduling
 npm run test:large-styles
 npm run test:long-page-text
