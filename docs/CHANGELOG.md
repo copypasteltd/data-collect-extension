@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.1.1 - 2026-11-10
+
+- 修复录制准备期间打开的新标签页可能被遗漏，提前注册采集器并跟踪其后续操作和请求。 / Track tabs opened while recording is preparing and register the collector earlier so subsequent actions and requests can be recorded.
+- 修复调试连接在停止录制后才完成时可能残留、影响下一批录制；同一标签的连接尝试按顺序完成。 / Close debugger connections that finish after recording stops and serialize connection attempts for the same tab across sessions.
+- 端到端测试检查导出包内实际存在有效截图，并覆盖普通及两倍像素密度的模拟环境。尚未完成 macOS 真机验证。 / Verify exported screenshot files in end-to-end tests at normal and double simulated pixel density; macOS hardware has not yet been tested.
+
 ## 0.1.0 - 2026-11-10
 
 - 提供可直接解压加载的 Chrome 扩展包、独立技能包和 SHA-256 校验文件。 / Provide unpacked Chrome extension and standalone skill archives with SHA-256 checksums.

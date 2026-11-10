@@ -27,13 +27,14 @@ try {
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   context = await chromium.launchPersistentContext(profile, {
     executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+    viewport: null,
+    args: ["--window-size=1000,700", ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : []),
+      `--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
   });
   const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/first`);
   const panel = await context.newPage();
-  await panel.setViewportSize({ width: 320, height: 720 });
   await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
   await page.bringToFront();
   await panel.waitForTimeout(2200);
@@ -84,6 +85,11 @@ try {
       assert.ok(!output.includes("fixture-token"));
     }
     assert.ok(events.some((event) => event.kind === "interaction.input" && event.payload.value === expectedValue));
+    assert.ok(events.some((event) => {
+      if (event.kind !== "screenshot" || !event.payload.assetId) return false;
+      const image = files[`screenshots/${event.payload.assetId}.jpg`];
+      return image?.length > 2 && image[0] === 0xff && image[1] === 0xd8;
+    }), "导出包缺少可用截图");
     assert.ok(events.some((event) => event.kind === "page.snapshot" && event.payload.sourceHtml?.includes("window.fixtureLoaded=true")));
     if (index === 1) {
       assert.ok(events.some((event) => event.kind === "network.request" && event.payload.url.includes("token=fixture-token")));

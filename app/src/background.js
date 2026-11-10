@@ -31,6 +31,7 @@ const unknownSocketTabs = new Set();
 const unknownRequestTabs = new Set();
 const unknownDialogTabs = new Set();
 const dialogScopes = new Map();
+const tabAttachQueues = new Map();
 let sequence = 0;
 let writeChain = Promise.resolve();
 let outstandingWrites = 0;
@@ -377,27 +378,27 @@ async function start(tab, options, onCreated) {
     url: cleanUrl(tab.url),
     note: "开始前发生的操作和请求未记录",
   });
+  try {
+    await register(origin, options.scope);
+  } catch (error) {
+    await warning("页面采集器注册失败", { error: String(error) });
+  }
   for (const target of Object.values(session.tabs)) await attachTab(target.id);
   const resourceDeadline = Date.now() + 6000;
   for (const target of Object.values(session.tabs))
     await captureInitialResources(target, resourceDeadline);
-  try {
-    await register(origin, options.scope);
-    for (const target of Object.values(session.tabs)) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: target.id, allFrames: true },
-          files: ["content.js"],
-        });
-      } catch (error) {
-        await warning("页面采集器注入失败", {
-          tabId: target.id,
-          error: String(error),
-        });
-      }
+  for (const target of Object.values(session.tabs)) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: target.id, allFrames: true },
+        files: ["content.js"],
+      });
+    } catch (error) {
+      await warning("页面采集器注入失败", {
+        tabId: target.id,
+        error: String(error),
+      });
     }
-  } catch (error) {
-    await warning("页面采集器注册失败", { error: String(error) });
   }
   for (const target of Object.values(session.tabs))
     await snapshotCookies(target.url);
@@ -478,11 +479,23 @@ async function attachTab(tabId) {
   const session = active,
     target = session?.tabs[tabId];
   if (!target || target.attaching || target.debuggerAttached) return;
+  const isCurrent = () => active === session &&
+    ["preparing", "recording"].includes(session.status) &&
+    session.tabs[tabId] === target && !target.closed;
   target.attaching = true;
+  const previous = tabAttachQueues.get(tabId);
+  let finishAttach;
+  const finished = new Promise((resolve) => { finishAttach = resolve; });
+  const tail = previous ? previous.then(() => finished) : finished;
+  tabAttachQueues.set(tabId, tail);
+  tail.then(() => { if (tabAttachQueues.get(tabId) === tail) tabAttachQueues.delete(tabId); });
   let attached = false;
   try {
+    if (previous) await withDeadline(previous, 3000, "等待旧调试连接关闭");
+    if (!isCurrent()) return;
     await chrome.debugger.attach({ tabId }, "1.3");
     attached = true;
+    if (!isCurrent()) return;
     await chrome.debugger.sendCommand({ tabId }, "Page.enable");
     const tree = await chrome.debugger.sendCommand(
       { tabId },
@@ -494,17 +507,22 @@ async function attachTab(tabId) {
       maxResourceBufferSize: 2000000,
       maxPostDataSize: 65536,
     });
+    if (!isCurrent()) return;
     target.debuggerAttached = true;
     try {
       await enableChildTargets({ tabId });
     } catch (error) {
-      await warning("嵌入页面的网络采集不可用", {
-        tabId,
-        error: String(error),
-      });
+      if (isCurrent())
+        await warning("嵌入页面的网络采集不可用", {
+          tabId,
+          error: String(error),
+        });
     }
   } catch (error) {
-    if (attached) await chrome.debugger.detach({ tabId }).catch(() => {});
+    if (attached) {
+      await chrome.debugger.detach({ tabId }).catch(() => {});
+      attached = false;
+    }
     target.debuggerAttached = false;
     if (active?.id === session.id)
       await warning("网络调试连接失败，网络记录可能不完整", {
@@ -512,9 +530,17 @@ async function attachTab(tabId) {
         error: String(error),
       });
   } finally {
+    if (attached && !isCurrent()) {
+      target.debuggerAttached = false;
+      await chrome.debugger.detach({ tabId }).catch(() => {});
+    }
     target.attaching = false;
-    if (active?.id === session.id)
-      await chrome.storage.session.set({ active: session });
+    try {
+      if (active?.id === session.id)
+        await chrome.storage.session.set({ active: session });
+    } finally {
+      finishAttach();
+    }
   }
 }
 
@@ -1704,10 +1730,11 @@ chrome.tabs.onCreated.addListener(
     if (
       !active ||
       (active.options.scope !== "browser" && !active.tabs[tab.openerTabId]) ||
-      active.status !== "recording" ||
+      !["preparing", "recording"].includes(active.status) ||
       tab.incognito
     )
       return;
+    if (active.tabs[tab.id]) return;
     active.tabs[tab.id] = {
       id: tab.id,
       windowId: tab.windowId,
@@ -1803,7 +1830,7 @@ chrome.tabs.onRemoved.addListener(
 );
 chrome.tabs.onUpdated.addListener(
   afterReady((tabId, info, tab) => {
-    if (active?.status !== "recording" || !active.tabs[tabId] || !info.url)
+    if (!active || !["preparing", "recording"].includes(active.status) || !active.tabs[tabId] || !info.url)
       return;
     const target = active.tabs[tabId];
     target.windowId = tab.windowId;

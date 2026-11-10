@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "逻辑记录",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "记录已授权站点的操作、页面状态与网络证据。",
   "minimum_chrome_version": "125",
   "permissions": [
