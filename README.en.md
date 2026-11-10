@@ -46,6 +46,8 @@ npm run build
 6. Stop recording and wait for finalization. Open the record from the list or use its download button to export a ZIP.
 7. On the receiving machine, load the same extension and choose **导入记录包** in the side panel. Viewing, replay, and exports stay in the side panel.
 
+Keep the side panel open until the browser finishes the download. An interrupted download displays an error and can be retried.
+
 After modifying source and rebuilding, reload the extension in `chrome://extensions`. See the [Chinese usage guide](docs/插件安装与使用说明.md) for detailed operation and recovery instructions.
 
 ## How It Works

@@ -116,6 +116,7 @@ function App() {
       const bytes = await createArchive(session.id, setProgress);
       if (bytes.size > 300000000)
         setInfo("记录包超过 300 MB，当前侧边栏无法导入；建议分段录制。");
+      setProgress({ phase: "等待浏览器完成下载", current: 0, total: 0 });
       await downloadBlob(bytes, `逻辑记录-${session.id.slice(0, 8)}.zip`);
     } catch (e) {
       setError(e.message);
