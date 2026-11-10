@@ -149,7 +149,7 @@ export function buildCatalog(events) {
       call.requestBodyEventId = event.id;
     }
     if (
-      (event.kind === "network.finished" || event.kind === "network.failed") &&
+      ["network.finished", "network.failed", "network.incomplete"].includes(event.kind) &&
       calls.has(p.requestId)
     )
       Object.assign(calls.get(p.requestId), {

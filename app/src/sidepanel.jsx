@@ -310,7 +310,8 @@ function App() {
                       session.coverage?.inputGaps ||
                       session.coverage?.storageGaps ||
                       session.coverage?.styleGaps ||
-                      session.coverage?.responseGaps
+                      session.coverage?.responseGaps ||
+                      session.coverage?.pendingRequests
                       ? "完成（有采集提示）"
                       : "已完成"
                     : session.status === "recording"

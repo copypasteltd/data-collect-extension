@@ -47,6 +47,7 @@ const labels = {
   "network.response": "响应",
   "network.finished": "请求完成",
   "network.failed": "请求失败",
+  "network.incomplete": "请求未完成",
   "network.websocket": "实时连接",
   "network.websocketFrame": "实时消息",
   "network.eventSourceMessage": "推送消息",
@@ -67,6 +68,8 @@ const labels = {
 const title = (event) =>
   event.kind === "network.failed" && event.payload?.canceled
     ? "请求取消"
+    : event.kind === "network.incomplete" && event.payload?.reason === "response_capture_incomplete"
+      ? "响应采集未完成"
     : labels[event.kind] || event.kind;
 const bodyStatus = {
   omitted_size: "请求体超过大小限制",
@@ -125,6 +128,7 @@ function Report({ archive, showEvent }) {
     (e) =>
       e.kind === "warning" ||
       e.kind === "network.failed" ||
+      e.kind === "network.incomplete" ||
       (e.kind === "resource.initialSummary" &&
         e.payload.status !== "captured") ||
       (e.kind === "network.requestBody" &&
@@ -229,6 +233,11 @@ function Report({ archive, showEvent }) {
                 ? snapshotIssues(e.payload).join("；")
                 : (e.kind === "database.snapshot" ? databaseIssue(e.payload) : null) ||
                 (e.kind === "cache.snapshot" ? cacheIssue(e.payload) : null) ||
+                (e.kind === "network.incomplete"
+                  ? e.payload.reason === "response_capture_incomplete"
+                    ? "请求已结束，但响应内容未完成采集"
+                    : "录制结束时请求仍在进行，响应可能不完整"
+                  : null) ||
                 e.payload.message ||
                 e.payload.reason ||
                 e.payload.errorText ||

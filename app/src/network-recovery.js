@@ -24,7 +24,7 @@ export function recoverPendingRequests(events, tabs) {
       if (!item) continue;
       if (event.kind === "network.response") item.response = { ...payload };
       else if (event.kind === "network.requestBody") item.postData = payload.body;
-      else if (event.kind === "network.finished" || event.kind === "network.failed") {
+      else if (["network.finished", "network.failed", "network.incomplete"].includes(event.kind)) {
         requests.delete(key);
         keysById.delete(id);
       }

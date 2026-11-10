@@ -47,6 +47,7 @@ npm run build
 7. On the receiving machine, load the same extension and choose **导入记录包** in the side panel. Viewing, replay, and exports stay in the side panel.
 
 While a recording is being finalized, repeated stop requests return a wait message and the original finalization continues. A genuine finalization failure is marked as interrupted.
+Requests still in progress at the end are individually marked in the archive and capture report; this does not mean the requests failed. The report also distinguishes requests that completed while response-body capture remained unfinished. Older recordings may lack these markers.
 
 Keep the side panel open until the browser finishes the download. An interrupted download displays an error and can be retried.
 

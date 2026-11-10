@@ -20,6 +20,8 @@ it("按保存顺序恢复未完成请求及其响应和请求体", () => {
     request("2:root:closed", 7, 2),
     request("3:root:detached", 8, 3),
     request("invalid-id", 9),
+    request("1:root:incomplete", 10),
+    event("network.incomplete", "1:root:incomplete", 11),
   ];
   const restored = recoverPendingRequests(events.reverse(), tabs);
   assert.deepEqual([...restored.keys()].sort(), ["1:child-session:active", "1:root:pending"]);

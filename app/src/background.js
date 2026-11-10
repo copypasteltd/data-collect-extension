@@ -16,6 +16,7 @@ import {
 const uid = () => crypto.randomUUID();
 let active = null;
 let currentOrigin = null;
+let networkSealed = false;
 let screenshotLast = 0;
 let screenshotTimer;
 let screenshotPending = [];
@@ -287,6 +288,7 @@ const afterReady =
 async function start(tab, options, onCreated) {
   await ready;
   if (active) throw new Error("已有录制任务进行中");
+  networkSealed = false;
   const url = new URL(tab.url);
   if (!["https:", "http:"].includes(url.protocol))
     throw new Error("请选择普通 HTTP 或 HTTPS 页面");
@@ -925,7 +927,6 @@ async function stop(onStopping) {
     await warning("本地写入队列过载，部分记录未保存", {
       droppedEvents: session.droppedEvents,
     });
-  await append("session.stop", { note: "停止时仍在进行的请求可能不完整" });
   for (const target of Object.values(session.tabs))
     if (!target.closed && target.debuggerAttached) {
       try {
@@ -939,15 +940,34 @@ async function stop(onStopping) {
         await warning("调试连接未能正常关闭", { tabId: target.id });
       }
     }
+  networkSealed = true;
+  try {
+    await withDeadline(Promise.allSettled([...pending]), 2000, "网络收尾");
+  } catch {
+    session.incomplete = true;
+    await warning("网络收尾超时，部分响应内容可能缺失");
+  }
+  await writeChain;
+  for (const item of requests.values()) {
+    if (item.finalized) continue;
+    item.finalized = true;
+    await append("network.incomplete", {
+      requestId: item.requestId,
+      reason: item.loadingFinished ? "response_capture_incomplete" : "recording_stopped",
+      responseReceived: Boolean(item.response),
+    }, { tabId: item.tabId });
+  }
   try {
     await chrome.scripting.unregisterContentScripts({ ids: ["recorder"] });
   } catch {
     session.incomplete = true;
     await warning("页面采集器注册未能清理");
   }
+  await append("session.stop", { note: "停止时仍在进行的请求可能不完整" });
   const recorded = await all("events", session.id);
   session.coverage = {
     warnings: recorded.filter((event) => event.kind === "warning").length,
+    pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
     snapshotGaps: recorded.filter(
       (event) => event.kind === "page.snapshot" && event.payload.status !== "captured",
     ).length,
@@ -1269,7 +1289,7 @@ chrome.debugger.onEvent.addListener(
         childDocuments.set(source.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
       return;
     }
-    if (!method.startsWith("Network.")) return;
+    if (!method.startsWith("Network.") || networkSealed) return;
     if (
       active.status === "stopping" &&
       ![
@@ -1286,6 +1306,7 @@ chrome.debugger.onEvent.addListener(
       const previous = params.redirectResponse && requests.get(requestId);
       if (previous) {
         previous.superseded = true;
+        previous.finalized = true;
         const response = params.redirectResponse;
         track(
           append(
@@ -1462,7 +1483,8 @@ chrome.debugger.onEvent.addListener(
       );
     } else if (method === "Network.loadingFinished") {
       const item = requests.get(requestId);
-      if (!item) return;
+      if (!item || item.loadingFinished || item.finalized) return;
+      item.loadingFinished = true;
       const tabId = source.tabId,
         finishedAt = Date.now(),
         sessionId = active.id,
@@ -1483,7 +1505,7 @@ chrome.debugger.onEvent.addListener(
             const fontType = fontMime(bytes);
             if (!fontType) throw new Error("仅支持 WOFF 和 WOFF2 字体");
             assetId = uid();
-            if (active?.id !== sessionId) return;
+            if (active?.id !== sessionId || item.finalized) return;
             await put("assets", { id: assetId, sessionId, type: "resource", mime: fontType, blob: new Blob([bytes], { type: fontType }) });
             body = { value: null, status: "captured_asset" };
           } catch (error) {
@@ -1523,7 +1545,7 @@ chrome.debugger.onEvent.addListener(
             if (binary.length > 1500000) throw new Error("图像超过大小限制");
             const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
             assetId = uid();
-            if (active?.id !== sessionId) return;
+            if (active?.id !== sessionId || item.finalized) return;
             await put("assets", {
               id: assetId,
               sessionId,
@@ -1540,7 +1562,8 @@ chrome.debugger.onEvent.addListener(
             };
           }
         }
-        if (active?.id === sessionId)
+        if (active?.id === sessionId && !item.finalized) {
+          item.finalized = true;
           await append(
             "network.finished",
             {
@@ -1551,13 +1574,15 @@ chrome.debugger.onEvent.addListener(
             },
             { tabId, time: finishedAt },
           );
+        }
         if (active?.id === sessionId && requests.get(requestId) === item)
           requests.delete(requestId);
       })();
       track(task);
     } else if (method === "Network.loadingFailed") {
       const item = requests.get(requestId);
-      if (!item) return;
+      if (!item || item.finalized) return;
+      item.finalized = true;
       track(
         append(
           "network.failed",
