@@ -11,7 +11,7 @@ import { all, get, eventPage, countEvents, countAssets, saveImport } from "./db.
 import { withSessionLock } from "./session-lock.js";
 import { screenshotAssetPath } from "./screenshots.js";
 import { indexEvent } from "./archive-index.js";
-import { observeNetworkBody } from "./field-observations.js";
+import { observeNetworkBody, observeNetworkQuery } from "./field-observations.js";
 import { observeThemeValues } from "./style-observations.js";
 import { createFieldSummary } from "./field-summary.js";
 import { directRelationships } from "./relationships.js";
@@ -212,6 +212,11 @@ async function createArchiveData(id, onProgress) {
       }
       const request = requestEndpoints.get(event.payload?.requestId);
       const direction = event.kind === "network.finished" ? "response" : "request";
+      for (const observation of observeNetworkQuery(event, { path, line: index + 1,
+        ...(request ? { endpoint: request.endpoint, direction: "query" } : {}) })) {
+        fieldSummary.add(observation);
+        await fieldWriter.add(observation);
+      }
       for (const observation of observeNetworkBody(event, { path, line: index + 1,
         ...(request ? { endpoint: request.endpoint, direction,
           contentType: direction === "request" ? request.contentType : request.responseContentType } : {}) }, sample)) {

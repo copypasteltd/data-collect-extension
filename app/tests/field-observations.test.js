@@ -1,6 +1,6 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
-import { observeNetworkBody } from "../src/field-observations.js";
+import { observeNetworkBody, observeNetworkQuery } from "../src/field-observations.js";
 
 it("保留重复字段、数组位置、精确原文位置和类型", () => {
   const raw = '{"标签":"😀","amount":9007199254740993,"amount":null,"items":[true,{"x":"a"}]}';
@@ -71,4 +71,15 @@ it("纯文本正文保留字符串类型和可追溯的 UTF-16 位置", () => {
   const unsupported = [...observeNetworkBody(event, { path: "t", line: 2, contentType: "text/plain; charset=iso-8859-1" })];
   assert.equal(unsupported.length, 1);
   assert.equal(unsupported[0].status, "unsupported_text_charset");
+});
+
+it("查询参数保留重复顺序、原始 URL 证据及无效编码", () => {
+  const event = { id: "query", kind: "network.request", payload: { requestId: "r", url: "https://example.test/path?tag=one&tag=%E4%B8%AD&empty=&flag" } };
+  const rows = [...observeNetworkQuery(event, { path: "t", line: 3, direction: "query" })];
+  assert.equal(rows[0].status, "parsed_query");
+  assert.deepEqual(rows.slice(1).map((row) => [row.location[0].key, row.location[0].occurrence, row.queryIndex, row.type]),
+    [["tag", 0, 0, "string"], ["tag", 1, 1, "string"], ["empty", 0, 2, "string"], ["flag", 0, 3, "string"]]);
+  assert.ok(rows.slice(1).every((row) => row.source.eventId === "query" && row.source.bodyPath === "payload.url"));
+  event.payload.url = "https://example.test/path?name=%E9";
+  assert.equal([...observeNetworkQuery(event, { path: "t", line: 3 })][0].status, "invalid_query_encoding");
 });

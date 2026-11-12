@@ -1,5 +1,24 @@
 import { parseTree } from "jsonc-parser";
 
+export function* observeNetworkQuery(event, evidence) {
+  if (event.kind !== "network.request" || typeof event.payload?.url !== "string") return;
+  const source = { ...evidence, eventId: event.id, requestId: event.payload.requestId ?? null, bodyPath: "payload.url" };
+  let url;
+  try { url = new URL(event.payload.url); }
+  catch (error) { yield { kind: "sample", source, status: "invalid_query_url", reason: String(error) }; return; }
+  if (!url.search) return;
+  try { decodeURIComponent(url.search.slice(1).replace(/\+/g, " ")); }
+  catch (error) { yield { kind: "sample", source, status: "invalid_query_encoding", reason: String(error) }; return; }
+  yield { kind: "sample", source, status: "parsed_query" };
+  const occurrences = new Map();
+  let index = 0;
+  for (const [key] of url.searchParams) {
+    const occurrence = occurrences.get(key) || 0;
+    occurrences.set(key, occurrence + 1);
+    yield { kind: "field", source, location: [{ key, occurrence }], type: "string", queryIndex: index++, encoding: "url-query" };
+  }
+}
+
 export function* observeNetworkBody(event, evidence, assetSample = null) {
   let body, bodyPath;
   if (event.kind === "network.request") { body = event.payload?.postData; bodyPath = "payload.postData"; }

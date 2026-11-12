@@ -12,6 +12,7 @@
 - 部分较新的 v2 包在 `manifest.fieldObservationChunks` 中列出网络正文的字段观察文件。JSON 字段记录引用原始事件、正文位置、字段或数组位置及原始字符串的 UTF-16 偏移和长度；重复字段使用 `occurrence` 区分。`sample` 状态说明解析结果，不能把未解析正文或未观察字段当作不存在，也不能把观察类型当作完整接口契约。
 - `parsed_form_urlencoded` 表示按请求的 `application/x-www-form-urlencoded` 内容类型以 UTF-8 表单规则解析；字段类型为 `string`，`formIndex` 是解码后的有序键值对下标，重复名称以 `occurrence` 区分。按事件或附件读取原始正文并解码后，通过下标核对值；该下标不是原始字节或字符偏移，不能据此推断数字等业务类型。非 UTF-8 字符集标记为 `unsupported_form_charset`，无效编码标记为 `invalid_form_encoding`，原始正文仍保留。
 - `parsed_text` 表示声明为 UTF-8 或未声明字符集的 `text/plain` 正文，作为根路径的 `string` 整理；`offset` 和 `length` 是原始文本的 UTF-16 位置，不是附件字节偏移。声明的非 UTF-8 字符集标记为 `unsupported_text_charset`，保留原始正文并避免猜测字段。
+- `parsed_query` 表示从原始请求 URL 整理的查询参数，`direction: "query"` 与请求体及响应体分开汇总；`queryIndex` 是解码后有序参数下标，重复名称以 `occurrence` 区分，类型为 `string`。按原始 URL 和下标核对参数值；该下标不是字符或字节偏移。无法按 UTF-8 解码时标记 `invalid_query_encoding`，原始 URL 仍保留。
 - 如果观察来源指定 `assetPath`，字段偏移基于该附件按 `decodedAs` 解码后的文本，而不是 ZIP 或附件字节偏移。附件必须经清单校验；无法按该编码解码时记录失败，不推测缺失字段。
 - `manifest.fieldSummaryChunks` 汇总已关联接口的 JSON 与表单编码字段出现次数、出现过的样本数、类型和冲突；数组位置归并为 `arrayItem`，重复键按名称汇总，原始位置和每次出现仍以 `fieldObservationChunks` 为准。汇总包含可解析与总样本数，不表示必填性或完整契约。
 - `manifest.browserObservationChunks` 整理 Cookie 属性、键值存储键以及 IndexedDB 图节点和字段类型。分段来源以 `fragmentCaptureId` 指向原事件的引用；重组失败会产生 `incomplete` 样本，不表示缺失字段不存在。数据库图的 `field-path` 在对象和数组字段上使用 JSON Pointer 转义规则；跨 Map 或 Set 的路径为 `null`，需按 `location` 中的 `key`、`mapEntry`/`part`、`setEntry` 逐步定位原始图。`cycle` 标记循环引用，`field-path-coverage` 表示路径整理不完整；`nodeId` 是图内标识。

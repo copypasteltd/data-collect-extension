@@ -1304,6 +1304,12 @@ try {
     assert.ok(manifest.session.coverage.responseGaps > 0);
     const relations = manifest.relationshipChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
     assert.ok(relations.some((row) => row.relation === "redirected_from" && row.targetId === first.payload.requestId));
+    const queryFields = manifest.fieldObservationChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse))
+      .filter((row) => row.kind === "field" && row.source.requestId === first.payload.requestId && row.source.direction === "query");
+    assert.deepEqual(queryFields.map((row) => [row.location[0].key, row.location[0].occurrence, row.queryIndex]),
+      [["tag", 0, 0], ["tag", 1, 1], ["encoded", 0, 2]]);
+    const summaries = manifest.fieldSummaryChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    assert.ok(summaries.some((row) => row.direction === "query" && row.endpoint.url.endsWith("/fixture-redirect") && row.location[0]?.key === "tag" && row.occurrences === 2));
   }
   if (process.env.TEST_NETWORK_CONCURRENT === "1") {
     const requests = events.filter((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-concurrent?fixed=1"));
