@@ -8,6 +8,7 @@ const scenarios = [
     TEST_LARGE_REQUEST: "1", TEST_LARGE_RESPONSE: "1", TEST_FILE_CAPTURE: "1", TEST_CANVAS_MANY: "1", TEST_STYLE_CAPTURE: "1" }],
   ["frames-and-navigation", { TEST_FRAME_TREE: "1", TEST_BACKGROUND_PAGE: "1" }],
   ["restricted-frame", { TEST_FRAME_RESTRICTED: "1" }],
+  ["dynamic-restricted-frame", { TEST_DYNAMIC_RESTRICTED_FRAME: "1" }],
   ["frame-injection-failure", { TEST_FRAME_TREE: "1", TEST_FRAME_INJECTION_FAILURE: "1" }],
   ["page-instances", { TEST_PAGE_INSTANCES: "1" }],
   ["large-select", { TEST_LARGE_SELECT: "1" }],

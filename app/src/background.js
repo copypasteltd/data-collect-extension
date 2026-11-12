@@ -1394,6 +1394,9 @@ async function stop(onStopping) {
       const requestEntriesComplete = indexRequestEntryEvidence(recorded);
       session.coverage = {
         warnings: recorded.filter((event) => event.kind === "warning").length,
+        frameScopeGaps: recorded.reduce((count, event) => count + (event.kind === "frame.tree"
+          ? (event.payload.frames || []).filter((frame) => frame.scope === "outside_scope" || frame.errorOccurred).length
+          : event.kind === "navigation.frameUnavailable" ? 1 : 0), 0),
         pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
         networkExtraGaps: recorded.filter((event) => event.kind === "network.extraInfoGap").length,
         requestEntryGaps: recorded.filter((event) => event.kind === "network.request" &&
@@ -2434,12 +2437,15 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
 );
 chrome.webNavigation.onCommitted.addListener(
   afterReady((details) => {
-    if (
-      active?.status !== "recording" ||
-      !active.tabs[details.tabId] ||
-      !allowedUrl(details.url)
-    )
+    if (active?.status !== "recording" || !active.tabs[details.tabId]) return;
+    if (!allowedUrl(details.url)) {
+      if (details.frameId !== 0) track(append("navigation.frameUnavailable", {
+        tabId: details.tabId, frameId: details.frameId, parentFrameId: details.parentFrameId,
+        documentId: details.documentId, parentDocumentId: details.parentDocumentId || null,
+        documentLifecycle: details.documentLifecycle || null, reason: "outside_scope",
+      }, { tabId: details.tabId, frameId: details.frameId, documentId: details.documentId }));
       return;
+    }
     track(
       append(
         "navigation.committed",

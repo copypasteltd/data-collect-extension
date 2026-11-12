@@ -23,7 +23,7 @@
 事件字段包括 `id`、`sessionId`、`seq`、`time`、`kind`、`payload`，并可能包含 `tabId`、`frameId`、`documentId`。时间是 Unix 毫秒；按 `time, seq` 查看，并保留 `seq` 作为采集序号。它们不是跨页面或网络的严格因果时钟。
 
 - `page.snapshot`：`payload.url`、`title`、`sourceHtml`、`sourceStatus`、`sourceLength`、`html`、`status`、`viewport`、样式/画布/组件覆盖信息。`sourceHtml` 不保证存在、不包含 Shadow DOM、动态属性外的表单值或原始 HTTP 字节；旧版无此字段。`html` 为受限快照，不是可直接运行的原站页面。
-- `frame.tree` 记录浏览器枚举到的初始框架、父框架和文档标识；`navigation.committed` 记录后续框架导航与父子标识。框架列在树中不代表采集器一定注入成功，应结合对应 `frameId`、`documentId` 的页面事件和失败信息核对；授权范围外的框架不会提供页面内容。
+- `frame.tree` 记录浏览器枚举到的初始框架、父框架和文档标识；`navigation.committed` 记录后续框架导航与父子标识。`navigation.frameUnavailable` 表示录制期间观察到的范围外框架导航，`frameScopeGaps` 是初始范围外或出错框架及后续范围外导航的事件计数，同一框架多次导航可能被多次计数。框架列在树中不代表采集器一定注入成功，应结合对应 `frameId`、`documentId` 的页面事件和失败信息核对；授权范围外的框架不会提供页面内容。
 - 较大的页面可通过 `sourceReference` 或 `htmlReference` 引用 `capture.fragment` 事件；按同一 `captureId`、`field` 和零起始 `index` 组合，并验证分段数、UTF-16 长度及最后的 `capture.fragmentEnd` 为 `confirmed`。缺段、重复、结束事件缺失或长度不符均表示不完整；不要把引用本身视作已经确认的页面。
 - 较大的键值存储快照可以使用 `storageReference` 引用同样的分段协议；重组后的文本为包含 `stores`、`coverage` 和 `specialEntries` 的 JSON。采集采用轮询，不能证明两次采样之间没有短暂变化；`coverage` 为 `partial` 或 `unavailable` 时还存在其他缺口。
 - 长输入的 `valueReference` 和可确认的 `beforeValueReference` 使用相同分段协议；事件中的 `value` 或 `beforeValue` 在此情况下只是前缀，完整性须核对分段和结束确认。

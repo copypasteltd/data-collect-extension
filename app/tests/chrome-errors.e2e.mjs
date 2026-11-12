@@ -270,6 +270,14 @@ try {
   await panel.getByRole("button", { name: "开始录制" }).click();
   await panel.getByRole("button", { name: "停止录制" }).waitFor({ timeout: 30000 });
   await panel.getByText("录制中", { exact: true }).waitFor({ timeout: 30000 });
+  if (process.env.TEST_DYNAMIC_RESTRICTED_FRAME === "1") {
+    await page.evaluate(() => {
+      const frame = document.createElement("iframe");
+      frame.src = "data:text/html,%3Ctitle%3EDynamicRestricted%3C%2Ftitle%3E";
+      document.body.append(frame);
+    });
+    await page.waitForTimeout(1000);
+  }
   if (process.env.TEST_DATABASE_CATALOG === "1") {
     await panel.waitForFunction(async () => {
       const db = await new Promise((resolve, reject) => { const request = indexedDB.open("logic-recorder"); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
@@ -692,6 +700,14 @@ try {
     assert.match(manifest.session.notice || "", /存储写入失败/);
   }
   const events = manifest.eventChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+  if (process.env.TEST_DYNAMIC_RESTRICTED_FRAME === "1") {
+    const unavailable = events.find((event) => event.kind === "navigation.frameUnavailable" && event.payload.reason === "outside_scope");
+    assert.ok(unavailable, "未记录动态出现的范围外框架");
+    assert.equal(unavailable.payload.parentFrameId, 0);
+    assert.ok(unavailable.frameId > 0);
+    assert.ok(manifest.session.coverage.frameScopeGaps > 0);
+    assert.ok(!events.some((event) => event.kind === "page.snapshot" && event.tabId === unavailable.tabId && event.frameId === unavailable.frameId));
+  }
   if (process.env.TEST_FRAME_INJECTION_FAILURE === "1") {
     assert.ok(events.some((event) => event.kind === "interaction.input" && event.frameId === 0 && event.payload.value === "example value"));
     assert.ok(events.some((event) => event.kind === "warning" && event.payload.error?.includes("fixture child injection failure")));
