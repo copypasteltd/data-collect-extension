@@ -18,7 +18,7 @@ import { planFullPageTiles } from "./full-page-tiles.js";
 import { countFullPageGaps } from "./full-page-coverage.js";
 import { countRealtimeGaps } from "./realtime-coverage.js";
 import { indexShadowEvidence } from "./shadow-coverage.js";
-import { countInteractionStyleGaps } from "./interaction-style-coverage.js";
+import { countInteractionStyleGaps, countInteractionDescendantGaps } from "./interaction-style-coverage.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -1440,6 +1440,7 @@ async function stop(onStopping) {
         realtimePayloadGaps: countRealtimeGaps(recorded),
         shadowSourceGaps: recorded.filter((event) => event.kind === "page.snapshot" && event.payload.shadowSourceCaptureId && !shadowComplete(event)).length,
         interactionStyleGaps: countInteractionStyleGaps(recorded),
+        interactionDescendantGaps: countInteractionDescendantGaps(recorded),
         canvasGaps: recorded.filter((event) => event.kind === "page.snapshot" &&
           (event.payload.snapshotId ? !canvasComplete(event.payload.snapshotId) :
           ((event.payload.canvas?.total > 0 && (event.payload.canvas.status !== "captured" ||

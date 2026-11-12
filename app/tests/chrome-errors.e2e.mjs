@@ -268,7 +268,11 @@ try {
   }
   await page.bringToFront();
   await panel.getByRole("button", { name: "开始录制" }).click();
-  await panel.getByRole("button", { name: "停止录制" }).waitFor({ timeout: 30000 });
+  try { await panel.getByRole("button", { name: "停止录制" }).waitFor({ timeout: 30000 }); }
+  catch (error) {
+    console.error("录制启动时的侧边栏状态:", await panel.locator("body").innerText().catch(() => "不可读取"));
+    throw error;
+  }
   await panel.getByText("录制中", { exact: true }).waitFor({ timeout: 30000 });
   if (process.env.TEST_DYNAMIC_RESTRICTED_FRAME === "1") {
     await page.evaluate(() => {
@@ -277,6 +281,16 @@ try {
       document.body.append(frame);
     });
     await page.waitForTimeout(1000);
+  }
+  if (process.env.TEST_INTERACTION_DESCENDANT_LIMIT === "1") {
+    await page.evaluate(() => {
+      const root = document.createElement("div");
+      root.id = "descendant-limit";
+      root.style.cssText = "position:fixed;left:0;top:0;width:200px;height:200px;z-index:9999";
+      for (let index = 0; index < 40; index++) root.append(document.createElement("span"));
+      document.body.append(root);
+    });
+    await page.locator("#descendant-limit").hover({ position: { x: 2, y: 2 } });
   }
   if (process.env.TEST_DATABASE_CATALOG === "1") {
     await panel.waitForFunction(async () => {
@@ -578,10 +592,18 @@ try {
     const [tab] = await panel.evaluate((url) => chrome.tabs.query({ url }), page.url());
     await panel.evaluate((tabId) => chrome.scripting.executeScript({ target: { tabId }, func: () => {
       const original = HTMLCanvasElement.prototype.toBlob;
+      const originalTimeout = globalThis.setTimeout.bind(globalThis);
+      globalThis.setTimeout = (callback, delay, ...args) => originalTimeout(callback, delay === 2500 ? 8000 : delay, ...args);
+      let release, delayed = false;
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message.type === "FLUSH" && release) originalTimeout(release, 0);
+      });
       HTMLCanvasElement.prototype.toBlob = function (callback, ...args) {
+        if (delayed) return original.call(this, callback, ...args);
+        delayed = true;
         const canvas = this;
         globalThis.fixtureCanvasPending = true;
-        setTimeout(() => original.call(canvas, (blob) => { globalThis.fixtureCanvasPending = false; callback(blob); }, ...args), 1800);
+        release = () => original.call(canvas, (blob) => { globalThis.fixtureCanvasPending = false; callback(blob); }, ...args);
       };
     } }), tab.id);
     await page.evaluate(() => document.body.setAttribute("data-delayed-canvas", "start"));
@@ -707,6 +729,14 @@ try {
     assert.ok(unavailable.frameId > 0);
     assert.ok(manifest.session.coverage.frameScopeGaps > 0);
     assert.ok(!events.some((event) => event.kind === "page.snapshot" && event.tabId === unavailable.tabId && event.frameId === unavailable.frameId));
+  }
+  if (process.env.TEST_INTERACTION_DESCENDANT_LIMIT === "1") {
+    const action = events.find((event) => event.kind === "interaction.pointerover" && event.payload.target?.selector === "#descendant-limit");
+    const end = events.find((event) => event.kind === "page.interactionDescendantStyleEnd" &&
+      event.payload.interactionCaptureId === action?.payload.interactionCaptureId);
+    assert.equal(end?.payload.status, "partial");
+    assert.equal(end.payload.truncated, true);
+    assert.ok(manifest.session.coverage.interactionDescendantGaps > 0);
   }
   if (process.env.TEST_FRAME_INJECTION_FAILURE === "1") {
     assert.ok(events.some((event) => event.kind === "interaction.input" && event.frameId === 0 && event.payload.value === "example value"));
@@ -1181,10 +1211,12 @@ try {
       event.payload.target?.nodeId === hover.payload.nodeId));
     assert.equal(manifest.session.coverage.interactionStyleGaps, 0);
     const relations = manifest.relationshipChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
-    assert.equal(relations.filter((item) => item.relation === "interaction_capture" && item.targetId === hover.payload.interactionCaptureId).length, 2);
+    assert.ok(relations.filter((item) => item.relation === "interaction_capture" && item.targetId === hover.payload.interactionCaptureId).length >= 2);
     const theme = manifest.themeObservationChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
     assert.ok(theme.some((item) => item.source === "computed_interaction" && item.interactionCaptureId === hover.payload.interactionCaptureId && item.value === "rgb(200, 20, 30)"));
-    assert.ok(theme.some((item) => item.source === "computed" && item.property === "color" && item.value === "rgb(1, 222, 45)"), "未记录悬停影响的子元素颜色");
+    assert.ok(theme.some((item) => item.source === "computed_interaction" && item.interactionCaptureId === hover.payload.interactionCaptureId &&
+      item.property === "color" && item.value === "rgb(1, 222, 45)"), "未记录悬停影响的子元素颜色");
+    assert.equal(manifest.session.coverage.interactionDescendantGaps, 0);
     for (const value of ["rgb(11, 22, 33)", "rgb(99, 88, 77)"])
       assert.ok(theme.some((item) => item.property === "--accent" && item.value.trim() === value), `未记录主题变量 ${value}`);
   }

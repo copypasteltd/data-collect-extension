@@ -41,6 +41,7 @@ const scenarios = [
   ["shadow-style", { TEST_SHADOW_STYLE: "1" }],
   ["pseudo-style", { TEST_PSEUDO_STYLE: "1" }],
   ["theme-switch-and-hover", { TEST_THEME_SWITCH: "1" }],
+  ["interaction-descendant-limit", { TEST_INTERACTION_DESCENDANT_LIMIT: "1" }],
   ["computed-style-stress", { TEST_STYLE_STRESS: "1" }],
   ["full-page-dpr2", { TEST_FULL_PAGE: "1", TEST_PNG_PIXEL: "1", TEST_DEVICE_SCALE: "2" }],
   ["fixed-and-nested-scroll", { TEST_FIXED_NESTED: "1" }],

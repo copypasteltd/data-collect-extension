@@ -37,6 +37,7 @@
 - `page.computedStyle` 按 `snapshotId` 和 `captureId` 分批记录节点、采样时间、矩形及元素和 `::before`、`::after` 的计算属性；`pseudos` 另包含适用的常见伪元素，`pseudoScope: "common_pseudos"` 不表示所有伪元素均已采样。需检查全部批次和对应的 `page.computedStyleEnd`。它们在各自的 `observedAt` 读取，不保证为快照产生时的同一瞬间；`skipped_busy`、缺批、未确认或节点不可读均是缺口。
 - 若计算样式批次的 `entriesEncoding` 为 `gzip-base64-json-v1`，`entriesData` 需先 Base64 解码，再按 gzip 解压为 UTF-8 JSON 数组；检查 gzip 校验、`entriesBytes` 和 `entryCount`。可使用 `scripts/decode_computed_style.py` 从已校验的 SQLite 索引解码单批；旧记录可能直接包含 `entries`。
 - `page.interactionStyle` 是指针进入、离开及焦点变化处理时读取的目标元素、`::before` 和 `::after` 计算样式；与对应操作通过 `interactionCaptureId`、节点和事件时间关联。采样时间代表实际读取时刻，不保证记录其他元素或交互结束后的状态；配对缺失、重复或读取失败计入 `interactionStyleGaps`。
+- `page.interactionDescendantStyle` 为同一交互期间目标元素的普通 DOM 后代采样，按 `interactionCaptureId`、`rootNodeId` 和各自的 `observedAt` 关联；`page.interactionDescendantStyleEnd` 记录范围、采集数量、失败和截断。采集最多 25 个后代并受约 40 毫秒预算约束，不包含 Shadow DOM 后代或其他元素；`partial`、缺少结束记录、重复节点和读取失败计入 `interactionDescendantGaps`。不能据此推断未采样节点的样式。
 - `page.mutation`：节点增删、属性及文本变化；`status` 非 `captured` 或找不到对应基线时，不能假设状态完整。`interaction.*` 保存操作目标、值、坐标、选项及可能的操作前值；采样、截断、脚本操作或浏览器关闭可能导致缺口。
 - `page.mutation.rawChanges` 单独保留原始属性、文本及增删节点信息；长值或节点使用分段引用。节点序列化发生在 MutationObserver 回调时，可能已包含同批稍后变化，不能将其当作插入瞬间的精确快照。原始节点可能含脚本，不应直接执行。
 - 页面和容器滚动记录包含位置、可见范围和 `eventCount`；大快照的 `scroll.reference` 需要按分段协议重组。`coverage: "rendered_only"` 表示只反映浏览器当时已渲染的内容，不能推断虚拟列表未加载的项目。

@@ -864,6 +864,30 @@ import { packComputedEntries } from "./computed-style-encoder.js";
     } catch (error) {
       emit("page.interactionStyle", { ...info, status: "unavailable", reasonDetail: String(error) });
     }
+    let processed = 0, failed = 0, truncated = false;
+    const deadline = performance.now() + 40;
+    try {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT);
+      let child;
+      while ((child = walker.nextNode())) {
+        if (processed >= 25 || (processed > 0 && performance.now() > deadline)) { truncated = true; break; }
+        const item = { url: location.href, nodeId: nodeId(child), rootNodeId: info.nodeId, reason,
+          interactionCaptureId, interactionTime, observedAt: Date.now() };
+        try {
+          emit("page.interactionDescendantStyle", { ...item, status: "captured", properties: readComputedProperties(child, null),
+            before: readComputedProperties(child, "::before"), after: readComputedProperties(child, "::after") });
+        } catch (error) {
+          failed++;
+          emit("page.interactionDescendantStyle", { ...item, status: "unavailable", reasonDetail: String(error) });
+        }
+        processed++;
+      }
+      emit("page.interactionDescendantStyleEnd", { ...info, scope: "light_dom_descendants_only", processed, failed,
+        status: truncated || failed ? "partial" : "captured", truncated });
+    } catch (error) {
+      emit("page.interactionDescendantStyleEnd", { ...info, scope: "light_dom_descendants_only", processed, failed,
+        status: "unavailable", reasonDetail: String(error) });
+    }
   }
   function snapshot(reason) {
     try {
