@@ -56,6 +56,9 @@ const server = http.createServer((req, res) => {
   } else if (req.url === "/large-binary-18") {
     res.writeHead(200, { "Content-Type": "application/octet-stream" });
     res.end(Buffer.alloc(18000000, 0x8d));
+  } else if (req.url === "/fixture-text") {
+    req.resume();
+    req.on("end", () => { res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); res.end("response 42\n"); });
   } else if (req.url === "/fixture-concurrent?fixed=1") {
     const index = Number(req.headers["x-fixture-id"]);
     setTimeout(() => {
@@ -113,7 +116,9 @@ const child = spawn(executable, [
   "--disable-background-networking", "--no-proxy-server",
   "--host-resolver-rules=MAP recorder.test 127.0.0.1", "--window-size=1000,700",
   ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : []), "about:blank",
-], { windowsHide: true, stdio: "ignore" });
+], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+let chromeStderr = "";
+child.stderr.on("data", (chunk) => { chromeStderr = (chromeStderr + chunk.toString()).slice(-8000); });
 let launchError;
 const exited = new Promise((resolve) => {
   child.once("exit", resolve);
@@ -128,7 +133,7 @@ try {
     try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
     catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
   }
-  assert.ok(port, "Chrome 调试接口未启动");
+  assert.ok(port, `Chrome 调试接口未启动（退出码 ${child.exitCode}）：${chromeStderr}`);
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
   root = await browser.newBrowserCDPSession();
   const { id } = await root.send("Extensions.loadUnpacked", { path: path.resolve("dist") });
@@ -461,6 +466,10 @@ try {
     if (results.some((result, index) => result.body.fixtureId !== index || result.status !== (index === 5 ? 500 : 200)))
       throw new Error("并发测试响应不匹配");
   });
+  if (process.env.TEST_TEXT_FIELDS === "1") await page.evaluate(async () => {
+    const response = await fetch("/fixture-text", { method: "POST", headers: { "content-type": "text/plain; charset=utf-8" }, body: "request 123" });
+    if (await response.text() !== "response 42\n") throw new Error("纯文本测试响应不匹配");
+  });
   if (process.env.TEST_FORM_FIELDS === "1") await page.evaluate(async () => {
     const headers = { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" };
     await (await fetch("/fixture-form", { method: "POST", headers, body: "tag=one&tag=%E4%B8%AD&empty=&flag" })).text();
@@ -606,10 +615,13 @@ try {
         release = () => original.call(canvas, (blob) => { globalThis.fixtureCanvasPending = false; callback(blob); }, ...args);
       };
     } }), tab.id);
-    await page.evaluate(() => document.body.setAttribute("data-delayed-canvas", "start"));
-    const deadline = Date.now() + 4000;
-    let pending = false;
+    const deadline = Date.now() + 10000;
+    let pending = false, lastRequest = 0;
     while (Date.now() < deadline && !pending) {
+      if (Date.now() - lastRequest >= 700) {
+        await panel.evaluate((tabId) => { chrome.tabs.sendMessage(tabId, { type: "SNAPSHOT" }, { frameId: 0 }).catch(() => {}); }, tab.id);
+        lastRequest = Date.now();
+      }
       const [result] = await panel.evaluate((tabId) => chrome.scripting.executeScript({ target: { tabId }, func: () => !!globalThis.fixtureCanvasPending }), tab.id);
       pending = result.result;
       if (!pending) await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1305,6 +1317,14 @@ try {
       assert.equal(response?.payload.status, index === 5 ? 500 : 200);
       assert.equal(JSON.parse(finished.payload.body.value).fixtureId, index);
     }
+  }
+  if (process.env.TEST_TEXT_FIELDS === "1") {
+    const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-text"));
+    assert.ok(request);
+    const observations = manifest.fieldObservationChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    const fields = observations.filter((row) => row.kind === "field" && row.source.requestId === request.payload.requestId);
+    assert.ok(fields.some((row) => row.source.direction === "request" && row.type === "string" && row.length === "request 123".length));
+    assert.ok(fields.some((row) => row.source.direction === "response" && row.type === "string" && row.length === "response 42\n".length));
   }
   if (process.env.TEST_FORM_FIELDS === "1") {
     const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-form"));

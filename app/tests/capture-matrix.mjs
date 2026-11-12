@@ -36,6 +36,7 @@ const scenarios = [
   ["network-redirect", { TEST_REDIRECT: "1" }],
   ["network-concurrent", { TEST_NETWORK_CONCURRENT: "1" }],
   ["network-form-fields", { TEST_FORM_FIELDS: "1" }],
+  ["network-text-fields", { TEST_TEXT_FIELDS: "1" }],
   ["network-realtime-large", { TEST_REALTIME_LARGE: "1" }],
   ["mutations", { TEST_MUTATION_BATCH: "1", TEST_RAW_MUTATION: "1" }],
   ["shadow-style", { TEST_SHADOW_STYLE: "1" }],

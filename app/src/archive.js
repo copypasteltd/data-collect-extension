@@ -192,6 +192,11 @@ async function createArchiveData(id, onProgress) {
           requestEndpoints.set(event.payload.requestId, { endpoint: { method: event.payload.method, url: url.origin + url.pathname }, contentType });
         } catch {}
       }
+      if (event.kind === "network.response" && typeof event.payload?.requestId === "string") {
+        const request = requestEndpoints.get(event.payload.requestId);
+        if (request) request.responseContentType = Object.entries(event.payload.headers || {})
+          .find(([name]) => name.toLowerCase() === "content-type")?.[1] || event.payload.mimeType || "";
+      }
       const body = event.kind === "network.request" ? event.payload?.postData
         : ["network.requestBody", "network.finished"].includes(event.kind) ? event.payload?.body : null;
       const assetId = body?.assetId || (body?.status === "captured_asset" ? event.payload?.assetId : null);
@@ -199,7 +204,7 @@ async function createArchiveData(id, onProgress) {
       if (body?.status === "captured_asset" && !asset)
         throw new Error(`记录引用的正文附件不存在：${event.id}`);
       let sample = null;
-      if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|^application\/x-www-form-urlencoded$/i.test(asset.mime || "")) {
+      if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|^application\/x-www-form-urlencoded$|^text\/plain$/i.test(asset.mime || "")) {
         const assetPath = `resources/${asset.id}.bin`;
         try {
           sample = { path: assetPath, text: new TextDecoder("utf-8", { fatal: true }).decode(await asset.blob.arrayBuffer()) };
@@ -208,7 +213,8 @@ async function createArchiveData(id, onProgress) {
       const request = requestEndpoints.get(event.payload?.requestId);
       const direction = event.kind === "network.finished" ? "response" : "request";
       for (const observation of observeNetworkBody(event, { path, line: index + 1,
-        ...(request ? { endpoint: request.endpoint, direction, ...(direction === "request" ? { contentType: request.contentType } : {}) } : {}) }, sample)) {
+        ...(request ? { endpoint: request.endpoint, direction,
+          contentType: direction === "request" ? request.contentType : request.responseContentType } : {}) }, sample)) {
         fieldSummary.add(observation);
         await fieldWriter.add(observation);
       }

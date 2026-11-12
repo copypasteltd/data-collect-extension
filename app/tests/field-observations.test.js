@@ -61,3 +61,14 @@ it("表单字符集不支持或编码无效时保留原始证据并拒绝推断�
   assert.equal(rows[0].status, "invalid_form_encoding");
   assert.equal(event.payload.postData.value, "name=%E9");
 });
+
+it("纯文本正文保留字符串类型和可追溯的 UTF-16 位置", () => {
+  const event = { id: "text", kind: "network.finished", payload: { requestId: "r", body: { status: "captured", value: "42😀\n" } } };
+  const rows = [...observeNetworkBody(event, { path: "t", line: 2, contentType: "text/plain; charset=utf-8" })];
+  assert.equal(rows[0].status, "parsed_text");
+  assert.deepEqual([rows[1].location, rows[1].type, rows[1].offset, rows[1].length], [[], "string", 0, 5]);
+  assert.equal(rows[1].source.eventId, "text");
+  const unsupported = [...observeNetworkBody(event, { path: "t", line: 2, contentType: "text/plain; charset=iso-8859-1" })];
+  assert.equal(unsupported.length, 1);
+  assert.equal(unsupported[0].status, "unsupported_text_charset");
+});

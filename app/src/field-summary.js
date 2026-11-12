@@ -10,7 +10,7 @@ export function createFieldSummary() {
       if (row.kind === "sample") {
         const count = samples.get(group) || { total: 0, parsed: 0 };
         count.total++;
-        if (["parsed_json", "parsed_form_urlencoded"].includes(row.status)) count.parsed++;
+        if (["parsed_json", "parsed_form_urlencoded", "parsed_text"].includes(row.status)) count.parsed++;
         samples.set(group, count);
       } else if (row.kind === "field") {
         const location = row.location.map((part) => Object.hasOwn(part, "key") ? { key: part.key } : { arrayItem: true });

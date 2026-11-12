@@ -20,6 +20,17 @@ export function* observeNetworkBody(event, evidence, assetSample = null) {
   }
   const contentType = evidence.contentType || Object.entries(event.payload?.headers || {})
     .find(([name]) => name.toLowerCase() === "content-type")?.[1] || "";
+  if (/^text\/plain(?:\s*;|\s*$)/i.test(contentType)) {
+    const charset = /(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i.exec(contentType);
+    if (charset && !/^utf-?8$/i.test(charset[1] ?? charset[2])) {
+      yield { kind: "sample", source, status: "unsupported_text_charset", charset: charset[1] ?? charset[2] };
+      return;
+    }
+    yield { kind: "sample", source, status: "parsed_text", bodyStatus: body.status || null };
+    yield { kind: "field", source, location: [], type: "string", offset: 0, length: body.value.length,
+      encoding: "text/plain" };
+    return;
+  }
   if (/^application\/x-www-form-urlencoded(?:\s*;|\s*$)/i.test(contentType)) {
     const charset = /(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i.exec(contentType);
     if (charset && !/^utf-?8$/i.test(charset[1] ?? charset[2])) {
