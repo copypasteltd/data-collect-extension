@@ -56,6 +56,12 @@ const server = http.createServer((req, res) => {
   } else if (req.url === "/large-binary-18") {
     res.writeHead(200, { "Content-Type": "application/octet-stream" });
     res.end(Buffer.alloc(18000000, 0x8d));
+  } else if (req.url === "/fixture-concurrent?fixed=1") {
+    const index = Number(req.headers["x-fixture-id"]);
+    setTimeout(() => {
+      res.writeHead(index === 5 ? 500 : 200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ fixtureId: index }));
+    }, (5 - index) * 80);
   } else if (req.url.startsWith("/fixture-redirect?")) {
     res.writeHead(302, { Location: "/fixture-final?tag=three&tag=four", "X-Fixture-Redirect": "native-header" });
     res.end("redirect-body");
@@ -425,6 +431,13 @@ try {
   if (process.env.TEST_REDIRECT === "1") await page.evaluate(async () => {
     const response = await fetch("/fixture-redirect?tag=one&tag=two&encoded=%E4%B8%AD");
     await response.json();
+  });
+  if (process.env.TEST_NETWORK_CONCURRENT === "1") await page.evaluate(async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_, index) =>
+      fetch("/fixture-concurrent?fixed=1", { headers: { "x-fixture-id": String(index) } })
+        .then(async (response) => ({ status: response.status, body: await response.json() }))));
+    if (results.some((result, index) => result.body.fixtureId !== index || result.status !== (index === 5 ? 500 : 200)))
+      throw new Error("并发测试响应不匹配");
   });
   if (process.env.TEST_FORM_FIELDS === "1") await page.evaluate(async () => {
     const headers = { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" };
@@ -1231,6 +1244,19 @@ try {
     assert.ok(manifest.session.coverage.responseGaps > 0);
     const relations = manifest.relationshipChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
     assert.ok(relations.some((row) => row.relation === "redirected_from" && row.targetId === first.payload.requestId));
+  }
+  if (process.env.TEST_NETWORK_CONCURRENT === "1") {
+    const requests = events.filter((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-concurrent?fixed=1"));
+    assert.equal(requests.length, 6);
+    assert.equal(new Set(requests.map((event) => event.payload.requestId)).size, 6);
+    for (const request of requests) {
+      const header = Object.entries(request.payload.headers).find(([name]) => name.toLowerCase() === "x-fixture-id");
+      const index = Number(header?.[1]);
+      const response = events.find((event) => event.kind === "network.response" && event.payload.requestId === request.payload.requestId);
+      const finished = events.find((event) => event.kind === "network.finished" && event.payload.requestId === request.payload.requestId);
+      assert.equal(response?.payload.status, index === 5 ? 500 : 200);
+      assert.equal(JSON.parse(finished.payload.body.value).fixtureId, index);
+    }
   }
   if (process.env.TEST_FORM_FIELDS === "1") {
     const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-form"));

@@ -11,6 +11,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 - 增加数据库目录及结束确认、缓存目录变化记录，并整理 UTF-8 表单编码字段；不支持的字符集和无效编码保留原文并报告。 / Record database and cache catalogs with completion evidence and summarize UTF-8 URL-encoded form fields; retain original bodies and report unsupported charsets or invalid encoding.
 - 增加隔离 Chrome 故障注入、资源字节和持续录制压力样本；结果与未覆盖范围见实施进度。 / Add isolated Chrome fault-injection, resource-byte, and sustained-recording samples; results and remaining gaps are documented in the implementation progress.
 - 修复非 HTTP(S) 框架误执行采集器导致的异常；批量注入失败后逐框架重试并记录失败范围；纠正数据库目录关系被误标为缓存目录的问题。 / Avoid collector errors in non-HTTP(S) frames, retry failed batch injection per frame while reporting gaps, and correct database catalog relationships mislabeled as cache relationships.
+- 补充同地址并发请求乱序关联和录制期间关闭标签页的验证。 / Verify out-of-order responses for concurrent requests to the same URL and closing a tab during recording.
 - 停止时覆盖检查失败或超时会标记中断并保留已保存数据；导出检测缺失附件。Windows 隔离 Chrome 的测试结果见实施进度，未进行 macOS 真机测试。 / Mark a batch interrupted when the final coverage check fails or times out while retaining saved data; detect missing assets during export. Windows isolated Chrome results are in the progress document; macOS hardware was not tested.
 
 ## 0.1.6 - 2026-11-11
