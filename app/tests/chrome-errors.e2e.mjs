@@ -13,6 +13,7 @@ import { WebSocketServer } from "ws";
 
 const executable = process.env.CHROME_BIN;
 if (!executable) throw new Error("请通过 CHROME_BIN 指定正式版 Chrome 的路径");
+const webglTest = process.env.TEST_CANVAS_WEBGL === "1" || process.env.TEST_CANVAS_WEBGL_NO_BUFFER === "1";
 const fontFixture = process.env.TEST_FONT === "1" || process.env.TEST_INITIAL_RESOURCES === "1" ? await fs.readFile(process.env.TEST_FONT_PATH || "C:\\Windows\\Fonts\\arial.ttf") : null;
 const imageFixture = () => Buffer.concat([
   Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+nmioAAAAASUVORK5CYII=", "base64"),
@@ -93,10 +94,11 @@ const server = http.createServer((req, res) => {
     const virtualList = process.env.TEST_VIRTUAL_LIST === "1" ? '<div id="virtual" style="height:100px;overflow:auto"><div style="height:1200px"><div id="visible-rows">rows-0-9</div><div id="lazy-result"></div></div></div>' : "";
     const canvases = process.env.TEST_CANVAS_MANY === "1" ? '<canvas hidden width="1200" height="600"></canvas>'.repeat(6) : "";
     const delayedCanvas = process.env.TEST_DELAYED_CANVAS === "1" ? '<canvas id="delayed-canvas" width="40" height="40"></canvas>' : "";
+    const webglCanvas = webglTest ? '<canvas id="webgl-canvas" width="40" height="40"></canvas>' : "";
     const tainted = process.env.TEST_CANVAS_TAINTED === "1" ? '<canvas id="tainted" hidden width="2" height="2"></canvas>' : "";
     const scrolls = process.env.TEST_SCROLL_MANY === "1" ? '<div class="scroll-fixture" style="height:2px;overflow:auto"><div style="height:30px"></div></div>'.repeat(205) : "";
     const initialResources = process.env.TEST_INITIAL_RESOURCES === "1" ? '<link rel="stylesheet" href="/fixture-initial.css"><img src="/large-image">' : "";
-    res.end(`<!doctype html><title>Extension error test</title>${style}${initialResources}<input id="input"><button id="send" onclick="fetch('/api')">Send</button>${file}${select}${dynamicSelect}${styleStress}${fixedNested}${virtualList}${canvases}${delayedCanvas}${tainted}${scrolls}${frame}${large}`);
+    res.end(`<!doctype html><title>Extension error test</title>${style}${initialResources}<input id="input"><button id="send" onclick="fetch('/api')">Send</button>${file}${select}${dynamicSelect}${styleStress}${fixedNested}${virtualList}${canvases}${delayedCanvas}${webglCanvas}${tainted}${scrolls}${frame}${large}`);
   }
 });
 if (process.env.TEST_REALTIME_LARGE === "1") {
@@ -114,6 +116,7 @@ const child = spawn(executable, [
   `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
   "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
   "--disable-background-networking", "--no-proxy-server",
+  ...(webglTest ? ["--enable-unsafe-swiftshader"] : []),
   "--host-resolver-rules=MAP recorder.test 127.0.0.1", "--window-size=1000,700",
   ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : []), "about:blank",
 ], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
@@ -175,6 +178,13 @@ try {
     await image.decode();
     document.querySelector("#tainted").getContext("2d").drawImage(image, 0, 0);
   }, server.address().port);
+  if (webglTest) await page.evaluate((preserve) => {
+    const gl = document.querySelector("#webgl-canvas").getContext("webgl", { preserveDrawingBuffer: preserve });
+    if (!gl) throw new Error("测试环境未提供 WebGL");
+    gl.clearColor(0.2, 0.4, 0.6, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.finish();
+  }, process.env.TEST_CANVAS_WEBGL === "1");
   if (process.env.TEST_CACHE_BODY === "1") await page.evaluate(async () => {
     const cache = await caches.open("fixture-cache");
     const request = new Request("/cached-entry", { headers: { "x-fixture-request": "request-value" } });
@@ -734,6 +744,38 @@ try {
     assert.match(manifest.session.notice || "", /存储写入失败/);
   }
   const events = manifest.eventChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+  if (webglTest) {
+    const finalSnapshot = events.find((event) => event.kind === "page.snapshot" && event.payload.reason === "stop");
+    const end = events.find((event) => event.kind === "canvas.captureEnd" && event.payload.snapshotId === finalSnapshot?.payload.snapshotId);
+    assert.equal(end?.payload.status, "captured");
+    const item = events.find((event) => event.kind === "canvas.capture" && event.payload.snapshotId === finalSnapshot.payload.snapshotId);
+    assert.equal(item?.payload.drawingContext, "unknown");
+    assert.equal(item.payload.screenEquivalence, "unverified");
+    const encoded = reconstructFragments(item.payload.reference, events);
+    const pixel = await page.evaluate(async (base64) => {
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext("2d"); context.drawImage(bitmap, 0, 0); bitmap.close();
+      return Array.from(context.getImageData(20, 20, 1, 1).data);
+    }, encoded);
+    if (process.env.TEST_CANVAS_WEBGL === "1") assert.deepEqual(pixel, [51, 102, 153, 255]);
+    const screenshot = events.find((event) => event.kind === "screenshot" && event.payload.assetId && !event.payload.contextChanged);
+    assert.ok(screenshot, "缺少可对照的 WebGL 页面截图");
+    const screen = Buffer.from(archive[`screenshots/${screenshot.payload.assetId}.png`]).toString("base64");
+    const screenPixel = await page.evaluate(async (base64) => {
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+      const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext("2d"); context.drawImage(bitmap, 0, 0); bitmap.close();
+      const rect = document.querySelector("#webgl-canvas").getBoundingClientRect();
+      return Array.from(context.getImageData(Math.floor((rect.left + rect.width / 2) * devicePixelRatio),
+        Math.floor((rect.top + rect.height / 2) * devicePixelRatio), 1, 1).data);
+    }, screen);
+    if (process.env.TEST_CANVAS_WEBGL === "1") assert.deepEqual(screenPixel, pixel);
+    else console.log(`WebGL 未保留绘图缓冲：画布像素 ${JSON.stringify(pixel)}，截图像素 ${JSON.stringify(screenPixel)}`);
+    assert.ok(manifest.session.coverage.canvasContextUnknown > 0);
+  }
   if (process.env.TEST_DYNAMIC_RESTRICTED_FRAME === "1") {
     const unavailable = events.find((event) => event.kind === "navigation.frameUnavailable" && event.payload.reason === "outside_scope");
     assert.ok(unavailable, "未记录动态出现的范围外框架");

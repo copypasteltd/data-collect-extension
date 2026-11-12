@@ -16,6 +16,8 @@ const scenarios = [
   ["scroll-containers", { TEST_SCROLL_MANY: "1" }],
   ["virtual-list-and-lazy", { TEST_VIRTUAL_LIST: "1" }],
   ["tainted-canvas", { TEST_CANVAS_TAINTED: "1" }],
+  ["webgl-canvas", { TEST_CANVAS_WEBGL: "1" }],
+  ["webgl-canvas-no-buffer", { TEST_CANVAS_WEBGL_NO_BUFFER: "1" }],
   ["delayed-final-canvas", { TEST_DELAYED_CANVAS: "1" }],
   ["delayed-final-shadow", { TEST_DELAYED_SHADOW: "1" }],
   ["cache-and-opaque", { TEST_CACHE_BODY: "1", TEST_CACHE_MANY: "1", TEST_CACHE_OPAQUE: "1" }],
