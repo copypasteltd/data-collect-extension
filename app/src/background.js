@@ -4,6 +4,21 @@ import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
 import { withSessionLock } from "./session-lock.js";
 import { canRecoverSession } from "./session-ownership.js";
+import { indexFragmentEvidence } from "./fragments.js";
+import { responseBlob } from "./large-response.js";
+import { indexComputedStyleEvidence } from "./computed-style-coverage.js";
+import { indexDatabaseEvidence } from "./database-coverage.js";
+import { indexDatabaseCatalogEvidence } from "./database-catalog-coverage.js";
+import { indexCacheEvidence } from "./cache-coverage.js";
+import { indexCacheCatalogEvidence } from "./cache-catalog-coverage.js";
+import { indexCanvasEvidence } from "./canvas-coverage.js";
+import { rawMutationComplete } from "./mutation-coverage.js";
+import { indexRequestEntryEvidence } from "./request-entry-coverage.js";
+import { planFullPageTiles } from "./full-page-tiles.js";
+import { countFullPageGaps } from "./full-page-coverage.js";
+import { countRealtimeGaps } from "./realtime-coverage.js";
+import { indexShadowEvidence } from "./shadow-coverage.js";
+import { countInteractionStyleGaps } from "./interaction-style-coverage.js";
 import {
   cleanBody,
   cleanCookieValue,
@@ -14,6 +29,8 @@ import {
 } from "./privacy.js";
 
 const uid = () => crypto.randomUUID();
+const NETWORK_TOTAL_BUFFER_BYTES = 128000000;
+const NETWORK_RESOURCE_BUFFER_BYTES = 32000000;
 let active = null;
 let currentOrigin = null;
 let networkSealed = false;
@@ -21,6 +38,8 @@ let screenshotLast = 0;
 let screenshotTimer;
 let screenshotPending = [];
 let screenshotChain = Promise.resolve();
+let fullPageChain = Promise.resolve();
+const fullPageRequests = new Set();
 const pending = new Set();
 const tabActivationVersions = new Map();
 const requests = new Map();
@@ -138,6 +157,29 @@ function append(kind, payload = {}, extra = {}) {
   });
   writeChain = handled.then(() => undefined);
   return track(handled);
+}
+function appendRealtime(kind, payload, raw, encoding, extra) {
+  const session = active;
+  if (!session) return Promise.resolve();
+  if (payload.data?.status !== "omitted_size" || typeof raw !== "string") return append(kind, payload, extra);
+  const captureId = uid();
+  const first = append(kind, { ...payload, observedAt: Date.now(), data: { status: "pending_asset", captureId,
+    encoding, length: raw.length } }, extra);
+  return track((async () => {
+    if (!await first) return;
+    let result;
+    try {
+      const blob = new Blob([JSON.stringify(raw)], { type: "application/json" });
+      const assetId = uid();
+      await put("assets", { id: assetId, sessionId: session.id, type: "resource", mime: "application/json", blob });
+      result = { captureId, requestId: payload.requestId, status: "captured_asset", assetId, size: blob.size,
+        representation: "json-string-utf8", encoding, originalLength: raw.length };
+    } catch (error) {
+      markEventWriteFailure(session.id, error);
+      result = { captureId, requestId: payload.requestId, status: "unavailable", reason: String(error) };
+    }
+    if (active === session) await append("network.realtimePayload", result, extra);
+  })());
 }
 function appendPageBatch(items, sender, session, batchId) {
   const capacity = Math.max(0, 5000 - outstandingWrites);
@@ -489,10 +531,32 @@ async function start(tab, options, onCreated) {
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
     requirePreparing(session);
     try {
-      const results = await withDeadline(chrome.scripting.executeScript({
-        target: { tabId: target.id, allFrames: true },
-        files: ["content.js"],
-      }), 5000, "页面采集器注入");
+      const frames = await withDeadline(chrome.webNavigation.getAllFrames({ tabId: target.id }), 2000, "页面框架检查");
+      const frameIds = (frames || []).filter((frame) => allowedUrl(frame.url)).map((frame) => frame.frameId);
+      if (!frameIds.length) throw new Error("没有可采集的页面框架");
+      let results;
+      try {
+        results = await withDeadline(chrome.scripting.executeScript({
+          target: { tabId: target.id, frameIds }, files: ["content.js"],
+        }), 5000, "页面采集器注入");
+      } catch (batchError) {
+        requirePreparing(session);
+        const attempts = await Promise.all(frameIds.map(async (frameId) => {
+          try {
+            return await withDeadline(chrome.scripting.executeScript({
+              target: { tabId: target.id, frameIds: [frameId] }, files: ["content.js"],
+            }), 5000, "单框架采集器注入");
+          } catch (error) {
+            if (preparing(session)) {
+              session.incomplete = true;
+              await warning("页面框架采集器注入失败，部分页面操作可能缺失", { tabId: target.id, frameId, error: String(error) });
+            }
+            return [];
+          }
+        }));
+        results = attempts.flat();
+        if (!results.length) throw batchError;
+      }
       requirePreparing(session);
       if (!results?.length) throw new Error("没有可确认的页面框架");
       await Promise.all((results || []).map(async (frame) => {
@@ -569,31 +633,13 @@ async function snapshotCookies(raw) {
       ...(await chrome.cookies.getAll({ domain: parsed.hostname })),
     ];
     const items = new Map();
-    for (const {
-      name,
-      value,
-      domain,
-      path,
-      secure,
-      httpOnly,
-      sameSite,
-      expirationDate,
-      partitionKey,
-      storeId,
-    } of records) {
+    for (const cookie of records) {
+      const { name, value, domain, path, partitionKey, storeId } = cookie;
       const suffix = domain.replace(/^\./, "");
       if (parsed.hostname !== suffix && !parsed.hostname.endsWith("." + suffix))
         continue;
       items.set(JSON.stringify([name, domain, path, partitionKey, storeId]), {
-        name,
-        domain,
-        path,
-        secure,
-        httpOnly,
-        sameSite,
-        expirationDate,
-        partitionKey,
-        storeId,
+        ...cookie,
         ...cleanCookieValue(name, value),
       });
     }
@@ -603,11 +649,48 @@ async function snapshotCookies(raw) {
         items: [...items.values()],
       });
   } catch (error) {
+    session.cookieOrigins = session.cookieOrigins.filter((origin) => origin !== site);
     if (active === session && ["preparing", "recording"].includes(session.status))
       await warning("Cookie 初始状态无法读取", {
         origin: site,
         error: String(error),
       });
+  }
+}
+
+async function snapshotFrameCookies(tabId, frame) {
+  const session = active;
+  if (!session || !allowedUrl(frame.url)) return;
+  const documentId = frame.documentId || null;
+  const key = JSON.stringify([tabId, frame.frameId, documentId, frame.url]);
+  session.cookieFrames ||= [];
+  if (session.cookieFrames.includes(key)) return;
+  session.cookieFrames.push(key);
+  try {
+    await snapshotCookies(frame.url);
+    if (typeof chrome.cookies.getPartitionKey !== "function")
+      throw new Error("浏览器版本不支持按框架获取 Cookie 分区");
+    const details = { tabId, frameId: frame.frameId, ...(documentId ? { documentId } : {}) };
+    const result = await chrome.cookies.getPartitionKey(details);
+    if (!result?.partitionKey) throw new Error("浏览器未提供 Cookie 分区键");
+    const hostname = new URL(frame.url).hostname;
+    const cookies = [
+      ...await chrome.cookies.getAll({ url: frame.url, partitionKey: result.partitionKey }),
+      ...await chrome.cookies.getAll({ domain: hostname, partitionKey: result.partitionKey }),
+    ];
+    const itemsByKey = new Map();
+    for (const cookie of cookies) {
+      const domain = cookie.domain.replace(/^\./, "");
+      if (hostname === domain || hostname.endsWith("." + domain))
+        itemsByKey.set(JSON.stringify([cookie.name, cookie.domain, cookie.path, cookie.partitionKey, cookie.storeId]),
+          { ...cookie, ...cleanCookieValue(cookie.name, cookie.value) });
+    }
+    if (active === session) await append("cookie.partitionSnapshot", { url: frame.url, status: "captured",
+      partitionKey: result.partitionKey, items: [...itemsByKey.values()] }, { tabId, frameId: frame.frameId, documentId });
+  } catch (error) {
+    session.cookieFrames = session.cookieFrames.filter((item) => item !== key);
+    if (active === session) await append("cookie.partitionSnapshot", { url: frame.url, status: "unavailable", reason: String(error) },
+      { tabId, frameId: frame.frameId, documentId });
   }
 }
 
@@ -634,8 +717,8 @@ async function attachTab(tabId) {
     );
     target.mainFrameId = tree.frameTree.frame.id;
     await chrome.debugger.sendCommand({ tabId }, "Network.enable", {
-      maxTotalBufferSize: 20000000,
-      maxResourceBufferSize: 2000000,
+      maxTotalBufferSize: NETWORK_TOTAL_BUFFER_BYTES,
+      maxResourceBufferSize: NETWORK_RESOURCE_BUFFER_BYTES,
       maxPostDataSize: 65536,
     });
     if (!isCurrent()) return;
@@ -684,6 +767,77 @@ async function enableChildTargets(debugSession) {
   });
 }
 
+async function captureLoadedResources(target, deadline, session) {
+  const summary = { total: 0, captured: 0, failed: 0, omitted: 0, status: "captured" };
+  const current = () => active === session && ["preparing", "recording"].includes(session.status);
+  try {
+    if (!target.debuggerAttached) throw new Error("调试连接不可用");
+    const tree = await withDeadline(chrome.debugger.sendCommand({ tabId: target.id }, "Page.getResourceTree"),
+      Math.max(1, Math.min(1500, deadline - Date.now())), "已加载资源目录读取");
+    const pending = [tree.frameTree], resources = [];
+    while (pending.length) {
+      const frame = pending.pop();
+      if (!frame?.frame) continue;
+      pending.push(...(frame.childFrames || []));
+      if (!allowedUrl(frame.frame.url)) continue;
+      for (const item of frame.resources || []) {
+        if (["Stylesheet", "Font", "Image"].includes(item.type) && isHttpUrl(item.url))
+          resources.push({ ...item, protocolFrameId: frame.frame.id, frameUrl: frame.frame.url, loaderId: frame.frame.loaderId });
+      }
+    }
+    summary.total = resources.length;
+    let totalBytes = 0;
+    for (const item of resources) {
+      if (!current()) return;
+      if (Date.now() >= deadline || summary.captured + summary.failed >= 50 || totalBytes >= 10000000) {
+        summary.omitted = summary.total - summary.captured - summary.failed;
+        break;
+      }
+      const meta = { url: item.url, resourceType: item.type, mime: item.mimeType,
+        protocolFrameId: item.protocolFrameId, frameUrl: item.frameUrl, loaderId: item.loaderId,
+        expectedSize: item.contentSize ?? null, observedAt: Date.now() };
+      try {
+        if (item.failed || item.canceled) throw new Error("浏览器报告资源加载失败或取消");
+        const result = await withDeadline(chrome.debugger.sendCommand({ tabId: target.id }, "Page.getResourceContent",
+          { frameId: item.protocolFrameId, url: item.url }), Math.max(1, Math.min(1200, deadline - Date.now())), "已加载资源读取");
+        if (!current()) return;
+        const currentTree = await withDeadline(chrome.debugger.sendCommand({ tabId: target.id }, "Page.getFrameTree"),
+          Math.max(1, Math.min(1000, deadline - Date.now())), "资源页面复核");
+        const frameQueue = [currentTree.frameTree];
+        let matchingFrame;
+        while (frameQueue.length) {
+          const frame = frameQueue.pop();
+          if (frame?.frame?.id === item.protocolFrameId) { matchingFrame = frame.frame; break; }
+          frameQueue.push(...(frame?.childFrames || []));
+        }
+        if (!matchingFrame || matchingFrame.loaderId !== item.loaderId)
+          throw new Error("资源读取时框架已导航，无法确认页面归属");
+        if (!current()) return;
+        const bytes = result.base64Encoded
+          ? Uint8Array.from(atob(result.content), (character) => character.charCodeAt(0))
+          : new TextEncoder().encode(result.content);
+        if (bytes.length > 10000000 || totalBytes + bytes.length > 10000000) throw new Error("已加载资源超过采集字节预算");
+        const assetId = uid();
+        await put("assets", { id: assetId, sessionId: session.id, type: "resource", mime: item.mimeType || "application/octet-stream",
+          blob: new Blob([bytes], { type: item.mimeType || "application/octet-stream" }) });
+        if (!current()) return;
+        const saved = await append("resource.loaded", { ...meta, status: "captured", assetId, size: bytes.length,
+          representation: result.base64Encoded ? "browser-provided-bytes" : "browser-decoded-text-utf8" }, { tabId: target.id });
+        if (saved) { summary.captured++; totalBytes += bytes.length; }
+        else { summary.failed++; session.storageError = true; }
+      } catch (error) {
+        summary.failed++;
+        if (current()) await append("resource.loaded", { ...meta, status: "unavailable", reason: String(error) }, { tabId: target.id });
+      }
+    }
+    if (summary.failed || summary.omitted) summary.status = "partial";
+  } catch (error) {
+    summary.status = "unavailable";
+    summary.reason = String(error);
+  }
+  if (current()) await append("resource.loadedSummary", summary, { tabId: target.id });
+}
+
 async function captureInitialResources(target, deadline) {
   const session = active;
   if (!session) return;
@@ -696,6 +850,16 @@ async function captureInitialResources(target, deadline) {
       "初始页面检查",
     );
     if (!frames?.length) throw new Error("无法取得初始页面");
+    for (const frame of frames) if (allowedUrl(frame.url)) track(snapshotFrameCookies(target.id, frame));
+    if (active === session) await append("frame.tree", {
+      tabId: target.id,
+      frames: frames.map((frame) => ({ frameId: frame.frameId, parentFrameId: frame.parentFrameId,
+        documentId: frame.documentId || null, parentDocumentId: frame.parentDocumentId || null,
+        url: allowedUrl(frame.url) ? cleanUrl(frame.url) : null,
+        scope: allowedUrl(frame.url) ? "eligible" : "outside_scope",
+        documentLifecycle: frame.documentLifecycle || null, errorOccurred: !!frame.errorOccurred })),
+    }, { tabId: target.id });
+    await captureLoadedResources(target, deadline, session);
     let totalBytes = 0, complete = true;
     for (const frame of frames || []) {
       if (!allowedUrl(frame.url)) continue;
@@ -852,13 +1016,12 @@ async function captureOne() {
       const result = await chrome.debugger.sendCommand(
         { tabId },
         "Page.captureScreenshot",
-        { format: "jpeg", quality: 75, fromSurface: true },
+        { format: "png", fromSurface: true },
       );
-      data = `data:image/jpeg;base64,${result.data}`;
+      data = `data:image/png;base64,${result.data}`;
     } else {
       data = await chrome.tabs.captureVisibleTab(windowId, {
-        format: "jpeg",
-        quality: 75,
+        format: "png",
       });
     }
     const capturedAt = Date.now();
@@ -901,7 +1064,7 @@ async function captureOne() {
       id,
       sessionId,
       type: "screenshot",
-      mime: "image/jpeg",
+      mime: "image/png",
       blob,
     });
     if (active?.id === sessionId)
@@ -909,6 +1072,7 @@ async function captureOne() {
         "screenshot",
         {
           assetId: id,
+          mime: "image/png",
           eventIds: batch,
           url: cleanUrl(info.url),
           documentId: topFrame.documentId,
@@ -946,6 +1110,117 @@ function scheduleScreenshot() {
 function requestScreenshot(eventId, tabId, frameId, documentId, url) {
   screenshotPending.push({ eventId, tabId, frameId, documentId, url });
   scheduleScreenshot();
+}
+async function captureFullPageTiles({ tabId, frameId, documentId, session, info, size, dpr, windowId, activationVersion }) {
+  const plan = planFullPageTiles(size.width, size.height, dpr);
+  const captureId = uid(), deadline = Date.now() + 6000;
+  let captured = 0, reason = null;
+  for (let index = 0; index < plan.total; index++) {
+    if (active !== session) return;
+    if (index >= 128 || Date.now() >= deadline) { reason = "整页分片采集预算已用完"; break; }
+    const clip = plan.tile(index), startedAt = Date.now();
+    try {
+      const result = await withDeadline(chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+        format: "png", fromSurface: true, captureBeyondViewport: true, clip: { ...clip, scale: 1 },
+      }), Math.max(1, Math.min(3000, deadline - Date.now())), "整页分片截图");
+      const after = await withDeadline(chrome.webNavigation.getFrame({ tabId, frameId: 0 }),
+        Math.max(1, Math.min(1200, deadline - Date.now())), "分片页面复核");
+      const afterTab = await withDeadline(chrome.tabs.get(tabId),
+        Math.max(1, Math.min(1200, deadline - Date.now())), "分片标签复核");
+      if (active !== session || !afterTab.active || (tabActivationVersions.get(windowId) || 0) !== activationVersion ||
+          !after || after.documentId !== documentId || after.url !== info.url) throw new Error("分片截图期间页面已变化");
+      const binary = atob(result.data);
+      const blob = new Blob([Uint8Array.from(binary, (character) => character.charCodeAt(0))], { type: "image/png" });
+      const bitmapPromise = createImageBitmap(blob);
+      let bitmap;
+      try { bitmap = await withDeadline(bitmapPromise, Math.max(1, Math.min(1200, deadline - Date.now())), "分片图片解码"); }
+      catch (error) { bitmapPromise.then((late) => late.close(), () => {}); throw error; }
+      const pixelSize = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      if (Math.abs(pixelSize.width - clip.width * dpr) > 4 || Math.abs(pixelSize.height - clip.height * dpr) > 4)
+        throw new Error("分片像素尺寸与页面范围不一致");
+      const assetId = uid();
+      await put("assets", { id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob });
+      if (active !== session) return;
+      const saved = await append("screenshot.fullPageTile", { ...info, captureId, index, total: plan.total, clip, pixelSize,
+        dpr, status: "captured", assetId, mime: "image/png", captureStartedAt: startedAt, capturedAt: Date.now() },
+      { tabId, frameId, documentId });
+      if (!saved) throw new Error("分片记录写入失败");
+      captured++;
+    } catch (error) { reason = String(error); break; }
+  }
+  if (active === session) await append("screenshot.fullPage", { ...info, captureId, captureMode: "tiles",
+    status: captured === plan.total ? "captured" : "partial", capturedTiles: captured, totalTiles: plan.total,
+    contentSize: { width: size.width, height: size.height }, dpr, ...(reason ? { reason } : {}),
+    limitation: "分片分别采集，仅包含各自采集时已渲染内容；嵌套滚动容器仅记录当前可见区域，不主动滚动或加载未渲染区域" }, { tabId, frameId, documentId });
+}
+function requestFullPageScreenshot(event, session) {
+  const { tabId, frameId, documentId } = event;
+  if (frameId !== 0 || !event.payload?.snapshotId) return;
+  const capturePhase = event.payload.reason === "stop" ? "final" : "initial";
+  const key = JSON.stringify([session.id, tabId, documentId, event.payload.url, capturePhase]);
+  if (fullPageRequests.has(key)) return;
+  fullPageRequests.add(key);
+  const task = fullPageChain.then(async () => {
+    const info = { captureRequestId: uid(), snapshotId: event.payload.snapshotId, snapshotEventId: event.id, url: event.payload.url, capturePhase };
+    try {
+      if (active !== session) return;
+      await append("screenshot.fullPageStarted", info, { tabId, frameId, documentId });
+      if (active !== session || !documentId) throw new Error("无法确认页面文档");
+      const target = session.tabs[tabId];
+      if (!target?.debuggerAttached) { const error = new Error("页面调试连接不可用"); error.retryable = true; throw error; }
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab.active) { const error = new Error("目标标签不在前台"); error.retryable = true; throw error; }
+      const activationVersion = tabActivationVersions.get(tab.windowId) || 0;
+      const frame = await chrome.webNavigation.getFrame({ tabId, frameId: 0 });
+      if (!frame || frame.documentId !== documentId || frame.url !== event.payload.url)
+        throw new Error("截图前页面已变化");
+      const metrics = await withDeadline(chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics"), 5000, "整页尺寸读取");
+      const size = metrics.cssContentSize;
+      if (!size || !Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0)
+        throw new Error("浏览器未提供有效的页面尺寸");
+      const viewport = await chrome.tabs.sendMessage(tabId, { type: "VIEWPORT_INFO" }, { frameId: 0 });
+      const dpr = viewport?.viewport?.dpr;
+      if (!Number.isFinite(dpr) || dpr <= 0) throw new Error("无法确认设备像素比");
+      if (size.width * size.height * dpr * dpr > 64000000) {
+        await captureFullPageTiles({ tabId, frameId, documentId, session, info, size, dpr, windowId: tab.windowId, activationVersion });
+        return;
+      }
+      const startedAt = Date.now();
+      const result = await withDeadline(chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+        format: "png", fromSurface: true, captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 },
+      }), 5000, "整页截图");
+      const finishedAt = Date.now();
+      const after = await chrome.webNavigation.getFrame({ tabId, frameId: 0 });
+      const afterTab = await chrome.tabs.get(tabId);
+      if (active !== session || !afterTab.active || (tabActivationVersions.get(tab.windowId) || 0) !== activationVersion ||
+          !after || after.documentId !== documentId || after.url !== event.payload.url)
+        throw new Error("截图期间页面已变化");
+      const binary = atob(result.data);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "image/png" });
+      const bitmap = await createImageBitmap(blob);
+      const pixelSize = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      const expectedHeight = pixelSize.width * size.height / size.width;
+      if (!pixelSize.width || !pixelSize.height || Math.abs(pixelSize.height - expectedHeight) > Math.max(4, expectedHeight * 0.005))
+        throw new Error("整页截图尺寸与页面范围不一致");
+      const assetId = uid();
+      if (active !== session) return;
+      await put("assets", { id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob });
+      if (active === session) await append("screenshot.fullPage", { ...info, status: "captured", assetId,
+        mime: "image/png", contentSize: { width: size.width, height: size.height }, pixelSize, dpr,
+        captureStartedAt: startedAt, capturedAt: finishedAt,
+        limitation: "仅包含截图时已渲染内容；嵌套滚动容器仅记录当前可见区域，不主动滚动或加载未渲染区域" }, { tabId, frameId, documentId });
+    } catch (error) {
+      if (session.status === "preparing" || error?.retryable) fullPageRequests.delete(key);
+      if (active === session) await append("screenshot.fullPage", { ...info, status: "unavailable", reason: String(error) },
+        { tabId, frameId, documentId });
+    }
+  });
+  fullPageChain = task.catch(() => {});
+  track(task);
 }
 async function stop(onStopping) {
   await ensureReady();
@@ -1095,73 +1370,133 @@ async function stop(onStopping) {
     }
   }
   await append("session.stop", { note: "停止时仍在进行的请求可能不完整" });
-  const recorded = await withDeadline(all("events", session.id), 5000, "记录检查");
-  session.coverage = {
-    warnings: recorded.filter((event) => event.kind === "warning").length,
-    pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
-    snapshotGaps: recorded.filter(
-      (event) => event.kind === "page.snapshot" && (event.payload.status !== "captured" ||
-        (event.payload.sourceStatus && event.payload.sourceStatus !== "captured")),
-    ).length,
-    databaseGaps: recorded.filter(
-      (event) => event.kind === "database.snapshot" &&
-        (event.payload.status || event.payload.database?.status !== "captured" ||
-          event.payload.database?.storesTruncated ||
-          event.payload.database?.stores?.some((store) => store.truncated)),
-    ).length,
-    cacheGaps: recorded.filter(
-      (event) => event.kind === "cache.snapshot" &&
-        (event.payload.truncated || !["metadata_only", "name_only"].includes(event.payload.status)),
-    ).length,
-    stateCaptureGaps: recorded.filter((event) => event.kind === "state.capture" &&
-      ["timeout", "failed"].includes(event.payload.status)).length,
-    initialResourceGaps: recorded.filter(
-      (event) => event.kind === "resource.initialSummary" && event.payload.status !== "captured",
-    ).length,
-    screenshotsUnavailable: recorded.filter(
-      (event) =>
-        event.kind === "screenshot" && event.payload.status === "unavailable",
-    ).length,
-    canvasGaps: recorded.filter((event) => event.kind === "page.snapshot" &&
-      ((event.payload.canvas?.total > 0 && (event.payload.canvas.status !== "captured" ||
-        event.payload.canvas.omitted > 0 || event.payload.canvas.unavailable > 0 || event.payload.canvas.geometryOmitted > 0)) ||
-        event.payload.canvas?.scanTruncated)).length,
-    popoverGaps: recorded.filter((event) =>
-      (event.kind === "page.snapshot" && (event.payload.popover?.omitted || event.payload.popover?.unavailable || event.payload.popover?.scanTruncated)) ||
-      (event.kind === "page.popover" && event.payload.status === "unavailable")).length,
-    dialogGaps: recorded.filter((event) =>
-      (event.kind === "page.snapshot" && (event.payload.dialog?.omitted || event.payload.dialog?.unavailable || event.payload.dialog?.scanTruncated)) ||
-      (event.kind === "page.dialog" && event.payload.status === "unavailable")).length,
-    inputGaps: recorded.filter(
-      (event) => ["interaction.input", "interaction.change"].includes(event.kind) &&
-        (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||
-          ["truncated", "redacted_truncated"].includes(event.payload.beforeValueStatus)),
-    ).length,
-    storageGaps: recorded.filter(
-      (event) => event.kind === "storage.unavailable" ||
-        (event.kind === "storage.snapshot" && event.payload.coverage &&
-          Object.values(event.payload.coverage).some((item) => item?.status !== "captured")),
-    ).length,
-    styleGaps: recorded.filter(
-      (event) =>
-        event.kind === "page.snapshot" &&
-        (event.payload.styles?.unavailable > 0 ||
-          event.payload.styles?.truncated ||
-          event.payload.styles?.backgroundUnavailable > 0 ||
-          event.payload.styles?.backgroundTruncated ||
-          event.payload.scroll?.truncated ||
-          event.payload.shadow?.roots > 0 ||
-          event.payload.shadow?.truncated ||
-          event.payload.shadow?.unavailable),
-    ).length,
-    responseGaps: recorded.filter(
-      (event) =>
-        event.kind === "network.finished" &&
-        (["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable"].includes(
-          event.payload.body?.status,
-        ) || Boolean(event.payload.body?.textStatus)),
-    ).length,
+  const markCoverageUnavailable = (error) => {
+    session.incomplete = true;
+    session.notice = "录制已停止，但记录完整性检查失败，已保存内容仍可导出。";
+    session.coverage = { status: "unavailable", reason: String(error) };
   };
+  let recorded;
+  try {
+    recorded = await withDeadline(all("events", session.id), 5000, "记录检查");
+  } catch (error) {
+    markCoverageUnavailable(error);
+  }
+  if (recorded) {
+    try {
+      const fragmentComplete = indexFragmentEvidence(recorded);
+      const computedStyleComplete = indexComputedStyleEvidence(recorded);
+      const databaseComplete = indexDatabaseEvidence(recorded, fragmentComplete);
+      const databaseCatalogComplete = indexDatabaseCatalogEvidence(recorded, fragmentComplete);
+      const cacheComplete = indexCacheEvidence(recorded, fragmentComplete);
+      const cacheCatalogComplete = indexCacheCatalogEvidence(recorded, fragmentComplete);
+      const canvasComplete = indexCanvasEvidence(recorded, fragmentComplete);
+      const shadowComplete = indexShadowEvidence(recorded, fragmentComplete);
+      const requestEntriesComplete = indexRequestEntryEvidence(recorded);
+      session.coverage = {
+        warnings: recorded.filter((event) => event.kind === "warning").length,
+        pendingRequests: recorded.filter((event) => event.kind === "network.incomplete").length,
+        networkExtraGaps: recorded.filter((event) => event.kind === "network.extraInfoGap").length,
+        requestEntryGaps: recorded.filter((event) => event.kind === "network.request" &&
+          ((event.payload.postDataEntriesStatus === "pending" && !requestEntriesComplete(event)) ||
+            (event.payload.hasRequestBody && event.payload.postDataEntriesStatus === "not_provided"))).length,
+        cookieGaps: recorded.filter((event) => event.kind === "cookie.partitionSnapshot" && event.payload.status !== "captured").length,
+        snapshotGaps: recorded.filter(
+          (event) => event.kind === "page.snapshot" && (
+            (event.payload.status === "fragmented"
+              ? !fragmentComplete(event.payload.htmlReference) || !!event.payload.truncatedNodes
+              : event.payload.status !== "captured") ||
+            (event.payload.sourceStatus === "fragmented"
+              ? !fragmentComplete(event.payload.sourceReference)
+              : !!event.payload.sourceStatus && event.payload.sourceStatus !== "captured")),
+        ).length,
+        databaseGaps: recorded.filter(
+          (event) => (event.kind === "database.catalog" && !databaseCatalogComplete(event)) || (event.kind === "database.snapshot" &&
+            (event.payload.status || event.payload.database?.status !== "captured" ||
+              event.payload.database?.storesTruncated ||
+              (event.payload.graphCaptureId ? !databaseComplete(event.payload.graphCaptureId) :
+                event.payload.database?.stores?.some((store) => store.truncated)))),
+        ).length,
+        cacheGaps: recorded.filter(
+          (event) => (event.kind === "cache.catalog" && !cacheCatalogComplete(event)) ||
+            (event.kind === "cache.snapshot" &&
+            (event.payload.truncated || event.payload.status !== "captured" || !cacheComplete(event))) ||
+            (event.kind === "cache.entry" && (event.payload.status !== "captured" ||
+              (event.payload.body?.status === "fragmented" && !fragmentComplete(event.payload.body.reference)))) ||
+            event.kind === "cache.entryFailure",
+        ).length,
+        stateCaptureGaps: recorded.filter((event) => event.kind === "state.capture" &&
+          ["timeout", "failed"].includes(event.payload.status)).length,
+        initialResourceGaps: recorded.filter(
+          (event) => ["resource.initialSummary", "resource.loadedSummary"].includes(event.kind) && event.payload.status !== "captured",
+        ).length,
+        screenshotsUnavailable: recorded.filter(
+          (event) =>
+            event.kind === "screenshot" && event.payload.status === "unavailable",
+        ).length,
+        fullPageScreenshotGaps: countFullPageGaps(recorded),
+        realtimePayloadGaps: countRealtimeGaps(recorded),
+        shadowSourceGaps: recorded.filter((event) => event.kind === "page.snapshot" && event.payload.shadowSourceCaptureId && !shadowComplete(event)).length,
+        interactionStyleGaps: countInteractionStyleGaps(recorded),
+        canvasGaps: recorded.filter((event) => event.kind === "page.snapshot" &&
+          (event.payload.snapshotId ? !canvasComplete(event.payload.snapshotId) :
+          ((event.payload.canvas?.total > 0 && (event.payload.canvas.status !== "captured" ||
+            event.payload.canvas.omitted > 0 || event.payload.canvas.unavailable > 0 || event.payload.canvas.geometryOmitted > 0)) ||
+            event.payload.canvas?.scanTruncated))).length,
+        canvasContextUnknown: recorded.filter((event) => event.kind === "canvas.capture" && event.payload.drawingContext === "unknown").length,
+        popoverGaps: recorded.filter((event) =>
+          (event.kind === "page.snapshot" && (event.payload.popover?.omitted || event.payload.popover?.unavailable || event.payload.popover?.scanTruncated)) ||
+          (event.kind === "page.popover" && event.payload.status === "unavailable")).length,
+        dialogGaps: recorded.filter((event) =>
+          (event.kind === "page.snapshot" && (event.payload.dialog?.omitted || event.payload.dialog?.unavailable || event.payload.dialog?.scanTruncated)) ||
+          (event.kind === "page.dialog" && event.payload.status === "unavailable")).length,
+        inputGaps: recorded.filter(
+          (event) => event.kind.startsWith("interaction.") &&
+            (["truncated", "redacted_truncated"].includes(event.payload.valueStatus) ||
+              ["truncated", "redacted_truncated"].includes(event.payload.beforeValueStatus) ||
+              (event.payload.valueStatus === "fragmented" && !fragmentComplete(event.payload.valueReference)) ||
+              (event.payload.beforeValueStatus === "fragmented" && !fragmentComplete(event.payload.beforeValueReference)) ||
+              (event.payload.formState?.status === "fragmented" && !fragmentComplete(event.payload.formState.reference)) ||
+              (event.payload.beforeFormState?.status === "fragmented" && !fragmentComplete(event.payload.beforeFormState.reference)) ||
+              event.payload.files?.some((file) => file.contentStatus === "fragmented" && !fragmentComplete(file.contentReference))),
+        ).length,
+        storageGaps: recorded.filter(
+          (event) => event.kind === "storage.unavailable" ||
+            (event.kind === "storage.snapshot" &&
+              ((event.payload.storageStatus === "fragmented" && !fragmentComplete(event.payload.storageReference)) ||
+                (event.payload.coverage && Object.values(event.payload.coverage).some((item) => item?.status !== "captured")))),
+        ).length,
+        mutationGaps: recorded.filter((event) => event.kind === "page.mutation" &&
+          (event.payload.status !== "captured" || !rawMutationComplete(event, fragmentComplete))).length,
+        styleGaps: recorded.filter(
+          (event) =>
+            (event.kind === "page.stylesheet" && (event.payload.status === "fragmented"
+              ? !fragmentComplete(event.payload.cssReference) : event.payload.status !== "captured")) ||
+            event.kind === "page.snapshot" &&
+            ((event.payload.snapshotId && !computedStyleComplete(event.payload.snapshotId)) ||
+              event.payload.styles?.unavailable > 0 ||
+              event.payload.styles?.truncated ||
+              event.payload.styles?.backgroundUnavailable > 0 ||
+              event.payload.styles?.backgroundTruncated ||
+              event.payload.scroll?.truncated ||
+              (event.payload.scroll?.status === "fragmented" && !fragmentComplete(event.payload.scroll.reference)) ||
+              event.payload.shadow?.roots > 0 ||
+              event.payload.shadow?.truncated ||
+              event.payload.shadow?.unavailable),
+        ).length,
+        fontGaps: recorded.filter((event) => event.kind === "page.fonts" &&
+          (event.payload.status !== "captured" || (event.payload.facesStatus === "fragmented" && !fragmentComplete(event.payload.reference)))).length,
+        responseGaps: recorded.filter(
+          (event) =>
+            event.kind === "network.finished" &&
+            (["unavailable", "omitted_size", "omitted_encoding", "omitted_unparseable", "omitted_redirect"].includes(
+              event.payload.body?.status,
+            ) || Boolean(event.payload.body?.textStatus)),
+        ).length,
+      };
+    } catch (error) {
+      markCoverageUnavailable(error);
+    }
+  }
   const status = session.storageError || session.incomplete ? "interrupted" : "ready";
   const endedAt = Date.now();
   await put("sessions", { ...session, status, endedAt });
@@ -1176,6 +1511,8 @@ async function stop(onStopping) {
   unknownDialogTabs.clear();
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
+  fullPageChain = Promise.resolve();
+  fullPageRequests.clear();
   await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch(() => {});
   await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch(() => {});
   await withDeadline(childStorageChain, 2000, "框架恢复信息收尾").catch(() => {});
@@ -1273,6 +1610,8 @@ async function clearActiveResources(session, onFailure = (stage, error) => conso
   unknownDialogTabs.clear();
   dialogScopes.clear();
   screenshotChain = Promise.resolve();
+  fullPageChain = Promise.resolve();
+  fullPageRequests.clear();
   await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch((error) => onFailure("框架恢复信息清理", error));
   await withDeadline(removeSessionState(session), 2000, "录制状态清理").catch((error) => onFailure("录制状态清理", error));
   if (active === session) active = null;
@@ -1418,9 +1757,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const { events, results } = await appendPageBatch(message.events, sender, session, message.batchId);
       const accepted = results.filter((result) => result === "created" || result === "existing").length;
       if (active === session && session.options.screenshots)
-        for (let index = 0; index < events.length; index++)
+        for (let index = 0; index < events.length; index++) {
           if (results[index] === "created" && message.events[index].screenshot)
             requestScreenshot(events[index].id, sender.tab.id, sender.frameId, sender.documentId, events[index].payload.url);
+          if (results[index] === "created" && events[index].kind === "page.snapshot")
+            requestFullPageScreenshot(events[index], session);
+        }
       if (active === session && session.options.screenshots && !session.retryScreenshotGap &&
           results.some((result, index) => result === "existing" && message.events[index].screenshot)) {
         session.retryScreenshotGap = true;
@@ -1459,8 +1801,8 @@ chrome.debugger.onEvent.addListener(
       const task = (async () => {
         try {
           await chrome.debugger.sendCommand(child, "Network.enable", {
-            maxTotalBufferSize: 10000000,
-            maxResourceBufferSize: 2000000,
+            maxTotalBufferSize: NETWORK_TOTAL_BUFFER_BYTES,
+            maxResourceBufferSize: NETWORK_RESOURCE_BUFFER_BYTES,
             maxPostDataSize: 65536,
           });
           await chrome.debugger.sendCommand(child, "Page.enable");
@@ -1562,12 +1904,26 @@ chrome.debugger.onEvent.addListener(
         "Network.responseReceived",
         "Network.loadingFinished",
         "Network.loadingFailed",
+        "Network.requestWillBeSentExtraInfo",
+        "Network.responseReceivedExtraInfo",
       ].includes(method)
     )
       return;
     const target = active.tabs[source.tabId],
       rawRequestId = params.requestId,
       requestId = `${source.tabId}:${source.sessionId || "root"}:${rawRequestId}`;
+    if (["Network.requestWillBeSentExtraInfo", "Network.responseReceivedExtraInfo"].includes(method)) {
+      if (active.options?.scope === "browser" && target?.inScope && (!source.sessionId || childScopes.get(source.sessionId))) {
+        track(append(method === "Network.requestWillBeSentExtraInfo" ? "network.requestExtraInfo" : "network.responseExtraInfo", {
+          protocolRequestKey: requestId, protocolRequestId: rawRequestId, protocolSessionId: source.sessionId || null,
+          correlation: "protocol_id_only", details: params,
+        }, { tabId: source.tabId }));
+      } else if (!active.extraInfoGapReported) {
+        active.extraInfoGapReported = true;
+        track(append("network.extraInfoGap", { reason: "scope_unconfirmed" }, { tabId: source.tabId }));
+      }
+      return;
+    }
     if (method === "Network.requestWillBeSent") {
       const previous = params.redirectResponse && requests.get(requestId);
       if (previous) {
@@ -1585,6 +1941,8 @@ chrome.debugger.onEvent.addListener(
               headers: cleanHeaders(response.headers, response.url),
               fromDiskCache: response.fromDiskCache,
               fromServiceWorker: response.fromServiceWorker,
+              protocolResponse: response,
+              redirectHasExtraInfo: params.redirectHasExtraInfo ?? null,
             },
             { tabId: source.tabId },
           ),
@@ -1640,27 +1998,59 @@ chrome.debugger.onEvent.addListener(
         Object.entries(req.headers || {}).find(
           ([k]) => k.toLowerCase() === "content-type",
         )?.[1] || "";
+      const initialBody = cleanBody(req.postData, ct);
+      const { postData: _postData, postDataEntries: _postDataEntries, ...protocolRequest } = req;
       const item = {
         requestId: previous ? `${requestId}:redirect:${uid()}` : requestId,
+        protocolRequestId: rawRequestId,
+        protocolRequestKey: requestId,
         ...(previous ? { redirectFrom: previous.requestId } : {}),
         tabId: source.tabId,
         protocolSessionId: source.sessionId || null,
         url: cleanUrl(req.url),
         method: req.method,
         headers: cleanHeaders(req.headers, req.url),
-        postData:
-          req.hasPostData && req.postData == null
-            ? { value: null, status: "pending" }
-            : cleanBody(req.postData, ct),
+        postData: (req.hasPostData && req.postData == null) || initialBody.status === "omitted_size"
+          ? { value: null, status: "pending" }
+          : initialBody,
+        ...(/^multipart\/form-data/i.test(ct) ? { requestBodyLimitations: ["browser_may_omit_file_content"] } : {}),
         type: params.type,
         frameId: params.frameId,
         documentUrl: params.documentURL ? cleanUrl(params.documentURL) : null,
         sourceFrame: source.sessionId ? "embedded" : params.frameId && target.mainFrameId === params.frameId ? "main" : "unknown",
-        initiator: { type: params.initiator?.type },
+        initiator: params.initiator || null,
+        protocolRequest,
+        postDataEntriesStatus: Array.isArray(req.postDataEntries) ? "pending" : "not_provided",
+        hasRequestBody: req.hasPostData === true || typeof req.postData === "string" || Array.isArray(req.postDataEntries),
+        ...(Array.isArray(req.postDataEntries) ? { postDataEntriesCount: req.postDataEntries.length } : {}),
+        loaderId: params.loaderId || null,
         timestamp: params.timestamp,
+        wallTime: params.wallTime ?? null,
       };
       requests.set(requestId, item);
       track(append("network.request", item, { tabId: source.tabId }));
+      if (Array.isArray(req.postDataEntries)) {
+        const sessionId = active.id;
+        track((async () => {
+          const entries = [];
+          for (let index = 0; index < req.postDataEntries.length; index++) {
+            const entry = req.postDataEntries[index];
+            if (!entry || typeof entry !== "object") { entries.push({ index, status: "unavailable" }); continue; }
+            const { bytes, ...metadata } = entry;
+            if (typeof bytes !== "string") { entries.push({ index, metadata, status: "unavailable" }); continue; }
+            try {
+              const captured = responseBlob({ body: bytes, base64Encoded: true }, "application/octet-stream");
+              const id = uid();
+              if (active?.id !== sessionId) return;
+              await put("assets", { id, sessionId, type: "resource", mime: "application/octet-stream", blob: captured.blob });
+              entries.push({ index, metadata, status: "captured", assetId: id, size: captured.blob.size });
+            } catch (error) { entries.push({ index, metadata, status: "unavailable", reason: String(error) }); }
+          }
+          if (active?.id === sessionId) await append("network.requestDataEntries", { requestId: item.requestId,
+            entries, status: entries.some((entry) => entry.status !== "captured") ? "partial" : "captured",
+            coverage: "browser_provided_entries_only" }, { tabId: source.tabId });
+        })());
+      }
       if (item.postData.status === "pending") {
         const sessionId = active.id;
         const debugSession = source.sessionId
@@ -1670,20 +2060,23 @@ chrome.debugger.onEvent.addListener(
           (async () => {
             let body;
             try {
-              const result = await withDeadline(
-                chrome.debugger.sendCommand(
-                  debugSession,
-                  "Network.getRequestPostData",
-                  { requestId: rawRequestId },
-                ),
-                5000,
-                "请求体读取",
-              );
+              const result = initialBody.status === "omitted_size"
+                ? { postData: req.postData, base64Encoded: false }
+                : await withDeadline(
+                    chrome.debugger.sendCommand(debugSession, "Network.getRequestPostData", { requestId: rawRequestId }),
+                    5000, "请求体读取",
+                  );
               if (item.superseded)
                 throw new Error("请求已重定向，无法确认请求体归属");
-              if (result.base64Encoded && result.postData.length > 1400000)
-                body = { value: null, status: "omitted_size" };
-              else {
+              if (result.postData.length > 1000000) {
+                const captured = responseBlob({ body: result.postData, base64Encoded: result.base64Encoded }, ct.split(";")[0]);
+                const id = uid();
+                if (active?.id !== sessionId) return;
+                await put("assets", { id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob });
+                body = { value: null, status: "captured_asset", assetId: id, size: captured.blob.size,
+                  representation: captured.representation, encoding: captured.encoding,
+                  ...(/^multipart\/form-data/i.test(ct) ? { fileContent: "browser_may_omit" } : {}) };
+              } else {
                 const text = result.base64Encoded
                   ? new TextDecoder("utf-8", { fatal: true }).decode(
                       Uint8Array.from(atob(result.postData), (char) =>
@@ -1720,6 +2113,8 @@ chrome.debugger.onEvent.addListener(
         headers: cleanHeaders(response.headers, response.url),
         fromDiskCache: response.fromDiskCache,
         fromServiceWorker: response.fromServiceWorker,
+        protocolResponse: response,
+        timestamp: params.timestamp,
       };
       requests.set(requestId, item);
       track(
@@ -1733,15 +2128,17 @@ chrome.debugger.onEvent.addListener(
       const item = requests.get(requestId);
       if (!item) return;
       track(
-        append(
+        appendRealtime(
           "network.eventSourceMessage",
           {
             requestId: item.requestId,
-            eventName: String(params.eventName || "").slice(0, 1000),
-            eventId: String(params.eventId || "").slice(0, 4000),
+            eventName: String(params.eventName || ""),
+            eventId: String(params.eventId || ""),
             timestamp: params.timestamp,
             data: cleanRealtimeText(params.data),
           },
+          params.data,
+          "text",
           { tabId: source.tabId },
         ),
       );
@@ -1757,21 +2154,20 @@ chrome.debugger.onEvent.addListener(
           : { tabId };
       const task = (async () => {
         let body = { value: null, status: "omitted_type" },
-          assetId = null;
+          assetId = null, responseResult = null;
         const mime = item.response?.mimeType || "";
-        if (item.type === "Font" && params.encodedDataLength < 1500000) {
+        if (item.type === "Font" || /^image\//i.test(mime)) {
           try {
             const result = await chrome.debugger.sendCommand(debugSession, "Network.getResponseBody", { requestId: rawRequestId });
-            if (!result.base64Encoded) throw new Error("字体内容编码不可用");
-            const binary = atob(result.body);
-            if (binary.length > 1500000) throw new Error("字体超过大小限制");
-            const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-            const fontType = fontMime(bytes);
-            if (!fontType) throw new Error("仅支持 WOFF 和 WOFF2 字体");
+            const captured = responseBlob(result, mime);
+            const fontType = item.type === "Font" && result.base64Encoded
+              ? fontMime(new Uint8Array(await captured.blob.slice(0, 12).arrayBuffer())) : null;
+            const assetMime = fontType || captured.blob.type || "application/octet-stream";
             assetId = uid();
             if (active?.id !== sessionId || item.finalized) return;
-            await put("assets", { id: assetId, sessionId, type: "resource", mime: fontType, blob: new Blob([bytes], { type: fontType }) });
-            body = { value: null, status: "captured_asset" };
+            await put("assets", { id: assetId, sessionId, type: "resource", mime: assetMime, blob: captured.blob });
+            body = { value: null, status: "captured_asset", assetId, size: captured.blob.size,
+              representation: captured.representation, encoding: captured.encoding };
           } catch (error) {
             body = { value: null, status: "unavailable", reason: String(error) };
           }
@@ -1786,38 +2182,8 @@ chrome.debugger.onEvent.addListener(
               "Network.getResponseBody",
               { requestId: rawRequestId },
             );
+            responseResult = result;
             body = cleanDebuggerResponse(result, item.response, item.method);
-          } catch (error) {
-            body = {
-              value: null,
-              status: "unavailable",
-              reason: String(error),
-            };
-          }
-        } else if (
-          /^image\/(png|jpeg|webp|gif)$/i.test(mime) &&
-          params.encodedDataLength < 1500000
-        ) {
-          try {
-            const result = await chrome.debugger.sendCommand(
-              debugSession,
-              "Network.getResponseBody",
-              { requestId: rawRequestId },
-            );
-            if (!result.base64Encoded) throw new Error("图像内容编码不可用");
-            const binary = atob(result.body);
-            if (binary.length > 1500000) throw new Error("图像超过大小限制");
-            const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-            assetId = uid();
-            if (active?.id !== sessionId || item.finalized) return;
-            await put("assets", {
-              id: assetId,
-              sessionId,
-              type: "resource",
-              mime,
-              blob: new Blob([bytes], { type: mime }),
-            });
-            body = { value: null, status: "captured_asset" };
           } catch (error) {
             body = {
               value: null,
@@ -1828,9 +2194,23 @@ chrome.debugger.onEvent.addListener(
         } else {
           try {
             const result = await chrome.debugger.sendCommand(debugSession, "Network.getResponseBody", { requestId: rawRequestId });
+            responseResult = result;
             body = cleanDebuggerResponse(result, item.response, item.method);
           } catch (error) {
             body = { value: null, status: "unavailable", reason: String(error) };
+          }
+        }
+        if (body.status === "omitted_size" || body.textStatus === "omitted_size") {
+          try {
+            const captured = responseBlob(responseResult, mime);
+            const id = uid();
+            if (active?.id !== sessionId || item.finalized) return;
+            await put("assets", { id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob });
+            assetId = id;
+            body = { value: null, status: "captured_asset", assetId: id, size: captured.blob.size,
+              representation: captured.representation, encoding: captured.encoding };
+          } catch (error) {
+            body = { value: null, status: "unavailable", reason: String(error), previousStatus: "omitted_size" };
           }
         }
         if (active?.id === sessionId && !item.finalized) {
@@ -1840,6 +2220,7 @@ chrome.debugger.onEvent.addListener(
             {
               requestId: item.requestId,
               encodedDataLength: params.encodedDataLength,
+              protocolTimestamp: params.timestamp,
               body,
               assetId,
             },
@@ -1861,6 +2242,7 @@ chrome.debugger.onEvent.addListener(
             requestId: item.requestId,
             errorText: params.errorText,
             canceled: params.canceled,
+            protocolDetails: params,
           },
           { tabId: source.tabId },
         ),
@@ -1952,7 +2334,7 @@ chrome.debugger.onEvent.addListener(
       )
         return;
       track(
-        append(
+        appendRealtime(
           "network.websocketFrame",
           {
             requestId,
@@ -1963,6 +2345,8 @@ chrome.debugger.onEvent.addListener(
               params.response?.opcode,
             ),
           },
+          params.response?.payloadData,
+          params.response?.opcode === 1 ? "text" : "base64",
           { tabId: source.tabId },
         ),
       );
@@ -2007,8 +2391,10 @@ chrome.tabs.onActivated.addListener(({ windowId }) => {
 });
 chrome.tabs.onActivated.addListener(
   afterReady(({ tabId, windowId }) => {
-    if (active?.status === "recording" && active.tabs[tabId])
+    if (active?.status === "recording" && active.tabs[tabId]) {
       track(append("tab.activated", { tabId, windowId }));
+      track(chrome.tabs.sendMessage(tabId, { type: "SNAPSHOT" }, { frameId: 0 }).catch(() => {}));
+    }
   }),
 );
 chrome.windows.onRemoved.addListener((windowId) => tabActivationVersions.delete(windowId));
@@ -2035,6 +2421,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
         { tabId: details.tabId },
       ),
     );
+    track(snapshotFrameCookies(details.tabId, details));
     if (target.inScope)
       track(
         chrome.tabs
@@ -2060,13 +2447,17 @@ chrome.webNavigation.onCommitted.addListener(
           tabId: details.tabId,
           frameId: details.frameId,
           documentId: details.documentId,
+          parentFrameId: details.parentFrameId,
+          parentDocumentId: details.parentDocumentId || null,
+          documentLifecycle: details.documentLifecycle || null,
           url: cleanUrl(details.url),
           transitionType: details.transitionType,
           transitionQualifiers: details.transitionQualifiers,
         },
-        { tabId: details.tabId, frameId: details.frameId },
+        { tabId: details.tabId, frameId: details.frameId, documentId: details.documentId },
       ),
     );
+    track(snapshotFrameCookies(details.tabId, details));
   }),
 );
 chrome.tabs.onRemoved.addListener(
@@ -2127,6 +2518,7 @@ chrome.cookies.onChanged.addListener(
           }
         })
         .filter(Boolean),
+      ...(active.cookieOrigins || []).map((origin) => { try { return new URL(origin).hostname; } catch { return null; } }).filter(Boolean),
     ]);
     if (
       ![...hosts].some((host) => host === domain || host.endsWith("." + domain))
@@ -2134,9 +2526,7 @@ chrome.cookies.onChanged.addListener(
       return;
     track(
       append("cookie.change", {
-        name: cookie.name,
-        domain: cookie.domain,
-        path: cookie.path,
+        ...cookie,
         removed,
         cause,
         source: "domain_scope_unconfirmed",

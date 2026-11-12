@@ -6,6 +6,8 @@ Record authorized browser workflows from the Chrome side panel and export a sele
 
 > This is a **0.1.6 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 
+> This working tree also contains unreleased capture improvements for the 2026-11-11 specification. See the [implementation progress](docs/20261111内容更新实施进度.md) for verified behavior and remaining work. The existing GitHub Release is still 0.1.6 and does not include these changes.
+
 ## Demo
 
 ![Recording, choosing a batch, and exporting in the side panel](docs/media/workflow.gif)
@@ -62,9 +64,14 @@ timeline/events-00001.jsonl   Chunked actions, pages, network, and state events
 screenshots/                  Captured screenshots
 resources/index.json          Resource index
 resources/                    Captured images, fonts, and other resources
+indexes/                      Event and direct-relationship indexes in newer archives
+data-dictionary/              Field observations and summaries in newer archives
+styles/                       Theme and color observations in newer archives
 ```
 
 `page.snapshot.payload.sourceHtml` holds the serialized DOM; `html` is a separate sanitized snapshot, and `sourceStatus` describes whether the DOM was captured. Network events use `requestId` to associate requests, responses, and outcomes. When text decoding fails, browser-provided bytes may be retained with `encoding: "base64"` and a `textStatus`. Checksums detect changes but do not establish authenticity or provide encryption.
+
+The unreleased version may store large DOM snapshots, inputs, files, and browser data as event fragments. Verify all fragments and their completion record before reconstructing them. Some screenshots use PNG or separately timed tiles. Network and browser-data dictionaries refer back to original events; unobserved data must not be treated as absent. See the [archive format](app/skills/extension-logic-clone/references/archive-format.md) for the full reading rules.
 
 ## Recording Analysis Skill
 
@@ -124,6 +131,10 @@ npm run test:stop-timeout
 npm run test:query-parameters
 npm run test:response-encoding
 npm run test:skill
+# Set CHROME_BIN to the official Chrome executable in this terminal first
+npm run test:capture-matrix
+npm run test:recording-performance
+npm run test:database-failure
 ```
 
-Browser tests need Playwright Chromium. Run `npx playwright install chromium`. To check HTTP recording and the extension error list in official Chrome, set `CHROME_BIN` to the Chrome executable and run `npm run test:chrome-errors`. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
+Browser tests need Playwright Chromium. Run `npx playwright install chromium`. The capture matrix requires `CHROME_BIN` to point to the official Chrome executable; on Windows PowerShell, for example, use `$env:CHROME_BIN='C:\Program Files\Google\Chrome\Application\chrome.exe'`. The same setting can be used with `npm run test:chrome-errors` to check HTTP recording and the extension error list. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.

@@ -3,8 +3,21 @@ import assert from "node:assert/strict";
 import {
   assessScreenshotTiming,
   canPlaceScreenshotTarget,
+  findScreenshotAsset,
   findStepScreenshots,
+  screenshotAssetPath,
 } from "../src/screenshots.js";
+
+it("按真实 MIME 查找新 PNG 与旧 JPEG 截图", () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+  const jpg = new Uint8Array([0xff, 0xd8]);
+  const files = { "screenshots/new.png": png, "screenshots/old.jpg": jpg };
+  assert.equal(screenshotAssetPath("new", "image/png"), "screenshots/new.png");
+  assert.equal(screenshotAssetPath("old", "image/jpeg"), "screenshots/old.jpg");
+  assert.deepEqual(findScreenshotAsset(files, "new"), { bytes: png, mime: "image/png" });
+  assert.deepEqual(findScreenshotAsset(files, "old"), { bytes: jpg, mime: "image/jpeg" });
+  assert.equal(findScreenshotAsset(files, "missing"), null);
+});
 
 it("分别关联同一页面的操作前截图和当前操作的截图结果", () => {
   const step = {

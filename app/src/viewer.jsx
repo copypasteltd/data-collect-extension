@@ -26,7 +26,7 @@ import { recordedFontFaces, recordedFontMetadata } from "./font-resources.js";
 import { applyRecordedMutations } from "./mutations.js";
 import { recordedScrollState, restoreScrollState } from "./scroll-state.js";
 import { restoreDialogState, restorePopoverState } from "./popover-state.js";
-import { assessScreenshotTiming } from "./screenshots.js";
+import { assessScreenshotTiming, findScreenshotAsset } from "./screenshots.js";
 import { findReplayOutcome } from "./replay-outcome.js";
 import { matchesRequestSnapshot, requestSnapshotCursor } from "./request-snapshot.js";
 import { strToU8, zipSync } from "fflate";
@@ -632,14 +632,12 @@ export default function Viewer({ onBack, sessionId }) {
     };
   }, [snapshotEvent, snapshotCursor, archive, view, replayOutcome]);
   useEffect(() => {
-    const bytes =
-      screenshot?.payload?.assetId &&
-      archive?.files[`screenshots/${screenshot.payload.assetId}.jpg`];
-    if (!bytes) {
+    const asset = findScreenshotAsset(archive?.files, screenshot?.payload?.assetId);
+    if (!asset) {
       setImageUrl("");
       return;
     }
-    const url = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+    const url = URL.createObjectURL(new Blob([asset.bytes], { type: asset.mime }));
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [screenshot, archive]);

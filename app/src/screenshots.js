@@ -1,3 +1,16 @@
+export function screenshotAssetPath(id, mime) {
+  return `screenshots/${id}.${mime === "image/png" ? "png" : "jpg"}`;
+}
+
+export function findScreenshotAsset(files, id) {
+  if (!files || !id) return null;
+  for (const mime of ["image/png", "image/jpeg"]) {
+    const bytes = files[screenshotAssetPath(id, mime)];
+    if (bytes) return { bytes, mime };
+  }
+  return null;
+}
+
 export function findStepScreenshots(events, step) {
   if (!step) return { before: null, after: null };
   const after = events.find(

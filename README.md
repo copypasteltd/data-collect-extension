@@ -6,6 +6,8 @@
 
 > 当前为 **0.1.6 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
 
+> 工作区包含尚未发布的 20261111 采集增强，仍在逐项验证；实现范围、已通过的测试与剩余事项见[实施进度](docs/20261111内容更新实施进度.md)。现有 GitHub Release 仍为 0.1.6，不包含这些未发布改动。
+
 ## 演示
 
 ![侧边栏录制、选择批次和导出的演示](docs/media/workflow.gif)
@@ -62,9 +64,14 @@ timeline/events-00001.jsonl   按事件分段的操作、页面、网络和状�
 screenshots/                  已保存的截图
 resources/index.json          资源索引
 resources/                    已保存的图片、字体等资源
+indexes/                      新版包中的事件和直接关系索引
+data-dictionary/              新版包中的字段观察及汇总
+styles/                       新版包中的主题与颜色观察
 ```
 
 事件中的 `page.snapshot.payload.sourceHtml` 是原始 DOM，`html` 是用于隔离展示的快照；`sourceStatus` 标明原始 DOM 是否取得。网络事件通过 `requestId` 关联请求、响应和结束状态。文本响应无法解码时，在大小允许的范围内会保留带 `encoding: "base64"` 的浏览器原始数据及 `textStatus`。ZIP 中的校验只能发现文件变化，不证明来源真实，也不提供加密。
+
+未发布版本可能将大型 DOM、输入、文件和浏览器数据保存在分段事件中；必须核对完整分段和结束确认后才能重组。部分截图采用 PNG 或按范围分片；网络和浏览器数据字典均保留原始事件引用，未采到的内容不能当作不存在。完整字段与读取规则见[归档格式](app/skills/extension-logic-clone/references/archive-format.md)。
 
 ## 使用解析技能
 
@@ -124,6 +131,10 @@ npm run test:stop-timeout
 npm run test:query-parameters
 npm run test:response-encoding
 npm run test:skill
+# 在当前终端设置 CHROME_BIN 为正式版 Chrome 可执行文件后运行
+npm run test:capture-matrix
+npm run test:recording-performance
+npm run test:database-failure
 ```
 
-浏览器测试需要 Playwright Chromium，可运行 `npx playwright install chromium`。正式版 Chrome 的 HTTP 页面与扩展错误检查可通过 `CHROME_BIN` 指定 Chrome 可执行文件后运行 `npm run test:chrome-errors`。技能测试需要 Python 3.9+。测试使用本地虚构数据，并关闭其创建的浏览器及临时服务。不使用 Docker 或 WSL。`app/tests/` 中早期查看器相关的测试文件保留作历史参考，不属于当前侧边栏测试入口。
+浏览器测试需要 Playwright Chromium，可运行 `npx playwright install chromium`。采集矩阵需要通过 `CHROME_BIN` 指定正式版 Chrome 可执行文件；在 Windows PowerShell 中可使用 `$env:CHROME_BIN='C:\Program Files\Google\Chrome\Application\chrome.exe'`。同一配置可用于 `npm run test:chrome-errors` 检查 HTTP 页面与扩展错误。技能测试需要 Python 3.9+。测试使用本地虚构数据，并关闭其创建的浏览器及临时服务。不使用 Docker 或 WSL。`app/tests/` 中早期查看器相关的测试文件保留作历史参考，不属于当前侧边栏测试入口。

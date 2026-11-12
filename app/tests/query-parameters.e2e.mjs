@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -7,6 +7,7 @@ import { unzipSync, strFromU8 } from "fflate";
 import { readArchive } from "../src/archive.js";
 import { buildCatalog } from "../src/analysis.js";
 import { buildOpenApi } from "../src/openapi.js";
+import { reconstructFragments } from "../src/fragments.js";
 
 const server = http.createServer((request, response) => {
   if (request.url.startsWith("/api/")) {
@@ -27,23 +28,22 @@ const server = http.createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-query-parameters-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-query-parameters-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension);
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const panel = await context.newPage();
   await panel.setViewportSize({ width: 360, height: 780 });
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
+  const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${browser.id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${browser.id}/`), timeout: 15000 });
   const [tab] = await worker.evaluate(() => chrome.tabs.query({ url: "http://127.0.0.1/*" }));
   const started = await panel.evaluate((tab) => chrome.runtime.sendMessage({ type: "START", tab, options: { screenshots: false, scope: "site" } }), tab);
   assert.equal(started.ok, true);
@@ -104,7 +104,7 @@ try {
   assert.equal(oversized.ok, true);
   const oversizedStop = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
   assert.equal(oversizedStop.ok, true);
-  assert.ok(oversizedStop.value.coverage.snapshotGaps > 0);
+  assert.equal(oversizedStop.value.coverage.snapshotGaps, 0);
   const oversizedEvents = await panel.evaluate(async (id) => {
     const db = await new Promise((resolve, reject) => { const request = indexedDB.open("logic-recorder"); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const items = await new Promise((resolve, reject) => { const request = db.transaction("events").objectStore("events").index("session").getAll(id); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
@@ -112,13 +112,14 @@ try {
     return items;
   }, oversized.value.id);
   const oversizedSnapshot = oversizedEvents.find((event) => event.kind === "page.snapshot" && event.payload.reason === "stop");
-  assert.equal(oversizedSnapshot?.payload.sourceStatus, "omitted_size");
+  assert.equal(oversizedSnapshot?.payload.sourceStatus, "fragmented");
   assert.equal(oversizedSnapshot.payload.sourceHtml, null);
+  assert.ok(reconstructFragments(oversizedSnapshot.payload.sourceReference, oversizedEvents.sort((a, b) => a.seq - b.seq)).includes("x".repeat(1500001)));
   assert.equal(oversizedSnapshot.payload.status, "captured");
   assert.equal(await panel.evaluate(() => globalThis.__rawFixtureRan), undefined);
-  console.log("重复参数、原始 DOM、记录包校验和超限标记通过");
+  console.log("重复参数、原始 DOM、记录包校验和大型页面分段通过");
 } finally {
-  if (context) await context.close();
+  if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });

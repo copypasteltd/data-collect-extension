@@ -1,27 +1,37 @@
 import { chromium } from "playwright";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { spawn } from "node:child_process";
+import assert from "node:assert/strict";
 
 const profile = await fs.mkdtemp(path.resolve("test-recovery-profile-"));
 const extension = path.resolve("dist");
-let context;
+let context, browser, root, child, exited;
 try {
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath:
-      process.env.CHROME_BIN || chromium.executablePath(),
-    headless: true,
-    args: [
-      `--disable-extensions-except=${extension}`,
-      `--load-extension=${extension}`,
-    ],
+  child = spawn(process.env.CHROME_BIN || chromium.executablePath(), [
+    `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
+    "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
+    "--disable-background-networking", "--no-proxy-server", "about:blank",
+  ], { windowsHide: true, stdio: "ignore" });
+  let launchError;
+  exited = new Promise((resolve) => {
+    child.once("exit", resolve);
+    child.once("error", (error) => { launchError = error; resolve(); });
   });
-  const firstWorker =
-    context.serviceWorkers()[0] ||
-    (await context.waitForEvent("serviceworker", { timeout: 15000 }));
+  let port;
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline && !port) {
+    if (launchError) throw launchError;
+    try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
+    catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
+  }
+  assert.ok(port, "Chrome 调试接口未启动");
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  root = await browser.newBrowserCDPSession();
+  const { id } = await root.send("Extensions.loadUnpacked", { path: extension });
+  context = browser.contexts()[0];
   const panel = await context.newPage();
-  await panel.goto(
-    `chrome-extension://${new URL(firstWorker.url()).host}/sidepanel.html`,
-  );
+  await panel.goto(`chrome-extension://${id}/sidepanel.html`);
   const initial = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
   if (!initial.ok) throw new Error("后台初始化失败");
   const cdp = await context.newCDPSession(panel);
@@ -83,7 +93,10 @@ try {
   }
   console.log("后台重启后的准备、录制、收尾和完成状态恢复通过");
 } finally {
-  if (context) await context.close();
+  if (root) await root.send("Browser.close").catch(() => {});
+  if (browser) await browser.close().catch(() => {});
+  if (child && child.exitCode === null) child.kill();
+  if (exited) await exited;
   await fs.rm(profile, {
     recursive: true,
     force: true,

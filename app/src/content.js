@@ -1,8 +1,12 @@
 import { createEventDelivery } from "./delivery.js";
 import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
 import { encodeDatabaseValue } from "./database-value.js";
+import { FRAGMENT_LENGTH, fragmentReference } from "./fragment-writer.js";
+import { encodeDatabaseGraph } from "./database-graph.js";
+import { packComputedEntries } from "./computed-style-encoder.js";
 
 (async () => {
+  if (!["http:", "https:"].includes(location.protocol)) return;
   const previous = globalThis.__logicRecorderInstalled;
   if (previous && !(typeof previous.releaseStopped === "function" && previous.releaseStopped())) {
     let timeout;
@@ -87,6 +91,7 @@ import { encodeDatabaseValue } from "./database-value.js";
   let snapshotMaxTimer;
   let snapshotReason;
   let lastStorage = "";
+  const fragmentTransfers = new Set();
   let nextNodeId = 0;
   const nodeIds = new WeakMap();
   const markedCopies = new WeakSet();
@@ -131,6 +136,71 @@ import { encodeDatabaseValue } from "./database-value.js";
     if (buffer.length >= 25) send();
     else if (!timer) timer = setTimeout(send, 120);
   };
+  function sendFragments(text, reference) {
+    const transfer = (async () => {
+      await send();
+      for (let index = 0; index < reference.parts && !stopped; index++) {
+        const failedBefore = delivery.failedEvents;
+        await delivery.enqueue([{ kind: "capture.fragment", payload: {
+          ...reference, index, data: text.slice(index * FRAGMENT_LENGTH, (index + 1) * FRAGMENT_LENGTH),
+        }, screenshot: false, time: Date.now() }]);
+        if (delivery.failedEvents !== failedBefore) return false;
+      }
+      if (!stopped) {
+        const failedBefore = delivery.failedEvents;
+        await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: {
+          ...reference, status: "confirmed",
+        }, screenshot: false, time: Date.now() }]);
+        return delivery.failedEvents === failedBefore;
+      }
+      return false;
+    })();
+    fragmentTransfers.add(transfer);
+    transfer.finally(() => fragmentTransfers.delete(transfer)).catch(() => {});
+    return transfer;
+  }
+  let fileTransferChain = Promise.resolve();
+  function sendFile(file, reference) {
+    const transfer = fileTransferChain.then(async () => {
+      await send();
+      for (let index = 0; index < reference.parts && !stopped; index++) {
+        const bytes = new Uint8Array(await file.slice(index * 75000, (index + 1) * 75000).arrayBuffer());
+        const data = btoa(String.fromCharCode(...bytes));
+        const before = delivery.failedEvents;
+        await delivery.enqueue([{ kind: "capture.fragment", payload: { ...reference, index, data },
+          screenshot: false, time: Date.now() }]);
+        if (before !== delivery.failedEvents) throw new Error("文件分段写入未确认");
+      }
+      if (stopped) return false;
+      const before = delivery.failedEvents;
+      await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: { ...reference, status: "confirmed" },
+        screenshot: false, time: Date.now() }]);
+      if (before !== delivery.failedEvents) throw new Error("文件结束状态未确认");
+      return true;
+    }).catch((error) => {
+      if (!stopped) emit("capture.fragmentFailure", { ...reference, status: "failed", reason: String(error) });
+      return false;
+    });
+    fileTransferChain = transfer.catch(() => false);
+    fragmentTransfers.add(transfer);
+    transfer.finally(() => fragmentTransfers.delete(transfer)).catch(() => {});
+    return transfer;
+  }
+  function captureFiles(files) {
+    return Array.from(files || [], (file) => {
+      const info = { name: file.name, size: file.size, type: file.type, lastModified: file.lastModified };
+      if (!file.size) return { ...info, contentStatus: "captured", encoding: "base64", data: "" };
+      const length = 4 * Math.ceil(file.size / 3);
+      const reference = { captureId: newCaptureId(), field: "fileBytesBase64", length,
+        parts: Math.ceil(length / FRAGMENT_LENGTH) };
+      sendFile(file, reference);
+      return { ...info, contentStatus: "fragmented", encoding: "base64", contentReference: reference };
+    });
+  }
+  function newCaptureId() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)),
+      (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
   const selector = (el) => {
     if (!(el instanceof Element)) return null;
     if (el.id) return `#${CSS.escape(el.id)}`;
@@ -180,6 +250,8 @@ import { encodeDatabaseValue } from "./database-value.js";
         ? { numericConstraints: readNumericConstraints(el) }
         : {}),
       editable: el instanceof HTMLElement && el.isContentEditable,
+      focused: el.matches(":focus"),
+      disabled: el.matches(":disabled"),
       role: el.getAttribute("role"),
       name: (
             el.getAttribute("aria-label") ||
@@ -202,47 +274,54 @@ import { encodeDatabaseValue } from "./database-value.js";
     const limited = raw.slice(0, MAX_INPUT_LENGTH);
     return { value: limited, truncated: raw.length > limited.length };
   }
+  function captureInput(raw, field) {
+    const { value: captured, truncated } = cleanInput(raw);
+    if (!truncated) return { value: captured, status: "captured" };
+    const reference = fragmentReference(raw, newCaptureId(), field);
+    sendFragments(raw, reference);
+    return { value: captured, status: "fragmented", reference };
+  }
   const value = (el) => {
     if (el instanceof HTMLInputElement && el.type === "file")
-      return { value: "[文件内容未采集]" };
+      return { value: el.value, valueStatus: "browser_file_path" };
     const raw = el instanceof HTMLElement && el.isContentEditable
       ? el.innerText : typeof el?.value === "string" ? el.value : null;
     if (raw === null) return { value: null };
-    const { value: cleaned, truncated } = cleanInput(raw);
-    return { value: cleaned, valueStatus: truncated ? "truncated" : "captured" };
+    const captured = captureInput(raw, "inputValue");
+    return { value: captured.value, valueStatus: captured.status,
+      ...(captured.reference ? { valueReference: captured.reference } : {}) };
   };
   const formState = (el, includeOptions = false) => {
     if (
       el instanceof HTMLInputElement &&
       ["checkbox", "radio"].includes(el.type)
     )
-      return { checked: el.checked };
+      return { checked: el.checked, disabled: el.disabled, indeterminate: el.indeterminate };
     if (el instanceof HTMLSelectElement) {
       const selected = [...el.options].flatMap((option, index) =>
         option.selected
-          ? [{ index, value: cleanStored(option.value.slice(0, 4000)) }]
+          ? [{ index, value: option.value }]
           : [],
       );
-      return {
-        selectedIndices: selected.slice(0, 200).map((item) => item.index),
-        selectedValues: selected.slice(0, 200).map((item) => item.value),
-        truncated: selected.length > 200,
+      const state = {
+        selectedIndices: selected.map((item) => item.index),
+        selectedValues: selected.map((item) => item.value),
+        truncated: false,
+        disabled: el.disabled,
         ...(includeOptions
           ? {
               multiple: el.multiple,
-              options: [...el.options].slice(0, 200).map((option) => {
-                const label = option.label.slice(0, 400), value = option.value.slice(0, 512);
-                const cleanLabel = cleanStored(label), cleanValue = cleanStored(value);
-                return {
-                  id: nodeId(option), label: cleanLabel, value: cleanValue,
-                  uncertain: option.label.length > label.length || option.value.length > value.length || cleanLabel !== label || cleanValue !== value,
-                  disabled: option.disabled || !!option.closest("optgroup:disabled"),
-                };
-              }),
-              optionsTruncated: el.options.length > 200,
+              options: [...el.options].map((option) => ({ id: nodeId(option), label: option.label, value: option.value,
+                disabled: option.disabled || !!option.closest("optgroup:disabled") })),
+              optionsTruncated: false,
             }
           : {}),
       };
+      const json = JSON.stringify(state);
+      if (json.length <= 100000) return state;
+      const reference = fragmentReference(json, newCaptureId(), "formState");
+      sendFragments(json, reference);
+      return { status: "fragmented", reference };
     }
     return undefined;
   };
@@ -518,8 +597,277 @@ import { encodeDatabaseValue } from "./database-value.js";
         roots.push(template.content);
     return roots;
   }
+  function captureDocumentStyles(snapshotId) {
+    try {
+      const sheets = [
+        ...Array.from(document.styleSheets, (sheet) => ({ sheet, source: "document", ancestors: [] })),
+        ...Array.from(document.adoptedStyleSheets || [], (sheet) => ({ sheet, source: "adopted", ancestors: [] })),
+      ];
+      try {
+        const { shadows } = collectDom();
+        for (const root of shadows) {
+          const owner = { shadowRootId: nodeId(root), hostNodeId: nodeId(root.host) };
+          const styles = root.styleSheets ? Array.from(root.styleSheets) :
+            [...root.querySelectorAll('style, link[rel~="stylesheet"]')].map((element) => element.sheet).filter(Boolean);
+          for (const sheet of styles) sheets.push({ sheet, source: "shadow", ancestors: [], ...owner });
+          for (const sheet of root.adoptedStyleSheets || []) sheets.push({ sheet, source: "shadow-adopted", ancestors: [], ...owner });
+        }
+      } catch (error) {
+        emit("page.stylesheet", { snapshotId, url: location.href, source: "shadow", status: "unavailable", reason: String(error) });
+      }
+      const rootTotal = sheets.length;
+      for (let index = 0; index < sheets.length; index++) {
+        const { sheet, source, ancestors, parentIndex, parentRuleIndex, importHref, shadowRootId, hostNodeId } = sheets[index];
+        const info = { snapshotId, url: location.href, source, index, rootTotal,
+          ...(parentIndex == null ? {} : { parentIndex, parentRuleIndex }),
+          ...(shadowRootId ? { shadowRootId, hostNodeId } : {}),
+          href: sheet?.href || importHref || null, media: sheet?.media?.mediaText || "", disabled: !!sheet?.disabled };
+        try {
+          if (!sheet) throw new Error("导入的样式表尚未加载或不可用");
+          if (ancestors.includes(sheet)) throw new Error("样式表导入形成循环");
+          const rules = Array.from(sheet.cssRules);
+          const cssText = rules.map((rule) => rule.cssText).join("\n");
+          const reference = cssText.length > 1500000 ? fragmentReference(cssText, newCaptureId(), "cssText") : null;
+          emit("page.stylesheet", { ...info, status: reference ? "fragmented" : "captured",
+            cssText: reference ? null : cssText, ...(reference ? { cssReference: reference } : {}) });
+          if (reference) sendFragments(cssText, reference);
+          for (let ruleIndex = 0; ruleIndex < rules.length; ruleIndex++) {
+            const rule = rules[ruleIndex];
+            if (rule.type === CSSRule.IMPORT_RULE)
+              sheets.push({ sheet: rule.styleSheet, source: "import", ancestors: [...ancestors, sheet],
+                parentIndex: index, parentRuleIndex: ruleIndex, importHref: rule.href, shadowRootId, hostNodeId });
+          }
+        } catch (error) {
+          emit("page.stylesheet", { ...info, status: "unavailable", reason: String(error) });
+        }
+      }
+    } catch (error) {
+      emit("page.stylesheet", { snapshotId, url: location.href, status: "unavailable", reason: String(error) });
+    }
+  }
+  function captureFonts(snapshotId) {
+    try {
+      if (!document.fonts) throw new Error("浏览器未提供字体集合");
+      const faces = [...document.fonts].map((font) => ({ family: font.family, style: font.style,
+        weight: font.weight, stretch: font.stretch, unicodeRange: font.unicodeRange,
+        variant: font.variant, featureSettings: font.featureSettings, display: font.display,
+        status: font.status, source: "not_exposed_by_fontface" }));
+      const json = JSON.stringify(faces);
+      const reference = json.length > 100000 ? fragmentReference(json, newCaptureId(), "fontFaces") : null;
+      emit("page.fonts", { snapshotId, url: location.href, status: "captured", setStatus: document.fonts.status,
+        count: faces.length, faces: reference ? [] : faces, ...(reference ? { facesStatus: "fragmented", reference } : {}),
+        systemFontFiles: "not_provided_by_browser" });
+      if (reference) sendFragments(json, reference);
+    } catch (error) {
+      emit("page.fonts", { snapshotId, url: location.href, status: "unavailable", reason: String(error) });
+    }
+  }
+  function queueFinalCapture(previous, restart, onError) {
+    const queued = previous.catch(() => {}).then(() => { if (!stopped) restart(); })
+      .catch((error) => { if (!stopped) onError(error); });
+    fragmentTransfers.add(queued);
+    queued.finally(() => fragmentTransfers.delete(queued)).catch(() => {});
+  }
+  let computedStyleBusy = false, computedStyleTask;
+  let shadowSourceBusy = false, shadowSourceTask;
+  function captureShadowSources(snapshotId, captureId, final = false) {
+    if (shadowSourceBusy) {
+      if (final && shadowSourceTask) {
+        queueFinalCapture(shadowSourceTask, () => captureShadowSources(snapshotId, captureId, true),
+          (error) => emit("page.shadowRootEnd", { snapshotId, captureId, status: "failed", reason: String(error) }));
+        return;
+      }
+      emit("page.shadowRootEnd", { snapshotId, captureId, status: "skipped_busy" });
+      return;
+    }
+    let roots;
+    try { roots = collectDom().shadows; }
+    catch (error) {
+      emit("page.shadowRootEnd", { snapshotId, captureId, status: "unavailable", reason: String(error) });
+      return;
+    }
+    shadowSourceBusy = true;
+    const transfer = (async () => {
+      await send();
+      let processed = 0, failures = 0;
+      for (const root of roots) {
+        if (stopped) return;
+        const observedAt = Date.now(), parent = root.host.getRootNode();
+        const info = { snapshotId, captureId, rootNodeId: nodeId(root), hostNodeId: nodeId(root.host),
+          parentRootNodeId: parent instanceof ShadowRoot ? nodeId(parent) : null, mode: root.mode, observedAt };
+        let html, reference, result;
+        try {
+          if (!root.host.isConnected) throw new Error("组件在采集前已移除");
+          html = root.innerHTML;
+          if (html.length > FRAGMENT_LENGTH) reference = fragmentReference(html, newCaptureId(), "shadowSourceHtml");
+          result = { ...info, status: reference ? "fragmented" : "captured", length: html.length,
+            ...(reference ? { reference } : { html }) };
+        } catch (error) {
+          failures++;
+          result = { ...info, status: "unavailable", reason: String(error) };
+        }
+        const before = delivery.failedEvents;
+        await delivery.enqueue([{ kind: "page.shadowRoot", payload: result, screenshot: false, time: observedAt }]);
+        if (delivery.failedEvents !== before) return;
+        if (reference && !await sendFragments(html, reference)) return;
+        processed++;
+      }
+      if (!stopped) await delivery.enqueue([{ kind: "page.shadowRootEnd", payload: {
+        snapshotId, captureId, total: roots.length, processed, failures, status: failures ? "partial" : "captured",
+      }, screenshot: false, time: Date.now() }]);
+    })().catch((error) => {
+      if (!stopped) emit("page.shadowRootEnd", { snapshotId, captureId, status: "failed", reason: String(error) });
+    });
+    shadowSourceTask = transfer;
+    fragmentTransfers.add(transfer);
+    transfer.finally(() => { fragmentTransfers.delete(transfer); shadowSourceBusy = false; if (shadowSourceTask === transfer) shadowSourceTask = null; }).catch(() => {});
+  }
+  let canvasCaptureBusy = false, canvasCaptureTask;
+  function captureCanvasPixels(snapshotId, final = false) {
+    if (canvasCaptureBusy) {
+      if (final && canvasCaptureTask) {
+        queueFinalCapture(canvasCaptureTask, () => captureCanvasPixels(snapshotId, true),
+          (error) => emit("canvas.captureEnd", { snapshotId, status: "failed", reason: String(error) }));
+        return;
+      }
+      emit("canvas.captureEnd", { snapshotId, status: "skipped_busy" });
+      return;
+    }
+    canvasCaptureBusy = true;
+    const task = (async () => {
+      let elements;
+      try { elements = collectDom().elements.filter((element) => element instanceof HTMLCanvasElement); }
+      catch (error) {
+        emit("canvas.captureEnd", { snapshotId, status: "unavailable", reason: String(error) });
+        return;
+      }
+      const settings = await captureSettings;
+      if (!settings?.enabled) {
+        emit("canvas.captureEnd", { snapshotId, status: settings && !elements.length ? "captured" : settings ? "disabled" : "unavailable",
+          total: elements.length, processed: 0, failed: 0 });
+        return;
+      }
+      let processed = 0, failed = 0;
+      for (const element of elements) {
+        if (stopped) return;
+        const info = { snapshotId, nodeId: nodeId(element), pixelWidth: element.width, pixelHeight: element.height,
+          captureStartedAt: Date.now(), drawingContext: "unknown", screenEquivalence: "unverified" };
+        try {
+          let timer;
+          const blob = await Promise.race([
+            new Promise((resolve, reject) => {
+              try { element.toBlob(resolve, "image/png"); } catch (error) { reject(error); }
+            }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("画布读取超时")), 2500); }),
+          ]).finally(() => clearTimeout(timer));
+          if (!blob?.size) throw new Error("浏览器未提供画布图像");
+          const length = 4 * Math.ceil(blob.size / 3);
+          const reference = { captureId: newCaptureId(), field: "canvasBytesBase64", length,
+            parts: Math.ceil(length / FRAGMENT_LENGTH) };
+          emit("canvas.capture", { ...info, capturedAt: Date.now(), status: "fragmented",
+            mime: "image/png", size: blob.size, reference });
+          if (!await sendFile(blob, reference)) failed++;
+        } catch (error) {
+          failed++;
+          emit("canvas.capture", { ...info, status: "unavailable", reason: String(error) });
+        }
+        processed++;
+      }
+      if (!stopped) emit("canvas.captureEnd", { snapshotId, total: elements.length, processed, failed,
+        status: failed ? "partial" : "captured" });
+    })().catch((error) => {
+      if (!stopped) emit("canvas.captureEnd", { snapshotId, status: "failed", reason: String(error) });
+    });
+    canvasCaptureTask = task;
+    fragmentTransfers.add(task);
+    task.finally(() => { fragmentTransfers.delete(task); canvasCaptureBusy = false; if (canvasCaptureTask === task) canvasCaptureTask = null; }).catch(() => {});
+  }
+  function captureComputedStyles(snapshotId, final = false) {
+    const captureId = newCaptureId();
+    if (computedStyleBusy) {
+      if (final && computedStyleTask) {
+        queueFinalCapture(computedStyleTask, () => captureComputedStyles(snapshotId, true),
+          (error) => emit("page.computedStyleEnd", { snapshotId, captureId, status: "failed", reason: String(error) }));
+        return;
+      }
+      emit("page.computedStyleEnd", { snapshotId, captureId, status: "skipped_busy" });
+      return;
+    }
+    let elements, enumerationStatus = "captured";
+    try { elements = collectDom().elements; }
+    catch {
+      elements = [...document.querySelectorAll("*")];
+      enumerationStatus = "shadow_unavailable";
+    }
+    computedStyleBusy = true;
+    const transfer = (async () => {
+      await send();
+      let processed = 0, failures = 0;
+      const batchCount = Math.ceil(elements.length / 5);
+      for (let batchIndex = 0; batchIndex < batchCount && !stopped; batchIndex++) {
+        const entries = [];
+        for (const element of elements.slice(batchIndex * 5, batchIndex * 5 + 5)) {
+          const id = nodeId(element), observedAt = Date.now();
+          try {
+            if (!element.isConnected) throw new Error("元素在采集前已移除");
+            const rect = element.getBoundingClientRect();
+            const properties = readComputedProperties(element, null);
+            const display = properties.find(([name]) => name === "display")?.[1];
+            const pseudoNames = ["::first-line", "::first-letter", "::selection"];
+            if (display === "list-item") pseudoNames.push("::marker");
+            if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) pseudoNames.push("::placeholder");
+            if (element instanceof HTMLInputElement && element.type === "file") pseudoNames.push("::file-selector-button");
+            if (element instanceof HTMLDialogElement && element.open) pseudoNames.push("::backdrop");
+            const pseudos = Object.fromEntries(pseudoNames.map((name) => [name, readComputedProperties(element, name)]));
+            entries.push({ nodeId: id, observedAt, status: "captured",
+              rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+              properties, before: readComputedProperties(element, "::before"), after: readComputedProperties(element, "::after"), pseudos,
+              pseudoScope: "common_pseudos" });
+          } catch (error) {
+            failures++;
+            entries.push({ nodeId: id, observedAt, status: "unavailable", reason: String(error) });
+          }
+        }
+        const packedEntries = await packComputedEntries(entries);
+        if (stopped) return;
+        const failedBefore = delivery.failedEvents;
+        await delivery.enqueue([{ kind: "page.computedStyle", payload: { snapshotId, captureId,
+          batchIndex, batchCount, ...packedEntries }, screenshot: false, time: Date.now() }]);
+        if (delivery.failedEvents !== failedBefore) return;
+        processed += entries.length;
+      }
+      if (!stopped) await delivery.enqueue([{ kind: "page.computedStyleEnd", payload: {
+        snapshotId, captureId, total: elements.length, processed, failures, enumerationStatus,
+        status: failures || enumerationStatus !== "captured" ? "partial" : "captured",
+      }, screenshot: false, time: Date.now() }]);
+    })().catch((error) => {
+      if (!stopped) emit("page.computedStyleEnd", { snapshotId, captureId, status: "failed", reason: String(error) });
+    });
+    computedStyleTask = transfer;
+    fragmentTransfers.add(transfer);
+    transfer.finally(() => { fragmentTransfers.delete(transfer); computedStyleBusy = false; if (computedStyleTask === transfer) computedStyleTask = null; }).catch(() => {});
+  }
+  function readComputedProperties(element, pseudo) {
+    const style = getComputedStyle(element, pseudo);
+    return Array.from({ length: style.length }, (_, index) => {
+      const name = style.item(index);
+      return [name, style.getPropertyValue(name)];
+    });
+  }
+  function captureInteractionStyle(element, reason, interactionCaptureId, interactionTime) {
+    if (!(element instanceof Element)) return;
+    const info = { url: location.href, nodeId: nodeId(element), reason, interactionCaptureId, interactionTime, observedAt: Date.now() };
+    try {
+      if (!element.isConnected) throw new Error("元素在采集前已移除");
+      emit("page.interactionStyle", { ...info, status: "captured", properties: readComputedProperties(element, null),
+        before: readComputedProperties(element, "::before"), after: readComputedProperties(element, "::after") });
+    } catch (error) {
+      emit("page.interactionStyle", { ...info, status: "unavailable", reasonDetail: String(error) });
+    }
+  }
   function snapshot(reason) {
     try {
+      const snapshotId = newCaptureId();
       const canvas = { status: canvasMode === "enabled" ? "captured" : canvasMode, total: 0, captured: 0, omitted: 0, unavailable: 0, reasons: {}, geometryOmitted: 0, geometry: [], items: [] };
       const popover = { total: 0, open: [], omitted: 0, unavailable: 0 };
       const dialog = { total: 0, modal: [], omitted: 0, unavailable: 0 };
@@ -576,13 +924,16 @@ import { encodeDatabaseValue } from "./database-value.js";
           canvas.captured++;
         } catch (error) { canvasGap("unavailable", error?.name === "SecurityError" ? "cross_origin" : "read_error"); }
       };
-      let sourceHtml = null, sourceStatus = "captured", sourceLength = 0;
+      let sourceHtml = null, sourceStatus = "captured", sourceLength = 0, sourceReference, sourceText;
       try {
         const doctype = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : "";
         const source = doctype + document.documentElement.outerHTML;
         sourceLength = source.length;
-        if (sourceLength > 1500000) sourceStatus = "omitted_size";
-        else sourceHtml = source;
+        if (sourceLength > 1500000) {
+          sourceStatus = "fragmented";
+          sourceText = source;
+          sourceReference = fragmentReference(source, newCaptureId(), "sourceHtml");
+        } else sourceHtml = source;
       } catch {
         sourceStatus = "unavailable";
       }
@@ -607,27 +958,25 @@ import { encodeDatabaseValue } from "./database-value.js";
         [clone, ...clone.querySelectorAll("[data-logic-node]")].map((node) => [node.getAttribute("data-logic-node"), node]),
       );
       const scrollPositions = [];
-      let scrollTruncated = backgroundSources.length > 10000;
-      for (const element of backgroundSources.slice(0, 10000)) {
+      let scrollTruncated = false, scrollSources;
+      try { scrollSources = collectDom().elements; }
+      catch { scrollSources = backgroundSources; scrollTruncated = true; }
+      for (const element of scrollSources) {
         if (element === document.documentElement || element === document.body)
           continue;
         if (element.scrollLeft || element.scrollTop) {
-          if (scrollPositions.length >= 200) {
-            scrollTruncated = true;
-            break;
-          }
           scrollPositions.push({
             nodeId: nodeId(element),
             left: element.scrollLeft,
             top: element.scrollTop,
+            scrollWidth: element.scrollWidth, scrollHeight: element.scrollHeight,
+            clientWidth: element.clientWidth, clientHeight: element.clientHeight,
           });
         }
       }
-      for (const item of shadow.scrollPositions) {
-        if (scrollPositions.length >= 200) { scrollTruncated = true; break; }
-        scrollPositions.push(item);
-      }
       delete shadow.scrollPositions;
+      const scrollJson = JSON.stringify({ positions: scrollPositions, truncated: scrollTruncated });
+      const scrollReference = scrollJson.length > 100000 ? fragmentReference(scrollJson, newCaptureId(), "scrollState") : null;
       let backgroundUnavailable = 0;
       for (let i = 0; i < Math.min(backgroundSources.length, 2000); i++) {
         try {
@@ -773,9 +1122,14 @@ import { encodeDatabaseValue } from "./database-value.js";
         );
       }
       let html = "<!doctype html>" + clone.outerHTML;
-      const truncated = html.length > 1500000;
-      if (truncated) html = "";
+      const fragmented = html.length > 1500000;
+      const htmlText = fragmented ? html : null;
+      const htmlReference = fragmented ? fragmentReference(html, newCaptureId(), "html") : undefined;
+      if (fragmented) html = "";
+      const shadowSourceCaptureId = newCaptureId();
       emit("page.snapshot", {
+        snapshotId,
+        shadowSourceCaptureId,
         reason,
         url: location.href,
         title: document.title,
@@ -783,13 +1137,16 @@ import { encodeDatabaseValue } from "./database-value.js";
         sourceHtml,
         sourceStatus,
         sourceLength,
-        status: truncated
-          ? "omitted_size"
+        ...(sourceReference ? { sourceReference } : {}),
+        ...(htmlReference ? { htmlReference } : {}),
+        status: fragmented
+          ? "fragmented"
           : truncatedNodes
             ? "truncated"
             : "captured",
         truncatedNodes,
-        scroll: { positions: scrollPositions, truncated: scrollTruncated },
+        scroll: { positions: scrollReference ? [] : scrollPositions, truncated: scrollTruncated,
+          coverage: "rendered_only", ...(scrollReference ? { status: "fragmented", reference: scrollReference } : {}) },
         shadow,
         canvas,
         popover,
@@ -809,6 +1166,14 @@ import { encodeDatabaseValue } from "./database-value.js";
           dpr: devicePixelRatio,
         },
       });
+      if (sourceReference) sendFragments(sourceText, sourceReference);
+      if (htmlReference) sendFragments(htmlText, htmlReference);
+      if (scrollReference) sendFragments(scrollJson, scrollReference);
+      captureShadowSources(snapshotId, shadowSourceCaptureId, reason === "stop");
+      captureDocumentStyles(snapshotId);
+      captureFonts(snapshotId);
+      captureComputedStyles(snapshotId, reason === "stop");
+      captureCanvasPixels(snapshotId, reason === "stop");
     } catch (error) {
       emit("page.snapshot", { reason, status: "failed", error: String(error) });
     }
@@ -938,12 +1303,7 @@ import { encodeDatabaseValue } from "./database-value.js";
         const files =
           target instanceof HTMLInputElement &&
           target.type === "file"
-            ? [...(target.files || [])].slice(0, 20).map((file) => ({
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                content: "未采集",
-              }))
+            ? captureFiles(target.files)
             : undefined;
         emit(
           `interaction.${type}`,
@@ -973,9 +1333,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     const raw = target instanceof HTMLElement && target.isContentEditable
       ? target.innerText : typeof target.value === "string" ? target.value : null;
     if (typeof raw !== "string") return;
-    const { value: previous, truncated } = cleanInput(raw);
-    inputBefore.set(target, { value: previous, time, inputType: event.inputType,
-      truncated });
+    inputBefore.set(target, { value: raw, time, inputType: event.inputType });
   });
   recordOnRoots(
     "input",
@@ -985,6 +1343,7 @@ import { encodeDatabaseValue } from "./database-value.js";
       const beforeValue = event.isTrusted && previous && time >= previous.time &&
         time - previous.time <= 2000 && previous.inputType === event.inputType
         ? previous.value : undefined;
+      const beforeCapture = beforeValue !== undefined ? captureInput(beforeValue, "beforeValue") : null;
       emit(
         "interaction.input",
         {
@@ -992,9 +1351,10 @@ import { encodeDatabaseValue } from "./database-value.js";
           target: describe(target),
           viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
           ...value(target),
-          ...(beforeValue !== undefined ? { beforeValue,
-            beforeValueStatus: previous.truncated ? "truncated" : "captured" } : {}),
+          ...(beforeCapture ? { beforeValue: beforeCapture.value, beforeValueStatus: beforeCapture.status,
+            ...(beforeCapture.reference ? { beforeValueReference: beforeCapture.reference } : {}) } : {}),
           formState: formState(target, true),
+          ...(target instanceof HTMLInputElement && target.type === "file" ? { files: captureFiles(target.files) } : {}),
           inputType: event.inputType,
           composing: event.isComposing,
         },
@@ -1031,6 +1391,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     "pointerup",
     "pointermove",
     "pointerover",
+    "pointerout",
     "pointercancel",
     "focusin",
     "focusout",
@@ -1054,15 +1415,10 @@ import { encodeDatabaseValue } from "./database-value.js";
         }
         const files =
           type === "drop"
-            ? [...(event.dataTransfer?.files || [])]
-                .slice(0, 20)
-                .map((file) => ({
-                  name: file.name,
-                  size: file.size,
-                  type: file.type,
-                  content: "未采集",
-                }))
+            ? captureFiles(event.dataTransfer?.files)
             : undefined;
+        const captureStyle = ["pointerover", "pointerout", "focusin", "focusout"].includes(type) && target instanceof Element;
+        const interactionCaptureId = captureStyle ? newCaptureId() : null;
         emit(
           `interaction.${type}`,
           {
@@ -1078,9 +1434,14 @@ import { encodeDatabaseValue } from "./database-value.js";
             files,
             trusted: event.isTrusted,
             sampled: type === "pointermove",
+            ...(interactionCaptureId ? { interactionCaptureId } : {}),
           },
           true, time,
         );
+        if (interactionCaptureId) {
+          captureInteractionStyle(target, type, interactionCaptureId, time);
+          scheduleSnapshot(type);
+        }
       },
     );
   }
@@ -1091,6 +1452,7 @@ import { encodeDatabaseValue } from "./database-value.js";
     clearTimeout(pending.timer);
     pendingScrolls.delete(target);
     emit("interaction.scroll", pending.payload, true, pending.time);
+    scheduleSnapshot("scroll");
   }
   function flushScrolls() {
     for (const target of pendingScrolls.keys()) flushScroll(target);
@@ -1112,6 +1474,10 @@ import { encodeDatabaseValue } from "./database-value.js";
           target: describe(target),
           targetScope: element ? "element" : "document",
           targetNodeId: element ? nodeId(element) : undefined,
+          firstTime: previous?.payload.firstTime ?? time,
+          eventCount: (previous?.payload.eventCount || 0) + 1,
+          viewport: { width: innerWidth, height: innerHeight },
+          coverage: "rendered_only",
           x: scrollX,
           y: scrollY,
           scrollLeft: element ? element.scrollLeft : scrollX,
@@ -1181,10 +1547,74 @@ import { encodeDatabaseValue } from "./database-value.js";
       clearTimeout(shadowTimer);
       shadowTimer = setTimeout(refreshShadowListeners, 100);
     }
-    const dialogs = new Set(), changes = [],
-      budget = { count: 0, truncated: false };
-    for (let index = 0; index < Math.min(records.length, 200); index++) {
+    const dialogs = new Set(), nextValues = new Map(), following = new Map();
+    for (let index = records.length - 1; index >= 0; index--) {
       const record = records[index];
+      if (record.type !== "attributes" && record.type !== "characterData") continue;
+      let values = following.get(record.target);
+      if (!values) following.set(record.target, values = new Map());
+      const key = record.type === "attributes" ? JSON.stringify([record.attributeNamespace, record.attributeName]) : "text";
+      if (values.has(key)) nextValues.set(index, values.get(key));
+      values.set(key, record.oldValue);
+    }
+    let changes = [], rawChanges = [], budget = { count: 0, truncated: false }, filtered = 0;
+    const batchId = newCaptureId();
+    const batchCount = Math.ceil(records.length / 200);
+    const rawValue = (value, field) => {
+      if (value === null) return { status: "captured", value: null };
+      const text = String(value);
+      if (text.length <= 10000) return { status: "captured", value: text };
+      const reference = fragmentReference(text, newCaptureId(), field);
+      sendFragments(text, reference);
+      return { status: "fragmented", reference };
+    };
+    const rawNode = (node) => {
+      try {
+        const topology = [], pending = [[node, []]];
+        while (pending.length) {
+          const [current, path] = pending.pop();
+          topology.push({ id: nodeId(current), path });
+          const children = [...current.childNodes];
+          for (let index = children.length - 1; index >= 0; index--)
+            pending.push([children[index], [...path, index]]);
+        }
+        const data = { id: nodeId(node), nodeType: node.nodeType, nodeName: node.nodeName,
+          content: node.nodeType === Node.ELEMENT_NODE ? node.outerHTML : node.nodeValue, topology };
+        const json = JSON.stringify(data);
+        if (json.length <= 100000) return { status: "captured", data };
+        const reference = fragmentReference(json, newCaptureId(), "mutationNode");
+        sendFragments(json, reference);
+        return { status: "fragmented", reference };
+      } catch (error) { return { status: "unavailable", id: nodeId(node), reason: String(error) }; }
+    };
+    function flushMutations(index) {
+      emit("page.mutation", {
+        url: location.href, changes, rawChanges, rawNodeTime: "observer_callback",
+        batchId, batchIndex: Math.floor(index / 200), batchCount,
+        filteredRecords: filtered,
+        status: budget.truncated || filtered ? "truncated" : "captured",
+      });
+      changes = [];
+      rawChanges = [];
+      budget = { count: 0, truncated: false };
+      filtered = 0;
+    }
+    for (let index = 0; index < records.length; index++) {
+      const record = records[index];
+      if (record.type === "attributes") {
+        const name = record.attributeName || "";
+        const current = nextValues.has(index) ? nextValues.get(index) :
+          record.attributeNamespace ? record.target.getAttributeNS(record.attributeNamespace, name) : record.target.getAttribute(name);
+        rawChanges.push({ type: "attribute", id: nodeId(record.target), name, namespace: record.attributeNamespace,
+          before: rawValue(record.oldValue, "mutationBefore"), value: rawValue(current, "mutationValue") });
+      } else if (record.type === "characterData") {
+        const current = nextValues.has(index) ? nextValues.get(index) : record.target.nodeValue;
+        rawChanges.push({ type: "text", id: nodeId(record.target), before: rawValue(record.oldValue, "mutationBefore"),
+          value: rawValue(current, "mutationValue") });
+      } else if (record.type === "childList") {
+        rawChanges.push({ type: "children", id: nodeId(record.target), next: record.nextSibling ? nodeId(record.nextSibling) : null,
+          added: [...record.addedNodes].map(rawNode), removed: [...record.removedNodes].map(rawNode) });
+      }
       const targetElement =
         record.target.nodeType === Node.ELEMENT_NODE
           ? record.target
@@ -1193,21 +1623,15 @@ import { encodeDatabaseValue } from "./database-value.js";
         targetElement?.closest(
           "script, noscript, iframe, object, embed, base, meta, link",
         )
-      )
-        continue;
-      if (record.type === "attributes") {
+      ) {
+        filtered++;
+      } else if (record.type === "attributes") {
         const name = record.attributeName || "";
         if (name === "open" && record.target instanceof HTMLDialogElement) dialogs.add(record.target);
-        if (/^on/i.test(name)) continue;
-        const next = records
-          .slice(index + 1)
-          .find(
-            (item) =>
-              item.type === "attributes" &&
-              item.target === record.target &&
-              item.attributeName === name,
-          );
-        const current = next ? next.oldValue : record.target.getAttribute(name);
+        if (/^on/i.test(name)) { filtered++; }
+        else {
+        const current = nextValues.has(index) ? nextValues.get(index) :
+          record.attributeNamespace ? record.target.getAttributeNS(record.attributeNamespace, name) : record.target.getAttribute(name);
         if (
           (record.oldValue?.length || 0) > 10000 ||
           (current?.length || 0) > 10000
@@ -1224,14 +1648,9 @@ import { encodeDatabaseValue } from "./database-value.js";
               ? safeImageUrl(current)
               : safeAttribute(name, current),
         });
+        }
       } else if (record.type === "characterData") {
-        const next = records
-          .slice(index + 1)
-          .find(
-            (item) =>
-              item.type === "characterData" && item.target === record.target,
-          );
-        const current = next ? next.oldValue : record.target.nodeValue;
+        const current = nextValues.has(index) ? nextValues.get(index) : record.target.nodeValue;
         if (
           (record.oldValue?.length || 0) > 10000 ||
           (current?.length || 0) > 10000
@@ -1268,14 +1687,8 @@ import { encodeDatabaseValue } from "./database-value.js";
           next: next ? nodeId(next) : null,
         });
       }
+      if ((index + 1) % 200 === 0 || index === records.length - 1) flushMutations(index);
     }
-    if (changes.length)
-      emit("page.mutation", {
-        url: location.href,
-        changes,
-        status:
-          records.length > 200 || budget.truncated ? "truncated" : "captured",
-      });
     for (const target of dialogs) {
       try {
         emit("page.dialog", { url: location.href, targetNodeId: nodeId(target), open: target.open,
@@ -1291,60 +1704,116 @@ import { encodeDatabaseValue } from "./database-value.js";
   refreshShadowListeners();
   function captureStorage(reason = "poll") {
     const stores = {}, coverage = {}, specialEntries = [];
+    const captureStartedAt = Date.now();
     for (const name of ["localStorage", "sessionStorage"]) {
       try {
         const store = window[name], entries = Object.create(null);
         const total = store.length;
-        let oversizedValues = 0;
-        for (let i = 0; i < total && i < 200; i++) {
+        for (let i = 0; i < total; i++) {
           const key = store.key(i);
           if (key === null) continue;
           const raw = store.getItem(key);
-          if (raw?.length > 4000) oversizedValues++;
-          entries[key] = raw?.length > 4000 ? "[超过大小限制]" : raw;
+          if (raw === null) continue;
+          entries[key] = raw;
           if (key === "__proto__")
             specialEntries.push({ storage: name, key, value: entries[key] });
         }
         stores[name] = entries;
         const captured = Object.keys(entries).length;
         const omittedKeys = Math.max(0, total - captured);
+        const finalTotal = store.length;
         coverage[name] = {
-          status: omittedKeys || oversizedValues ? "partial" : "captured",
+          status: omittedKeys || finalTotal !== total ? "partial" : "captured",
           total,
+          finalTotal,
           captured,
           omittedKeys,
-          oversizedValues,
         };
-      } catch {
-        coverage[name] = { status: "unavailable" };
+      } catch (error) {
+        coverage[name] = { status: "unavailable", reason: String(error) };
       }
     }
     const json = JSON.stringify({ stores, coverage, specialEntries });
     if (json !== lastStorage) {
       lastStorage = json;
+      const reference = json.length > 1500000 ? fragmentReference(json, newCaptureId(), "storage") : null;
       emit("storage.snapshot", {
         url: location.href,
-        stores,
+        stores: reference ? {} : stores,
         coverage,
-        specialEntries,
+        specialEntries: reference ? [] : specialEntries,
+        ...(reference ? { storageReference: reference, storageStatus: "fragmented" } : {}),
         method: reason,
         intervalMs: 1000,
+        captureStartedAt,
+        capturedAt: Date.now(),
       });
+      if (reference) sendFragments(json, reference).then((complete) => {
+        if (!complete && lastStorage === json) lastStorage = "";
+      }).catch(() => { if (lastStorage === json) lastStorage = ""; });
     }
   }
   captureStorage();
   const storageTimer = setInterval(captureStorage, 1000);
+  function openDatabaseForGraph(name) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => { settled = true; reject(new Error("数据库打开超时")); }, 2500);
+      const request = indexedDB.open(name);
+      request.onupgradeneeded = () => request.transaction.abort();
+      request.onblocked = () => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error("数据库打开被阻塞")); } };
+      request.onerror = () => { if (!settled) { settled = true; clearTimeout(timer); reject(request.error || new Error("数据库打开失败")); } };
+      request.onsuccess = () => {
+        const db = request.result;
+        if (settled) { db.close(); return; }
+        settled = true;
+        clearTimeout(timer);
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
+    });
+  }
+  function readDatabaseBatch(db, name, lastKey, hasLast) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(name, "readonly"), rows = [];
+      const timer = setTimeout(() => { try { tx.abort(); } catch {} }, 2500);
+      const cursor = tx.objectStore(name).openCursor(hasLast ? IDBKeyRange.lowerBound(lastKey, true) : undefined);
+      cursor.onsuccess = () => {
+        const row = cursor.result;
+        if (!row) return;
+        rows.push({ store: name, key: row.primaryKey, value: row.value, observedAt: Date.now() });
+        if (rows.length < 20) row.continue();
+      };
+      tx.oncomplete = () => { clearTimeout(timer); resolve(rows); };
+      tx.onerror = tx.onabort = () => { clearTimeout(timer); reject(tx.error || new Error("数据库批次读取失败或超时")); };
+    });
+  }
   async function captureDatabases(reason) {
+    const catalogId = newCaptureId();
     if (!indexedDB.databases) {
-      emit("database.snapshot", { reason, status: "unavailable" });
+      emit("database.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(), status: "unavailable", reasonDetail: "浏览器不支持数据库枚举" });
+      emit("database.catalogEnd", { reason, catalogId, status: "unavailable" });
+      emit("database.snapshot", { reason, catalogId, status: "unavailable" });
       return;
     }
     try {
       let remainingRecords = 500,
         remainingChars = 2000000;
       const databases = await indexedDB.databases();
-      for (const info of databases.slice(0, 20)) {
-        if (!info.name) continue;
+      const catalog = JSON.stringify(databases);
+      const catalogReference = catalog.length > FRAGMENT_LENGTH ? fragmentReference(catalog, newCaptureId(), "databaseCatalog") : null;
+      emit("database.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(), count: databases.length,
+        status: catalogReference ? "fragmented" : "captured", ...(catalogReference ? { reference: catalogReference } : { databases }) });
+      if (catalogReference && !await sendFragments(catalog, catalogReference)) return;
+      let processed = 0;
+      for (let catalogIndex = 0; catalogIndex < databases.length; catalogIndex++) {
+        if (stopped) return;
+        const info = databases[catalogIndex];
+        if (typeof info.name !== "string") {
+          emit("database.snapshot", { reason, catalogId, catalogIndex, status: "unavailable", error: "浏览器未提供数据库名称" });
+          processed++;
+          continue;
+        }
         const result = await new Promise((resolve) => {
           let settled = false;
           const finish = (value) => {
@@ -1371,7 +1840,7 @@ import { encodeDatabaseValue } from "./database-value.js";
               return;
             }
             db.onversionchange = () => db.close();
-            const names = [...db.objectStoreNames].slice(0, 30),
+            const names = [...db.objectStoreNames],
               stores = [];
             if (!names.length) {
               db.close();
@@ -1391,10 +1860,17 @@ import { encodeDatabaseValue } from "./database-value.js";
                     name,
                     keyPath: store.keyPath,
                     indexes: [...store.indexNames],
+                    indexDefinitions: [...store.indexNames].map((indexName) => {
+                      const index = store.index(indexName);
+                      return { name: indexName, keyPath: index.keyPath, unique: index.unique, multiEntry: index.multiEntry };
+                    }),
+                    autoIncrement: store.autoIncrement,
                     records: [],
                     truncated: false,
                   };
                 stores.push(entry);
+                const count = store.count();
+                count.onsuccess = () => { entry.totalAtSnapshot = count.result; };
                 const cursor = store.openCursor();
                 cursor.onsuccess = () => {
                   const row = cursor.result;
@@ -1461,28 +1937,103 @@ import { encodeDatabaseValue } from "./database-value.js";
             }
           };
         });
+        const graphCaptureId = result.status === "captured" ? newCaptureId() : null;
         emit("database.snapshot", {
-          reason,
+          reason, catalogId, catalogIndex,
           database: result,
           url: location.href,
+          ...(graphCaptureId ? { graphCaptureId, graphStatus: "pending" } : {}),
         });
+        if (graphCaptureId) {
+          let batch = [], batchBytes = 0, saved = 0, failed = 0, scanned = 0, scanError = null, graphDb;
+          const flushRows = async () => {
+            if (!batch.length) return true;
+            const before = delivery.failedEvents;
+            await delivery.enqueue(batch);
+            batch = [];
+            batchBytes = 0;
+            return before === delivery.failedEvents;
+          };
+          await send();
+          try {
+            graphDb = await openDatabaseForGraph(info.name);
+            if (graphDb.version !== result.version) throw new Error("数据库版本在采样期间发生变化");
+            for (const store of result.stores) {
+              let lastKey, hasLast = false;
+              const firstIndex = scanned;
+              while (!stopped) {
+                const rows = await readDatabaseBatch(graphDb, store.name, lastKey, hasLast);
+                for (const row of rows) {
+                  const index = scanned++;
+                  let payload;
+                  try {
+                    const graph = await encodeDatabaseGraph({ key: row.key, value: row.value });
+                    const json = JSON.stringify(graph);
+                    if (graph.issues.length) failed++;
+                    if (json.length > 100000) {
+                      if (!await flushRows()) throw new Error("数据库记录写入未确认");
+                      const reference = fragmentReference(json, newCaptureId(), "databaseGraph");
+                      payload = { graphCaptureId, database: info.name, store: row.store, index,
+                        observedAt: row.observedAt, status: graph.issues.length ? "partial" : "fragmented", graphReference: reference };
+                      const before = delivery.failedEvents;
+                      await delivery.enqueue([{ kind: "database.record", payload, screenshot: false, time: Date.now() }]);
+                      if (before !== delivery.failedEvents || !await sendFragments(json, reference)) throw new Error("数据库记录分段未确认");
+                      saved++;
+                      continue;
+                    }
+                    payload = { graphCaptureId, database: info.name, store: row.store, index,
+                      observedAt: row.observedAt, status: graph.issues.length ? "partial" : "captured", graph };
+                  } catch (error) {
+                    failed++;
+                    payload = { graphCaptureId, database: info.name, store: row.store, index,
+                      observedAt: row.observedAt, status: "unavailable", reason: String(error) };
+                  }
+                  const size = JSON.stringify(payload).length;
+                  if (batch.length && (batch.length >= 20 || batchBytes + size > 1000000)) {
+                    if (!await flushRows()) throw new Error("数据库记录写入未确认");
+                  }
+                  batch.push({ kind: "database.record", payload, screenshot: false, time: Date.now() });
+                  batchBytes += size;
+                  saved++;
+                }
+                if (rows.length < 20) break;
+                lastKey = rows[rows.length - 1].key;
+                hasLast = true;
+              }
+              const observed = scanned - firstIndex;
+              const matches = Number.isSafeInteger(store.totalAtSnapshot) && observed === store.totalAtSnapshot;
+              if (!matches) failed++;
+              emit("database.storeScan", { reason, graphCaptureId, database: info.name, store: store.name,
+                initialCount: store.totalAtSnapshot ?? null, observedCount: observed,
+                status: matches ? "count_matched" : "count_changed_or_unavailable",
+                consistency: "batched_non_atomic" });
+            }
+          } catch (error) { failed++; scanError = String(error); }
+          finally { graphDb?.close(); }
+          if (!await flushRows()) failed++;
+          if (!stopped) emit("database.recordsEnd", { reason, graphCaptureId, database: info.name,
+            total: scanned, saved, failed, omitted: 0, consistency: "batched_non_atomic",
+            ...(scanError ? { error: scanError, totalStatus: "scanned_only" } : {}),
+            storesTruncated: !!result.storesTruncated,
+            status: failed || result.storesTruncated || saved !== scanned ? "partial" : "captured" });
+        }
+        processed++;
       }
-      if (databases.length > 20)
-        emit("database.snapshot", {
-          reason,
-          status: "truncated",
-          total: databases.length,
-        });
+      if (!stopped) emit("database.catalogEnd", { reason, catalogId, count: databases.length, processed,
+        status: processed === databases.length ? "captured" : "partial" });
     } catch (error) {
+      emit("database.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(), status: "unavailable", reasonDetail: String(error) });
+      emit("database.catalogEnd", { reason, catalogId, status: "unavailable", reasonDetail: String(error) });
       emit("database.snapshot", {
-        reason,
+        reason, catalogId,
         status: "failed",
         error: String(error),
       });
     }
   }
   async function captureCache(reason) {
-    const deadline = Date.now() + 2500;
+    const catalogId = newCaptureId();
+    let deadline = Date.now() + 2500;
     const withinDeadline = (promise) => {
       let timer;
       return Promise.race([
@@ -1494,14 +2045,18 @@ import { encodeDatabaseValue } from "./database-value.js";
     };
     try {
       const names = await withinDeadline(caches.keys());
-      let remaining = 300;
-      for (const name of names.slice(0, 20)) {
+      const catalog = JSON.stringify(names);
+      const catalogReference = catalog.length > FRAGMENT_LENGTH ? fragmentReference(catalog, newCaptureId(), "cacheCatalog") : null;
+      emit("cache.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(), count: names.length,
+        status: catalogReference ? "fragmented" : "captured", ...(catalogReference ? { reference: catalogReference } : { names }) });
+      if (catalogReference && !await sendFragments(catalog, catalogReference)) return;
+      let processed = 0;
+      for (let nameIndex = 0; nameIndex < names.length; nameIndex++) {
+        if (stopped) return;
+        deadline = Date.now() + 2500;
+        const name = names[nameIndex];
         const safeName = cleanStored(name);
         const nameStatus = name.length > 10000 ? "omitted_size" : "captured";
-        if (remaining <= 0) {
-          emit("cache.snapshot", { reason, name: safeName, status: "omitted_limit" });
-          continue;
-        }
         try {
           if (Date.now() >= deadline) throw new Error("缓存采集超时");
           if (!await withinDeadline(caches.has(name)))
@@ -1509,7 +2064,8 @@ import { encodeDatabaseValue } from "./database-value.js";
           const cache = await withinDeadline(caches.open(name));
           const requests = await withinDeadline(cache.keys());
           let unavailableUrls = 0;
-          const entries = requests.slice(0, Math.min(50, remaining)).map((request) => {
+          const selected = requests;
+          const entries = selected.slice(0, 50).map((request) => {
             const url = request.url.length <= 10000 ? safeAttribute("src", request.url) : null;
             const urlStatus = request.url.length > 10000 ? "omitted_size"
               : typeof url === "string" && /^https?:\/\//i.test(url) ? "captured" : "unavailable";
@@ -1517,40 +2073,80 @@ import { encodeDatabaseValue } from "./database-value.js";
             return { url: urlStatus === "captured" ? url : null, urlStatus,
               method: cleanStored(request.method), mode: request.mode };
           });
-          remaining -= entries.length;
+          const snapshotId = newCaptureId();
+          let responseGaps = 0, attempted = 0;
+          for (let index = 0; index < selected.length; index++) {
+            if (stopped) return;
+            attempted++;
+            const request = selected[index];
+            const info = { snapshotId, catalogId, catalogIndex: nameIndex, reason, cacheName: name, index, url: location.href,
+              request: { url: request.url, method: request.method, mode: request.mode, headers: [...request.headers.entries()] } };
+            let emitted = false;
+            try {
+              if (Date.now() >= deadline) throw new Error("缓存采集超时");
+              const response = await withinDeadline(cache.match(request));
+              if (!response) throw new Error("缓存响应已不存在");
+              const metadata = { url: response.url, type: response.type, status: response.status,
+                statusText: response.statusText, headers: [...response.headers.entries()] };
+              if (response.type === "opaque" || response.type === "opaqueredirect") {
+                responseGaps++;
+                emit("cache.entry", { ...info, response: metadata, status: "opaque" });
+                continue;
+              }
+              const bytes = new Uint8Array(await withinDeadline(response.arrayBuffer()));
+              const parts = [];
+              for (let offset = 0; offset < bytes.length; offset += 49152)
+                parts.push(btoa(String.fromCharCode(...bytes.subarray(offset, offset + 49152))));
+              const data = parts.join("");
+              const reference = data.length > 100000 ? fragmentReference(data, newCaptureId(), "cacheBodyBase64") : null;
+              emit("cache.entry", { ...info, response: metadata, status: "captured", body: {
+                encoding: "base64", size: bytes.length, ...(reference ? { reference, status: "fragmented" } : { data, status: "captured" }),
+              } });
+              emitted = true;
+              if (reference && !await withinDeadline(sendFragments(data, reference))) responseGaps++;
+            } catch (error) {
+              responseGaps++;
+              emit(emitted ? "cache.entryFailure" : "cache.entry", { ...info,
+                status: Date.now() >= deadline ? "timeout" : "unavailable", reason: String(error) });
+              if (Date.now() >= deadline) break;
+            }
+          }
           emit("cache.snapshot", {
             reason,
+            catalogId,
+            catalogIndex: nameIndex,
+            snapshotId,
             name: safeName,
             nameStatus,
-            status: "metadata_only",
+            status: "captured",
             total: requests.length,
             entries,
-            omitted: Math.max(0, requests.length - entries.length),
+            metadataOmitted: Math.max(0, requests.length - entries.length),
+            omitted: Math.max(0, requests.length - attempted),
             unavailableUrls,
-            truncated: requests.length > entries.length || unavailableUrls > 0 || nameStatus === "omitted_size",
-            note: "缓存请求头及响应内容未采集",
+            responseGaps,
+            truncated: requests.length > attempted || nameStatus === "omitted_size" || responseGaps > 0,
           });
         } catch (error) {
           const timedOut = Date.now() >= deadline;
           emit("cache.snapshot", {
-            reason, name: safeName, status: timedOut ? "timeout" : "unavailable",
+            reason, catalogId, catalogIndex: nameIndex, name: safeName, status: timedOut ? "timeout" : "unavailable",
             error: cleanStored(String(error).slice(0, 10000)),
           });
-          if (timedOut) break;
         }
+        processed++;
       }
-      if (names.length > 20)
-        emit("cache.snapshot", {
-          reason,
-          status: "truncated",
-          total: names.length,
-        });
+      if (!stopped) emit("cache.catalogEnd", { reason, catalogId, count: names.length, processed,
+        status: processed === names.length ? "captured" : "partial" });
     } catch (error) {
+      emit("cache.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(),
+        status: Date.now() >= deadline ? "timeout" : "unavailable", reasonDetail: String(error) });
       emit("cache.snapshot", {
-        reason,
+        reason, catalogId,
         status: Date.now() >= deadline ? "timeout" : "unavailable",
         error: cleanStored(String(error).slice(0, 10000)),
       });
+      emit("cache.catalogEnd", { reason, catalogId, status: "unavailable", reasonDetail: String(error) });
     }
   }
   function beginStateCapture(source, reason, run) {
@@ -1612,11 +2208,13 @@ import { encodeDatabaseValue } from "./database-value.js";
         beginStateCapture("database", "stop", () => captureDatabases("stop")),
         beginStateCapture("cache", "stop", () => captureCache("stop")),
       ];
-      const snapshots = Promise.all(captures.map((capture) => capture.promise));
+      const snapshots = Promise.all(captures.map((capture) => capture.promise)).then(async () => {
+        while (fragmentTransfers.size) await Promise.all([...fragmentTransfers]);
+      });
       let timeout;
       Promise.race([
         snapshots.then(() => false),
-        new Promise((resolve) => { timeout = setTimeout(() => resolve(true), 4000); }),
+        new Promise((resolve) => { timeout = setTimeout(() => resolve(true), 9000); }),
       ])
         .then((timedOut) => {
           clearTimeout(timeout);

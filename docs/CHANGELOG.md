@@ -5,7 +5,13 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 
 ## 未发布 / Unreleased
 
-- 新增 2026-11-11 内容更新细则，逐项记录 01–26 的现状、目标、边界和验收要求；此项仅为文档更新。 / Add the 2026-11-11 update specification covering the baseline, goals, limits, and acceptance criteria for items 01–26; documentation only.
+- 新增 2026-11-11 内容更新细则及实施进度；01–26 尚未全部完成验收。 / Add the 2026-11-11 update specification and implementation progress; acceptance of items 01–26 remains incomplete.
+- 增强 DOM、输入、文件、样式、画布、浏览器存储、网络与实时消息的采集和分段；新增无损及整页分片截图，记录失败和可观察限制。 / Extend capture and fragmentation for DOM, input, files, styles, canvas, browser storage, network traffic, and real-time messages; add lossless and tiled full-page screenshots with explicit failures and limits.
+- 记录包新增可追溯事件与关系索引、字段观察与汇总，并更新解析技能及分段重组工具。 / Add traceable event and relationship indexes, field observations and summaries, and update the analysis skill and fragment reconstruction tool.
+- 增加数据库目录及结束确认、缓存目录变化记录，并整理 UTF-8 表单编码字段；不支持的字符集和无效编码保留原文并报告。 / Record database and cache catalogs with completion evidence and summarize UTF-8 URL-encoded form fields; retain original bodies and report unsupported charsets or invalid encoding.
+- 增加隔离 Chrome 故障注入、资源字节和持续录制压力样本；结果与未覆盖范围见实施进度。 / Add isolated Chrome fault-injection, resource-byte, and sustained-recording samples; results and remaining gaps are documented in the implementation progress.
+- 修复非 HTTP(S) 框架误执行采集器导致的异常；批量注入失败后逐框架重试并记录失败范围；纠正数据库目录关系被误标为缓存目录的问题。 / Avoid collector errors in non-HTTP(S) frames, retry failed batch injection per frame while reporting gaps, and correct database catalog relationships mislabeled as cache relationships.
+- 停止时覆盖检查失败或超时会标记中断并保留已保存数据；导出检测缺失附件。Windows 隔离 Chrome 的测试结果见实施进度，未进行 macOS 真机测试。 / Mark a batch interrupted when the final coverage check fails or times out while retaining saved data; detect missing assets during export. Windows isolated Chrome results are in the progress document; macOS hardware was not tested.
 
 ## 0.1.6 - 2026-11-11
 

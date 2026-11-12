@@ -3,6 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { unzipSync, strFromU8 } from "fflate";
 
 const server = http.createServer((request, response) => {
@@ -17,23 +18,41 @@ const server = http.createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-stop-lifecycle-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-stop-lifecycle-extension-"));
-let context;
+let context, browser, root, child, exited;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    viewport: null,
-    args: ["--window-size=1000,700", `--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
+  child = spawn(process.env.CHROME_BIN || chromium.executablePath(), [
+    `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
+    "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
+    "--disable-background-networking", "--no-proxy-server", "--window-size=1000,700", "about:blank",
+  ], { windowsHide: true, stdio: "ignore" });
+  let launchError;
+  exited = new Promise((resolve) => {
+    child.once("exit", resolve);
+    child.once("error", (error) => { launchError = error; resolve(); });
   });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
+  let port;
+  const launchDeadline = Date.now() + 15000;
+  while (Date.now() < launchDeadline && !port) {
+    if (launchError) throw launchError;
+    try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
+    catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
+  }
+  assert.ok(port, "Chrome 调试接口未启动");
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  root = await browser.newBrowserCDPSession();
+  const { id } = await root.send("Extensions.loadUnpacked", { path: extension });
+  context = browser.contexts()[0];
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/first`);
   let panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${id}/sidepanel.html`);
+  const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${id}/`), timeout: 15000 });
   await page.bringToFront();
   await panel.waitForTimeout(2200);
 
@@ -421,7 +440,10 @@ try {
   console.log("录制状态写入未完成时可停止，迟到写入不会覆盖新批次");
   console.log("准备期间可停止并导出，迟到注入不影响下一批录制");
 } finally {
-  if (context) await context.close();
+  if (root) await root.send("Browser.close").catch(() => {});
+  if (browser) await browser.close().catch(() => {});
+  if (child && child.exitCode === null) child.kill();
+  if (exited) await exited;
   await new Promise((resolve) => server.close(resolve));
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });

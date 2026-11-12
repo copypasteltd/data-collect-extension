@@ -1,4 +1,6 @@
 import hashlib
+import base64
+import gzip
 from contextlib import closing
 import json
 import os
@@ -13,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills" / "extension-logic-clone" / "scripts" / "index_archive.py"
+RECONSTRUCT = ROOT / "skills" / "extension-logic-clone" / "scripts" / "reconstruct_payload.py"
+DECODE_STYLE = ROOT / "skills" / "extension-logic-clone" / "scripts" / "decode_computed_style.py"
 
 
 class ArchiveIndexTests(unittest.TestCase):
@@ -103,6 +107,89 @@ class ArchiveIndexTests(unittest.TestCase):
         self.write_archive()
         self.assertNotEqual(self.run_index("--max-entry-mb", "0").returncode, 0)
         self.assertFalse(self.index.exists())
+
+    def test_fragment_reconstruction_validates_order_and_utf16(self):
+        text = "x" * 99999 + "😀" + "z"
+        encoded = text.encode("utf-16-le")
+        parts = [encoded[:200000].decode("utf-16-le", "surrogatepass"),
+                 encoded[200000:].decode("utf-16-le", "surrogatepass")]
+        reference = {"captureId": "capture", "field": "sourceHtml", "length": len(encoded) // 2, "parts": 2}
+        events = [
+            {"id": "owner", "seq": 1, "kind": "page.snapshot", "payload": {"sourceReference": reference}},
+            *[{"id": f"part-{index}", "seq": index + 2, "kind": "capture.fragment",
+               "payload": {**reference, "index": index, "data": part}} for index, part in enumerate(parts)],
+            {"id": "end", "seq": 4, "kind": "capture.fragmentEnd", "payload": {**reference, "status": "confirmed"}},
+        ]
+        with closing(sqlite3.connect(self.index)) as db:
+            db.execute("CREATE TABLE events (id TEXT, seq INTEGER, kind TEXT, event_json TEXT)")
+            db.executemany("INSERT INTO events VALUES (?, ?, ?, ?)",
+                           [(event["id"], event["seq"], event["kind"], json.dumps(event)) for event in events])
+            db.commit()
+        output = self.folder / "reconstructed.html"
+        args = [sys.executable, str(RECONSTRUCT), str(self.index), "--event-id", "owner",
+                "--reference", "/payload/sourceReference", "--output", str(output)]
+        result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output.read_text(encoding="utf-8"), text)
+        self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+        output.unlink()
+        with closing(sqlite3.connect(self.index)) as db:
+            db.execute("DELETE FROM events WHERE id='part-1'")
+            db.commit()
+        self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+        self.assertFalse(output.exists())
+
+    def test_fragment_reconstruction_decodes_and_checks_bytes(self):
+        data = bytes(range(256)) * 600
+        text = base64.b64encode(data).decode("ascii")
+        parts = [text[index:index + 100000] for index in range(0, len(text), 100000)]
+        reference = {"captureId": "file", "field": "fileBytesBase64", "length": len(text), "parts": len(parts)}
+        events = [
+            {"id": "owner", "seq": 1, "kind": "interaction.change", "payload": {"files": [{"contentReference": reference}]}},
+            *[{"id": f"part-{index}", "seq": index + 2, "kind": "capture.fragment",
+               "payload": {**reference, "index": index, "data": part}} for index, part in enumerate(parts)],
+            {"id": "end", "seq": len(parts) + 2, "kind": "capture.fragmentEnd", "payload": {**reference, "status": "confirmed"}},
+        ]
+        with closing(sqlite3.connect(self.index)) as db:
+            db.execute("CREATE TABLE events (id TEXT, seq INTEGER, kind TEXT, event_json TEXT)")
+            db.executemany("INSERT INTO events VALUES (?, ?, ?, ?)",
+                           [(event["id"], event["seq"], event["kind"], json.dumps(event)) for event in events])
+            db.commit()
+        output = self.folder / "reconstructed.bin"
+        args = [sys.executable, str(RECONSTRUCT), str(self.index), "--event-id", "owner", "--base64",
+                "--reference", "/payload/files/0/contentReference", "--output", str(output), "--expected-bytes"]
+        self.assertNotEqual(subprocess.run([*args, "1"], capture_output=True).returncode, 0)
+        self.assertFalse(output.exists())
+        result = subprocess.run([*args, str(len(data))], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output.read_bytes(), data)
+
+    def test_computed_style_decoding_and_integrity(self):
+        entries = [{"nodeId": "1", "properties": [["color", "rgb(1, 2, 3)"], ["--text", "\ud800"]]}]
+        raw = json.dumps(entries).encode("utf-8")
+        compressed = gzip.compress(raw)
+        payload = {"entriesEncoding": "gzip-base64-json-v1", "entriesData": base64.b64encode(compressed).decode(),
+                   "entriesBytes": len(raw), "entryCount": 1}
+        event = {"id": "style", "kind": "page.computedStyle", "payload": payload}
+        with closing(sqlite3.connect(self.index)) as db:
+            db.execute("CREATE TABLE events (id TEXT, event_json TEXT)")
+            db.execute("INSERT INTO events VALUES (?, ?)", ("style", json.dumps(event)))
+            db.commit()
+        output = self.folder / "styles.json"
+        args = [sys.executable, str(DECODE_STYLE), str(self.index), "--event-id", "style", "--output", str(output)]
+        result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(output.read_text(encoding="utf-8")), entries)
+        self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+        output.unlink()
+        corrupted = bytearray(compressed)
+        corrupted[-8] ^= 1
+        event["payload"]["entriesData"] = base64.b64encode(corrupted).decode()
+        with closing(sqlite3.connect(self.index)) as db:
+            db.execute("UPDATE events SET event_json = ? WHERE id = ?", (json.dumps(event), "style"))
+            db.commit()
+        self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+        self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

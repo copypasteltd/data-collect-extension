@@ -9,6 +9,17 @@ import {
 } from "fflate";
 import { all, get, eventPage, countEvents, countAssets, saveImport } from "./db.js";
 import { withSessionLock } from "./session-lock.js";
+import { screenshotAssetPath } from "./screenshots.js";
+import { indexEvent } from "./archive-index.js";
+import { observeNetworkBody } from "./field-observations.js";
+import { observeThemeValues } from "./style-observations.js";
+import { createFieldSummary } from "./field-summary.js";
+import { directRelationships } from "./relationships.js";
+import { observeBrowserData } from "./browser-observations.js";
+import { createBrowserFieldSummary } from "./browser-field-summary.js";
+import { createPageInstances } from "./page-instances.js";
+import { createInterfaceIndex } from "./interface-index.js";
+import { reconstructFragments } from "./fragments.js";
 
 const digest = async (bytes) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
@@ -35,7 +46,7 @@ async function readLocalSessionData(id) {
   for (const asset of assets)
     files[
       asset.type === "screenshot"
-        ? `screenshots/${asset.id}.jpg`
+        ? screenshotAssetPath(asset.id, asset.mime)
         : `resources/${asset.id}.bin`
     ] = new Uint8Array(await asset.blob.arrayBuffer());
   return {
@@ -65,10 +76,20 @@ async function createArchiveData(id, onProgress) {
   }
   const assets = await all("assets", id);
   if (assets.length > 25000) throw new Error("截图和资源数量超过单包上限");
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   const count = await countEvents(id),
     chunks = [],
     integrity = [],
-    eventChunks = [];
+    eventChunks = [],
+    eventIndexChunks = [],
+    relationshipChunks = [],
+    pageInstanceChunks = [],
+    interfaceChunks = [],
+    fieldObservationChunks = [],
+    fieldSummaryChunks = [],
+    browserObservationChunks = [],
+    browserFieldSummaryChunks = [],
+    themeObservationChunks = [];
   let resolveZip, rejectZip, zipError;
   const finished = new Promise((resolve, reject) => {
     resolveZip = resolve;
@@ -92,9 +113,49 @@ async function createArchiveData(id, onProgress) {
     item.push(bytes, true);
     integrity.push({ path, size: bytes.length, sha256: await digest(bytes) });
   }
+  function observationWriter(prefix, paths) {
+    let batch = [], size = 0;
+    return {
+      async add(row) {
+        const encoded = strToU8(JSON.stringify(row) + "\n");
+        if (size && size + encoded.length > 2000000) await this.flush();
+        batch.push(encoded);
+        size += encoded.length;
+      },
+      async flush() {
+        if (!batch.length) return;
+        const bytes = new Uint8Array(size);
+        let offset = 0;
+        for (const item of batch) { bytes.set(item, offset); offset += item.length; }
+        const path = `${prefix}-${String(paths.length + 1).padStart(5, "0")}.jsonl`;
+        await addFile(path, bytes);
+        paths.push(path);
+        batch = [];
+        size = 0;
+      },
+    };
+  }
+  const fieldWriter = observationWriter("data-dictionary/observations", fieldObservationChunks);
+  const summaryWriter = observationWriter("data-dictionary/fields", fieldSummaryChunks);
+  const themeWriter = observationWriter("styles/theme-observations", themeObservationChunks);
+  const relationshipWriter = observationWriter("indexes/relationships", relationshipChunks);
+  const pageWriter = observationWriter("indexes/page-instances", pageInstanceChunks);
+  const pageInstances = createPageInstances();
+  const interfaceWriter = observationWriter("indexes/interfaces", interfaceChunks);
+  const interfaces = createInterfaceIndex();
+  const browserWriter = observationWriter("data-dictionary/browser-observations", browserObservationChunks);
+  const browserSummaryWriter = observationWriter("data-dictionary/browser-fields", browserFieldSummaryChunks);
+  const browserSummary = createBrowserFieldSummary();
+  async function writeBrowserObservation(observation) {
+    browserSummary.add(observation);
+    await browserWriter.add(observation);
+  }
+  const requestEndpoints = new Map(), fieldSummary = createFieldSummary();
+  const pendingBrowserFragments = new Map();
   let after = 0,
     eventCount = 0,
     batch = [],
+    indexBatch = [],
     batchSize = 0,
     oversizedEvent = false;
   async function flushEvents() {
@@ -108,7 +169,83 @@ async function createArchiveData(id, onProgress) {
     const path = `timeline/events-${String(eventChunks.length + 1).padStart(5, "0")}.jsonl`;
     await addFile(path, bytes);
     eventChunks.push(path);
+    const indexPath = `indexes/events-${String(eventIndexChunks.length + 1).padStart(5, "0")}.jsonl`;
+    await addFile(indexPath, strToU8(indexBatch.map((event, index) =>
+      JSON.stringify(indexEvent(event, path, index + 1))).join("\n") + "\n"));
+    eventIndexChunks.push(indexPath);
+    for (let index = 0; index < indexBatch.length; index++) {
+      const event = indexBatch[index];
+      pageInstances.add(event, path, index + 1);
+      interfaces.add(event, path, index + 1);
+      if (typeof event.payload?.assetId === "string" && !assetsById.has(event.payload.assetId))
+        throw new Error(`记录引用的附件不存在：${event.id}`);
+      if (event.kind === "network.requestDataEntries" && Array.isArray(event.payload?.entries)) {
+        for (const entry of event.payload.entries)
+          if (entry.status === "captured" && !assetsById.has(entry.assetId))
+            throw new Error(`记录引用的请求体附件不存在：${event.id}`);
+      }
+      if (event.kind === "network.request" && typeof event.payload?.requestId === "string") {
+        try {
+          const url = new URL(event.payload.url);
+          const contentType = Object.entries(event.payload.headers || {})
+            .find(([name]) => name.toLowerCase() === "content-type")?.[1] || "";
+          requestEndpoints.set(event.payload.requestId, { endpoint: { method: event.payload.method, url: url.origin + url.pathname }, contentType });
+        } catch {}
+      }
+      const body = event.kind === "network.request" ? event.payload?.postData
+        : ["network.requestBody", "network.finished"].includes(event.kind) ? event.payload?.body : null;
+      const assetId = body?.assetId || (body?.status === "captured_asset" ? event.payload?.assetId : null);
+      const asset = assetsById.get(assetId);
+      if (body?.status === "captured_asset" && !asset)
+        throw new Error(`记录引用的正文附件不存在：${event.id}`);
+      let sample = null;
+      if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|^application\/x-www-form-urlencoded$/i.test(asset.mime || "")) {
+        const assetPath = `resources/${asset.id}.bin`;
+        try {
+          sample = { path: assetPath, text: new TextDecoder("utf-8", { fatal: true }).decode(await asset.blob.arrayBuffer()) };
+        } catch (error) { sample = { path: assetPath, error: String(error) }; }
+      }
+      const request = requestEndpoints.get(event.payload?.requestId);
+      const direction = event.kind === "network.finished" ? "response" : "request";
+      for (const observation of observeNetworkBody(event, { path, line: index + 1,
+        ...(request ? { endpoint: request.endpoint, direction, ...(direction === "request" ? { contentType: request.contentType } : {}) } : {}) }, sample)) {
+        fieldSummary.add(observation);
+        await fieldWriter.add(observation);
+      }
+      for (const observation of observeThemeValues(indexBatch[index], { path, line: index + 1 }))
+        await themeWriter.add(observation);
+      for (const relationship of directRelationships(event, { path, line: index + 1 }))
+        await relationshipWriter.add(relationship);
+      const browserReference = event.kind === "storage.snapshot" ? event.payload?.storageReference
+        : event.kind === "database.record" ? event.payload?.graphReference : null;
+      if (browserReference) {
+        if (pendingBrowserFragments.has(browserReference.captureId)) throw new Error("浏览器数据分段标识重复");
+        pendingBrowserFragments.set(browserReference.captureId, { reference: browserReference, event,
+          evidence: { path, line: index + 1, fragmentCaptureId: browserReference.captureId }, parts: [] });
+      } else {
+        for (const observation of observeBrowserData(event, { path, line: index + 1 })) await writeBrowserObservation(observation);
+      }
+      if (["capture.fragment", "capture.fragmentEnd", "capture.fragmentFailure"].includes(event.kind)) {
+        const pending = pendingBrowserFragments.get(event.payload?.captureId);
+        if (pending) {
+          pending.parts.push(event);
+          if (event.kind === "capture.fragmentEnd" || event.kind === "capture.fragmentFailure") {
+            try {
+              if (event.kind === "capture.fragmentFailure") throw new Error("分段传输失败");
+              const decoded = JSON.parse(reconstructFragments(pending.reference, pending.parts));
+              for (const observation of observeBrowserData(pending.event, pending.evidence, decoded)) await writeBrowserObservation(observation);
+            } catch (error) {
+              await writeBrowserObservation({ kind: "sample", domain: pending.event.kind === "storage.snapshot" ? "storage" : "indexeddb",
+                database: pending.event.payload?.database, store: pending.event.payload?.store,
+                source: { eventId: pending.event.id, ...pending.evidence }, status: "incomplete", reason: String(error) });
+            }
+            pendingBrowserFragments.delete(event.payload.captureId);
+          }
+        }
+      }
+    }
     batch = [];
+    indexBatch = [];
     batchSize = 0;
   }
   while (true) {
@@ -121,6 +258,7 @@ async function createArchiveData(id, onProgress) {
       if (batchSize && batchSize + encoded.length > 2000000)
         await flushEvents();
       batch.push(encoded);
+      indexBatch.push(event);
       batchSize += encoded.length;
       after = event.seq;
       eventCount++;
@@ -129,6 +267,22 @@ async function createArchiveData(id, onProgress) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   await flushEvents();
+  await fieldWriter.flush();
+  for (const pending of pendingBrowserFragments.values())
+    await writeBrowserObservation({ kind: "sample", domain: pending.event.kind === "storage.snapshot" ? "storage" : "indexeddb",
+      database: pending.event.payload?.database, store: pending.event.payload?.store,
+      source: { eventId: pending.event.id, ...pending.evidence }, status: "incomplete", reason: "未收到分段结束确认" });
+  await browserWriter.flush();
+  for (const row of browserSummary.results()) await browserSummaryWriter.add(row);
+  await browserSummaryWriter.flush();
+  for (const row of fieldSummary.results()) await summaryWriter.add(row);
+  await summaryWriter.flush();
+  await themeWriter.flush();
+  await relationshipWriter.flush();
+  for (const page of pageInstances.results()) await pageWriter.add(page);
+  await pageWriter.flush();
+  for (const endpoint of interfaces.results()) await interfaceWriter.add(endpoint);
+  await interfaceWriter.flush();
   if (eventCount !== count) throw new Error("记录数据不完整，无法导出");
   await addFile(
     "resources/index.json",
@@ -140,7 +294,7 @@ async function createArchiveData(id, onProgress) {
   for (const asset of assets) {
     const path =
       asset.type === "screenshot"
-        ? `screenshots/${asset.id}.jpg`
+        ? screenshotAssetPath(asset.id, asset.mime)
         : `resources/${asset.id}.bin`;
     await addFile(path, new Uint8Array(await asset.blob.arrayBuffer()), false);
     assetsDone++;
@@ -157,6 +311,17 @@ async function createArchiveData(id, onProgress) {
     session,
     eventCount,
     eventChunks,
+    eventIndexChunks,
+    relationshipChunks,
+    pageInstanceChunks,
+    pageInstanceUnassociatedCount: pageInstances.unassociatedCount,
+    interfaceChunks,
+    interfaceUnindexableCount: interfaces.unindexableCount,
+    fieldObservationChunks,
+    fieldSummaryChunks,
+    browserObservationChunks,
+    browserFieldSummaryChunks,
+    themeObservationChunks,
     assetCount: assets.length,
     exportedAt: Date.now(),
     partial: session.status === "interrupted",
@@ -164,7 +329,7 @@ async function createArchiveData(id, onProgress) {
       "仅记录已授权范围内的网页",
       "开始前的请求未采集",
       "原始 DOM 可能包含站点脚本；隔离快照与原始 DOM 分开保存",
-      "数据库和缓存仅采集有限的开始和结束快照，缓存响应内容未采集",
+      "数据库和缓存仅采集有限的开始和结束快照，部分缓存响应可能不可读取",
       "部分请求体和响应体可能不可获取",
       "记录包含浏览器提供的原始数据，ZIP 未加密",
     ],

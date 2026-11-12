@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -26,20 +26,15 @@ await new Promise((resolve) => inside.server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${inside.server.address().port}`;
 const profile = await fs.mkdtemp(path.resolve("test-worker-socket-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-worker-socket-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(),
-    headless: true,
-    args: ["--site-per-process", `--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = context.serviceWorkers()[0] ||
-    await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension, ["--site-per-process"]);
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(origin);
   const frame = page.frame({ url: `${outsideOrigin}/frame` });
@@ -52,7 +47,9 @@ try {
   }), { port, name });
   await openSocket(page, inside.server.address().port, "preexisting");
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
+  const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${browser.id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${browser.id}/`), timeout: 15000 });
   const [tab] = await worker.evaluate((url) => chrome.tabs.query({ url: `${url}/*` }), origin);
   const started = await panel.evaluate((tab) => chrome.runtime.sendMessage({
     type: "START", tab, options: { screenshots: false, scope: "site" },
@@ -121,9 +118,9 @@ try {
   const stopped = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }));
   assert.equal(stopped.ok, true);
   await panel.reload();
-  const record = panel.locator(".record").filter({ hasText: "连接恢复测试" });
+  await panel.getByRole("radio").first().waitFor({ timeout: 15000 });
   const pendingDownload = panel.waitForEvent("download", { timeout: 15000 });
-  await record.getByTitle("下载记录包").click();
+  await panel.getByRole("button", { name: "导出记录包" }).click();
   const download = await pendingDownload;
   assert.equal(await download.failure(), null);
   const archive = path.join(profile, "sockets.zip");
@@ -139,7 +136,7 @@ try {
   assert.ok(!JSON.stringify(exported).includes("unverified-after-restart"));
   console.log("后台重启后已确认连接恢复，范围外和来源未知连接未采集");
 } finally {
-  if (context) await context.close();
+  if (browser) await browser.close();
   await new Promise((resolve) => inside.sockets.close(resolve));
   await new Promise((resolve) => outside.sockets.close(resolve));
   await new Promise((resolve) => inside.server.close(resolve));

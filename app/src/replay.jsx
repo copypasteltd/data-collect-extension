@@ -6,7 +6,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { assessScreenshotTiming, canPlaceScreenshotTarget, findStepScreenshots } from "./screenshots.js";
+import { assessScreenshotTiming, canPlaceScreenshotTarget, findScreenshotAsset, findStepScreenshots } from "./screenshots.js";
 import { attachPageReplay } from "./page-replay.js";
 import { restoreScrollState } from "./scroll-state.js";
 import { restoreDialogState, restorePopoverState } from "./popover-state.js";
@@ -184,14 +184,12 @@ export default function Replay({ archive, showEvent, startEventId, onStepChange,
   const shot = selectedChoice ? shots[selectedChoice] : null;
   const timing = useMemo(() => assessScreenshotTiming(archive.events, step, shot), [archive, step, shot]);
   useEffect(() => {
-    const bytes =
-      shot?.payload?.assetId &&
-      archive.files[`screenshots/${shot.payload.assetId}.jpg`];
-    if (!bytes) {
+    const asset = findScreenshotAsset(archive.files, shot?.payload?.assetId);
+    if (!asset) {
       setImage(null);
       return;
     }
-    const url = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
+    const url = URL.createObjectURL(new Blob([asset.bytes], { type: asset.mime }));
     setImage({ assetId: shot.payload.assetId, url });
     return () => URL.revokeObjectURL(url);
   }, [archive, shot]);

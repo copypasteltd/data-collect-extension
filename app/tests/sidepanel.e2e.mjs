@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -18,24 +18,20 @@ const server = http.createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-sidepanel-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-sidepanel-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    viewport: null,
-    args: ["--window-size=1000,700", ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : []),
-      `--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension, ["--window-size=1000,700",
+    ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : [])]);
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/first`);
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
   await page.bringToFront();
   await panel.waitForTimeout(2200);
   assert.deepEqual(await panel.locator("button").allTextContents(), ["开始录制", "导出记录包"]);
@@ -78,6 +74,16 @@ try {
     const archive = JSON.parse(strFromU8(files["manifest.json"]));
     assert.equal(archive.session.id, sessions[index].id);
     const events = archive.eventChunks.flatMap((chunk) => strFromU8(files[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    assert.equal(archive.eventIndexChunks.length, archive.eventChunks.length);
+    const indexed = archive.eventIndexChunks.flatMap((chunk) => strFromU8(files[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    assert.equal(indexed.length, events.length);
+    for (const item of indexed) {
+      const original = JSON.parse(strFromU8(files[item.evidence.path]).split("\n")[item.evidence.line - 1]);
+      assert.equal(item.eventId, original.id);
+      assert.equal(item.kind, original.kind);
+      assert.equal(item.tabId, original.tabId ?? null);
+      assert.equal(item.documentId, original.documentId ?? null);
+    }
     if (process.env.LOGIC_SKILL_INDEX_CHECK === "1") {
       const skill = process.env.LOGIC_SKILL_INDEX_SCRIPT || path.resolve("skills/extension-logic-clone/scripts/index_archive.py");
       const indexPath = path.join(profile, `batch-${index}.sqlite3`);
@@ -89,8 +95,8 @@ try {
     assert.ok(events.some((event) => event.kind === "interaction.input" && event.payload.value === expectedValue));
     assert.ok(events.some((event) => {
       if (event.kind !== "screenshot" || !event.payload.assetId) return false;
-      const image = files[`screenshots/${event.payload.assetId}.jpg`];
-      return image?.length > 2 && image[0] === 0xff && image[1] === 0xd8;
+      const image = files[`screenshots/${event.payload.assetId}.png`];
+      return image?.length > 8 && image[0] === 0x89 && image[1] === 0x50 && image[2] === 0x4e && image[3] === 0x47;
     }), "导出包缺少可用截图");
     assert.ok(events.some((event) => event.kind === "page.snapshot" && event.payload.sourceHtml?.includes("window.fixtureLoaded=true")));
     if (index === 1) {
@@ -103,7 +109,7 @@ try {
   assert.equal(context.pages().length, 3);
   console.log("侧边栏录制、停止、批次选择和分别导出通过");
 } finally {
-  if (context) await context.close();
+  if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
