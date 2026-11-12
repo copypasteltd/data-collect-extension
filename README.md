@@ -135,6 +135,8 @@ npm run test:skill
 npm run test:capture-matrix
 npm run test:recording-performance
 npm run test:database-failure
+npm run test:tab-close
+npm run test:fragment-interruption
 ```
 
 浏览器测试需要 Playwright Chromium，可运行 `npx playwright install chromium`。采集矩阵需要通过 `CHROME_BIN` 指定正式版 Chrome 可执行文件；在 Windows PowerShell 中可使用 `$env:CHROME_BIN='C:\Program Files\Google\Chrome\Application\chrome.exe'`。同一配置可用于 `npm run test:chrome-errors` 检查 HTTP 页面与扩展错误。技能测试需要 Python 3.9+。测试使用本地虚构数据，并关闭其创建的浏览器及临时服务。不使用 Docker 或 WSL。`app/tests/` 中早期查看器相关的测试文件保留作历史参考，不属于当前侧边栏测试入口。

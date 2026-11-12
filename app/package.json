@@ -21,6 +21,7 @@
     "test:recording-performance": "node tests/recording-performance.e2e.mjs",
     "test:database-failure": "node tests/database-failure.e2e.mjs",
     "test:tab-close": "node tests/tab-close.e2e.mjs",
+    "test:fragment-interruption": "node tests/fragment-interruption.e2e.mjs",
     "test:db-upgrade": "node tests/db-upgrade.e2e.mjs",
     "test:response-encoding": "node tests/response-encoding.e2e.mjs",
     "test:recovery": "node tests/recovery.e2e.mjs",

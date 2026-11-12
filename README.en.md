@@ -135,6 +135,8 @@ npm run test:skill
 npm run test:capture-matrix
 npm run test:recording-performance
 npm run test:database-failure
+npm run test:tab-close
+npm run test:fragment-interruption
 ```
 
 Browser tests need Playwright Chromium. Run `npx playwright install chromium`. The capture matrix requires `CHROME_BIN` to point to the official Chrome executable; on Windows PowerShell, for example, use `$env:CHROME_BIN='C:\Program Files\Google\Chrome\Application\chrome.exe'`. The same setting can be used with `npm run test:chrome-errors` to check HTTP recording and the extension error list. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.

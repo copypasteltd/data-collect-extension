@@ -14,6 +14,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 - 补充同地址并发请求乱序关联和录制期间关闭标签页的验证。 / Verify out-of-order responses for concurrent requests to the same URL and closing a tab during recording.
 - 记录录制期间新出现的范围外框架导航及其缺口计数。 / Record out-of-scope frame navigations observed during recording and count the resulting coverage gaps.
 - 交互时直接记录目标普通 DOM 后代的样式样本，保留采样范围及截断缺口；避免短暂悬停状态仅依赖延迟快照。 / Sample target light-DOM descendant styles during interactions with explicit scope and truncation gaps, so transient hover states do not depend solely on delayed snapshots.
+- 补充大页面分段结束确认丢失的故障注入，验证缺口标记与已保存操作导出。 / Exercise missing end confirmation for large-page fragments, verifying gap reporting and export of saved actions.
 - 停止时覆盖检查失败或超时会标记中断并保留已保存数据；导出检测缺失附件。Windows 隔离 Chrome 的测试结果见实施进度，未进行 macOS 真机测试。 / Mark a batch interrupted when the final coverage check fails or times out while retaining saved data; detect missing assets during export. Windows isolated Chrome results are in the progress document; macOS hardware was not tested.
 
 ## 0.1.6 - 2026-11-11
