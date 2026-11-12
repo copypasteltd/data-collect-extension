@@ -4,9 +4,9 @@ Record authorized browser workflows from the Chrome side panel and export a sele
 
 [中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [2026-11-11 Update Specification (Chinese)](docs/20261111内容更新细则文档.md) · [Changelog](docs/CHANGELOG.md)
 
-> This is a **0.1.6 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
+> This is a **0.2.0 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
 
-> This working tree also contains unreleased capture improvements for the 2026-11-11 specification. See the [implementation progress](docs/20261111内容更新实施进度.md) for verified behavior and remaining work. The existing GitHub Release is still 0.1.6 and does not include these changes.
+> Some items in the 2026-11-11 specification remain incomplete or insufficiently verified. See the [implementation progress](docs/20261111内容更新实施进度.md) for verified behavior and remaining work.
 
 ## Demo
 
@@ -22,7 +22,7 @@ The demo uses fictional local data in an isolated test browser. The side panel o
 
 ## Install
 
-Chrome 125 or later is required. Download `logic-recorder-chrome-v0.1.6.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
+Chrome 125 or later is required. Download `logic-recorder-chrome-v0.2.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
 
 To build from source instead, you also need Node.js 20 or later and npm:
 
@@ -71,13 +71,13 @@ styles/                       Theme and color observations in newer archives
 
 `page.snapshot.payload.sourceHtml` holds the serialized DOM; `html` is a separate sanitized snapshot, and `sourceStatus` describes whether the DOM was captured. Network events use `requestId` to associate requests, responses, and outcomes. When text decoding fails, browser-provided bytes may be retained with `encoding: "base64"` and a `textStatus`. Checksums detect changes but do not establish authenticity or provide encryption.
 
-The unreleased version may store large DOM snapshots, inputs, files, and browser data as event fragments. Verify all fragments and their completion record before reconstructing them. Some screenshots use PNG or separately timed tiles. Network and browser-data dictionaries refer back to original events; unobserved data must not be treated as absent. See the [archive format](app/skills/extension-logic-clone/references/archive-format.md) for the full reading rules.
+Version 0.2.0 may store large DOM snapshots, inputs, files, and browser data as event fragments. Verify all fragments and their completion record before reconstructing them. Some screenshots use PNG or separately timed tiles. Network and browser-data dictionaries refer back to original events; unobserved data must not be treated as absent. See the [archive format](app/skills/extension-logic-clone/references/archive-format.md) for the full reading rules.
 
 ## Recording Analysis Skill
 
 The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
 
-Alternatively, download `extension-logic-clone-v0.1.6.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
+Alternatively, download `extension-logic-clone-v0.2.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
 
 From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
 

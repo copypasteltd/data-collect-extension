@@ -83,3 +83,10 @@ it("查询参数保留重复顺序、原始 URL 证据及无效编码", () => {
   event.payload.url = "https://example.test/path?name=%E9";
   assert.equal([...observeNetworkQuery(event, { path: "t", line: 3 })][0].status, "invalid_query_encoding");
 });
+
+it("缺少 XML 解析器时保留原始正文并标记不可解析", () => {
+  const event = { id: "xml", kind: "network.finished", payload: { requestId: "r", body: { status: "captured", value: "<root/>" } } };
+  const rows = [...observeNetworkBody(event, { path: "t", line: 1, contentType: "application/xml" })];
+  assert.equal(rows[0].status, "xml_parser_unavailable");
+  assert.equal(event.payload.body.value, "<root/>");
+});

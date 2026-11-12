@@ -4,9 +4,9 @@
 
 [English](README.en.md) · [安装与使用](docs/插件安装与使用说明.md) · [技术文档](docs/Chrome扩展技术开发文档.md) · [需求文档](docs/Chrome扩展需求梳理.md) · [20261111 更新细则](docs/20261111内容更新细则文档.md) · [更新说明](docs/CHANGELOG.md)
 
-> 当前为 **0.1.6 开发验证版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
+> 当前为 **0.2.0 开发预览版**。扩展只记录实际访问并可观察到的内容；浏览器限制、权限、时序和大小限制会造成缺失，不能保证完整还原网站或恢复服务端源码。
 
-> 工作区包含尚未发布的 20261111 采集增强，仍在逐项验证；实现范围、已通过的测试与剩余事项见[实施进度](docs/20261111内容更新实施进度.md)。现有 GitHub Release 仍为 0.1.6，不包含这些未发布改动。
+> 20261111 的 01–26 项仍有未完成或未充分验证的内容；实现范围、已通过的测试与剩余事项见[实施进度](docs/20261111内容更新实施进度.md)。
 
 ## 演示
 
@@ -22,7 +22,7 @@
 
 ## 安装
 
-需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.1.6.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
+需要 Chrome 125 或更高版本。可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载发布的 `logic-recorder-chrome-v0.2.0.zip`，解压后在 `chrome://extensions` 开启开发者模式，选择“加载已解压的扩展程序”，并选择包含 `manifest.json` 的解压目录。
 
 也可从源码构建；此方式还需要 Node.js 20 或更高版本和 npm：
 
@@ -71,13 +71,13 @@ styles/                       新版包中的主题与颜色观察
 
 事件中的 `page.snapshot.payload.sourceHtml` 是原始 DOM，`html` 是用于隔离展示的快照；`sourceStatus` 标明原始 DOM 是否取得。网络事件通过 `requestId` 关联请求、响应和结束状态。文本响应无法解码时，在大小允许的范围内会保留带 `encoding: "base64"` 的浏览器原始数据及 `textStatus`。ZIP 中的校验只能发现文件变化，不证明来源真实，也不提供加密。
 
-未发布版本可能将大型 DOM、输入、文件和浏览器数据保存在分段事件中；必须核对完整分段和结束确认后才能重组。部分截图采用 PNG 或按范围分片；网络和浏览器数据字典均保留原始事件引用，未采到的内容不能当作不存在。完整字段与读取规则见[归档格式](app/skills/extension-logic-clone/references/archive-format.md)。
+0.2.0 可能将大型 DOM、输入、文件和浏览器数据保存在分段事件中；必须核对完整分段和结束确认后才能重组。部分截图采用 PNG 或按范围分片；网络和浏览器数据字典均保留原始事件引用，未采到的内容不能当作不存在。完整字段与读取规则见[归档格式](app/skills/extension-logic-clone/references/archive-format.md)。
 
 ## 使用解析技能
 
 仓库提供 [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md)，用于校验记录包、整理页面和操作证据，并按要求基于已观察流程构建复现项目。技能在插件之外运行，不改变侧边栏功能。解析工具需要 Python 3.9 或更高版本，无需安装额外 Python 库。
 
-也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.1.6.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
+也可从 [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases) 下载 `extension-logic-clone-v0.2.0.zip`，将其中的 `extension-logic-clone` 文件夹解压到当前用户的 `.codex/skills/` 目录，然后开启新的 Codex 会话。
 
 Windows PowerShell 中，从项目根目录安装到当前用户的 Codex 技能目录：
 

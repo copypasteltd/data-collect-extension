@@ -1,5 +1,8 @@
 /app/node_modules/
 /app/dist/
+/app/release/
+/app/.release-device-auth.json
+/app/.release-token.enc
 /app/test-*/
 /app/.demo-*/
 /app/.playwright-browsers/

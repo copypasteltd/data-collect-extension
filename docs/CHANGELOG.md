@@ -3,7 +3,7 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
-## 未发布 / Unreleased
+## 0.2.0 - 2026-11-13（预览版 / Preview）
 
 - 新增 2026-11-11 内容更新细则及实施进度；01–26 尚未全部完成验收。 / Add the 2026-11-11 update specification and implementation progress; acceptance of items 01–26 remains incomplete.
 - 增强 DOM、输入、文件、样式、画布、浏览器存储、网络与实时消息的采集和分段；新增无损及整页分片截图，记录失败和可观察限制。 / Extend capture and fragmentation for DOM, input, files, styles, canvas, browser storage, network traffic, and real-time messages; add lossless and tiled full-page screenshots with explicit failures and limits.
@@ -18,6 +18,7 @@ Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affecte
 - 为观察到的 UTF-8 纯文本请求和响应生成可追溯的字符串字段，非 UTF-8 声明保留原文并标记未整理。 / Produce traceable string observations for observed UTF-8 plain-text requests and responses, retaining originals and marking unsupported declared charsets.
 - 对实际观察到的查询参数建立独立字段索引，保留重复名称、顺序及原始 URL 引用。 / Index observed query parameters separately, retaining repeated names, order, and references to the original URLs.
 - 补充软件渲染 WebGL 保留和不保留绘图缓冲两种样本的画布 PNG 与页面截图像素对照，明确两者可能不一致。 / Compare canvas PNG and page screenshot pixels for software-rendered WebGL with and without a preserved drawing buffer; document that they can differ.
+- 增加 XML 正文的命名空间、重复元素、属性和文本字段整理，保留原文并报告解析歧义和整理上限。 / Index observed XML namespaces, repeated elements, attributes, and text while retaining original bodies and reporting parsing ambiguity and indexing limits.
 - 停止时覆盖检查失败或超时会标记中断并保留已保存数据；导出检测缺失附件。Windows 隔离 Chrome 的测试结果见实施进度，未进行 macOS 真机测试。 / Mark a batch interrupted when the final coverage check fails or times out while retaining saved data; detect missing assets during export. Windows isolated Chrome results are in the progress document; macOS hardware was not tested.
 
 ## 0.1.6 - 2026-11-11

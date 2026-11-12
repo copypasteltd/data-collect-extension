@@ -8,7 +8,7 @@ import { unzipSync, strFromU8 } from "fflate";
 import { reconstructFragments } from "../src/fragments.js";
 import { unpackComputedEntries } from "../src/computed-style-packing.js";
 import { indexComputedStyleEvidence } from "../src/computed-style-coverage.js";
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
 
 const executable = process.env.CHROME_BIN;
@@ -57,6 +57,12 @@ const server = http.createServer((req, res) => {
   } else if (req.url === "/large-binary-18") {
     res.writeHead(200, { "Content-Type": "application/octet-stream" });
     res.end(Buffer.alloc(18000000, 0x8d));
+  } else if (req.url === "/fixture-xml-large") {
+    res.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
+    res.end(`<items>${"<x/>".repeat(50020)}</items>`);
+  } else if (req.url === "/fixture-xml" || req.url === "/fixture-invalid-xml") {
+    res.writeHead(200, { "Content-Type": "application/xml; charset=utf-8" });
+    res.end(req.url === "/fixture-xml" ? '<items xmlns:x="urn:fixture"><x:item id="1">alpha</x:item><x:item id="2">beta</x:item></items>' : "<items><bad>");
   } else if (req.url === "/fixture-text") {
     req.resume();
     req.on("end", () => { res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); res.end("response 42\n"); });
@@ -110,7 +116,22 @@ if (process.env.TEST_REALTIME_LARGE === "1") {
     });
   });
 }
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+let serverStarted = false;
+for (let attempt = 0; attempt < 30 && !serverStarted; attempt++) {
+  try {
+    await new Promise((resolve, reject) => {
+      const fail = (error) => { server.removeListener("listening", ready); reject(error); };
+      const ready = () => { server.removeListener("error", fail); resolve(); };
+      server.once("error", fail);
+      server.once("listening", ready);
+      server.listen(randomInt(20000, 60000), "127.0.0.1");
+    });
+    serverStarted = true;
+  } catch (error) {
+    if (error.code !== "EADDRINUSE" && error.code !== "EACCES") throw error;
+  }
+}
+if (!serverStarted) throw new Error("无法为本地测试服务找到可用端口");
 const profile = await fs.mkdtemp(path.resolve("test-chrome-errors-profile-"));
 const child = spawn(executable, [
   `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
@@ -480,6 +501,11 @@ try {
     const response = await fetch("/fixture-text", { method: "POST", headers: { "content-type": "text/plain; charset=utf-8" }, body: "request 123" });
     if (await response.text() !== "response 42\n") throw new Error("纯文本测试响应不匹配");
   });
+  if (process.env.TEST_XML_FIELDS === "1") await page.evaluate(async () => {
+    await Promise.all([fetch("/fixture-xml").then((response) => response.text()),
+      fetch("/fixture-invalid-xml").then((response) => response.text())]);
+  });
+  if (process.env.TEST_XML_LIMIT === "1") await page.evaluate(async () => { await (await fetch("/fixture-xml-large")).text(); });
   if (process.env.TEST_FORM_FIELDS === "1") await page.evaluate(async () => {
     const headers = { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" };
     await (await fetch("/fixture-form", { method: "POST", headers, body: "tag=one&tag=%E4%B8%AD&empty=&flag" })).text();
@@ -1216,8 +1242,10 @@ try {
         hasEnd: events.some((item) => item.kind === "capture.fragmentEnd" && item.payload.captureId === event.payload.storageReference?.captureId) }))));
   }
   if (process.env.TEST_STYLE_CAPTURE === "1") {
-    const stylesheet = events.find((event) => event.kind === "page.stylesheet" &&
+    const candidates = events.filter((event) => event.kind === "page.stylesheet" &&
       event.payload.cssText?.includes("--fixture-tone") && event.payload.cssText.includes("/fixture-image.png"));
+    const stylesheet = candidates.find((candidate) => events.some((event) => event.kind === "page.stylesheet" && event.payload.source === "import" &&
+      event.payload.snapshotId === candidate.payload.snapshotId && event.payload.parentIndex === candidate.payload.index && event.payload.cssText?.includes(".fixture-import")));
     assert.ok(stylesheet, "未保存动态样式规则和资源引用");
     assert.equal(stylesheet.payload.status, "captured");
     assert.ok(events.some((event) => event.kind === "page.snapshot" &&
@@ -1373,6 +1401,29 @@ try {
     const fields = observations.filter((row) => row.kind === "field" && row.source.requestId === request.payload.requestId);
     assert.ok(fields.some((row) => row.source.direction === "request" && row.type === "string" && row.length === "request 123".length));
     assert.ok(fields.some((row) => row.source.direction === "response" && row.type === "string" && row.length === "response 42\n".length));
+  }
+  if (process.env.TEST_XML_FIELDS === "1") {
+    const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-xml"));
+    const invalid = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-invalid-xml"));
+    assert.ok(request && invalid);
+    const observations = manifest.fieldObservationChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    const fields = observations.filter((row) => row.kind === "field" && row.source.requestId === request.payload.requestId && row.source.direction === "response");
+    assert.deepEqual(fields.filter((row) => row.encoding === "xml-element" && row.location.at(-1)?.key === "{urn:fixture}item")
+      .map((row) => row.location.at(-1).occurrence), [0, 1]);
+    assert.equal(fields.filter((row) => row.encoding === "xml-attribute" && row.location.at(-1)?.key === "@id").length, 2);
+    assert.equal(fields.filter((row) => row.encoding === "xml-text" && row.location.at(-1)?.key === "#text").length, 2);
+    const invalidRows = observations.filter((row) => row.kind === "sample" && row.source.requestId === invalid.payload.requestId);
+    assert.ok(invalidRows.some((row) => row.status === "xml_parser_error_or_ambiguous"), JSON.stringify({ invalidRows,
+      parser: await panel.evaluate(() => { const doc = new DOMParser().parseFromString("<items><bad>", "application/xml"); return doc.documentElement.outerHTML; }) }));
+    assert.ok(events.some((event) => event.kind === "network.finished" && event.payload.requestId === invalid.payload.requestId && event.payload.body.value === "<items><bad>"));
+  }
+  if (process.env.TEST_XML_LIMIT === "1") {
+    const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-xml-large"));
+    const finished = events.find((event) => event.kind === "network.finished" && event.payload.requestId === request?.payload.requestId);
+    assert.equal(finished?.payload.body.value, `<items>${"<x/>".repeat(50020)}</items>`);
+    const observations = manifest.fieldObservationChunks.flatMap((chunk) => strFromU8(archive[chunk]).split("\n").filter(Boolean).map(JSON.parse));
+    assert.ok(observations.some((row) => row.kind === "issue" && row.source.requestId === request.payload.requestId && row.status === "xml_field_limit"));
+    assert.equal(observations.filter((row) => row.kind === "field" && row.source.requestId === request.payload.requestId).length, 50000);
   }
   if (process.env.TEST_FORM_FIELDS === "1") {
     const request = events.find((event) => event.kind === "network.request" && event.payload.url.endsWith("/fixture-form"));

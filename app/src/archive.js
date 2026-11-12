@@ -204,7 +204,7 @@ async function createArchiveData(id, onProgress) {
       if (body?.status === "captured_asset" && !asset)
         throw new Error(`记录引用的正文附件不存在：${event.id}`);
       let sample = null;
-      if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|^application\/x-www-form-urlencoded$|^text\/plain$/i.test(asset.mime || "")) {
+      if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|(?:^|\/)xml$|\+xml$|^application\/x-www-form-urlencoded$|^text\/plain$/i.test(asset.mime || "")) {
         const assetPath = `resources/${asset.id}.bin`;
         try {
           sample = { path: assetPath, text: new TextDecoder("utf-8", { fatal: true }).decode(await asset.blob.arrayBuffer()) };
