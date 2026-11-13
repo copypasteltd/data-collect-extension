@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -11,24 +11,21 @@ const server = http.createServer((_request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-concurrent-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-concurrent-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(),
-    headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = context.serviceWorkers()[0] ||
-    await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension);
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
+  const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${browser.id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${browser.id}/`), timeout: 15000 });
   const [tab] = await worker.evaluate(() => chrome.tabs.query({ url: "http://127.0.0.1/*" }));
   const started = await panel.evaluate((tab) => chrome.runtime.sendMessage({
     type: "START", tab, options: { screenshots: false, scope: "site" },
@@ -102,8 +99,8 @@ try {
   assert.ok(interrupted.notice);
   console.log("并发停止不影响正常收尾，真正的收尾失败仍标记为中断");
 } finally {
-  if (context) await context.close();
+  if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

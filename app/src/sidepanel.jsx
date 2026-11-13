@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { AlertTriangle, Circle, Download, Square } from "lucide-react";
 import { createArchive } from "./archive.js";
 import { downloadBlob } from "./downloads.js";
+import { canStartRecording, canStopRecording, canExportRecording, recordingNotice, batchStatusLabel, exportPhaseLabel } from "./panel-state.js";
 import "./style.css";
 
 function withTimeout(promise, milliseconds) {
@@ -27,7 +28,10 @@ function App() {
   const [error, setError] = useState("");
   const [statusError, setStatusError] = useState("");
   const [batchError, setBatchError] = useState("");
+  const [exportPhase, setExportPhase] = useState("");
+  const [exportNotice, setExportNotice] = useState("");
   const operation = useRef(null);
+  const exportOperation = useRef(null);
   const refreshNumber = useRef(0);
   const appliedRefresh = useRef(0);
   const batchInFlight = useRef(false);
@@ -55,8 +59,9 @@ function App() {
     }).catch((reason) => setBatchError(reason.message)).finally(() => { batchInFlight.current = false; });
   }, []);
 
-  const refresh = useCallback(async (preferredId) => {
-    if (preferredId) preferredSession.current = preferredId;
+  // Polls and export preflight share the same status generation. A late
+  // response must not hide a newer active session (and its Stop control).
+  const readStatus = useCallback(async () => {
     const request = ++refreshNumber.current;
     try {
       const next = await call("GET_STATUS");
@@ -68,17 +73,26 @@ function App() {
           setError((previous) => previous === "后台响应超时，请等待状态刷新" ? "" : previous);
         }
         setState((previous) => ({ ...previous, active: next.active }));
+        return { ...next, applied: true };
       }
+      return { ...next, applied: false };
     } catch (reason) {
       if (request >= appliedRefresh.current) {
         appliedRefresh.current = request;
         setStatusError(reason.message);
       }
       throw reason;
+    }
+  }, []);
+
+  const refresh = useCallback(async (preferredId) => {
+    if (preferredId) preferredSession.current = preferredId;
+    try {
+      return await readStatus();
     } finally {
       refreshBatches();
     }
-  }, [refreshBatches]);
+  }, [readStatus, refreshBatches]);
 
   useEffect(() => {
     const update = () => refresh().catch(() => {});
@@ -88,7 +102,7 @@ function App() {
   }, [refresh]);
 
   async function start() {
-    if (operation.current) return;
+    if (!canStartRecording(state.active, operation.current, exportOperation.current)) return;
     const currentOperation = { type: "starting" };
     operation.current = currentOperation;
     uncertainStop.current = "";
@@ -117,7 +131,7 @@ function App() {
   }
 
   async function stop() {
-    if (operation.current && operation.current.type !== "starting") return;
+    if (!canStopRecording(state.active, operation.current)) return;
     const currentOperation = { type: "stopping" };
     const sessionId = state.active?.id;
     operation.current = currentOperation;
@@ -134,30 +148,55 @@ function App() {
       setError(reason.message);
       await refresh().catch(() => {});
     } finally {
-      operation.current = null;
-      setBusy("");
+      if (operation.current === currentOperation) {
+        operation.current = null;
+        setBusy("");
+      }
     }
   }
 
   async function download() {
-    if (operation.current || !selectedId) return;
-    operation.current = { type: "exporting" };
+    if (!canExportRecording(state.active, selectedId, operation.current, exportOperation.current)) return;
+    const currentExport = { id: selectedId };
+    exportOperation.current = currentExport;
     setError("");
-    setBusy("exporting");
+    setExportNotice("");
+    setExportPhase("checking");
     try {
-      const { blob } = await createArchive(selectedId);
-      await downloadBlob(blob, `逻辑记录-${selectedId.slice(0, 8)}.zip`);
+      // A second panel may have started recording since the last poll. Do not
+      // open a new historical export in that state; an already running export
+      // never owns the recording Stop control.
+      const next = await readStatus();
+      if (!next.applied) throw new Error("录制状态已更新，请确认后重试导出");
+      if (next.active) throw new Error("请先停止当前录制，再导出记录包");
+      setExportPhase("events");
+      const { blob, importIssues = [] } = await createArchive(currentExport.id, (progress) => {
+        if (exportOperation.current !== currentExport) return;
+        setExportPhase(progress.phase === "整理截图与资源" ? "assets" : "events");
+      });
+      if (exportOperation.current !== currentExport) return;
+      setExportPhase("download");
+      await downloadBlob(blob, `逻辑记录-${currentExport.id.slice(0, 8)}.zip`);
+      if (exportOperation.current === currentExport) {
+        setExportNotice(importIssues.length
+          ? "记录包已保存。存在解析兼容性限制；完整性和可用范围仍须由接收端核验。"
+          : "记录包已保存。导出完成不表示所有采集内容均完整，使用前请核验记录包。");
+      }
     } catch (reason) {
-      setError(reason.message);
+      if (exportOperation.current === currentExport) setError(reason.message);
     } finally {
-      operation.current = null;
-      setBusy("");
+      if (exportOperation.current === currentExport) {
+        exportOperation.current = null;
+        setExportPhase("");
+      }
     }
   }
 
   const active = state.active;
   const sessions = state.sessions.filter((session) => ["ready", "interrupted"].includes(session.status));
   const visibleError = error || statusError || batchError;
+  const activeNotice = recordingNotice(active);
+  const exporting = !!exportPhase;
   const status = !active ? "未录制" : active.status === "preparing" ? "准备中" : active.status === "recording" ? "录制中" : "正在结束";
   return (
     <main className="panel">
@@ -166,18 +205,21 @@ function App() {
         <div><strong>逻辑记录</strong><small>浏览器操作档案</small></div>
       </header>
       <section className="recording" aria-label="录制">
-        <div className="section-label"><span>录制状态</span><span className={active ? "status active" : "status"}><i />{status}</span></div>
+        <div className="section-label"><span>录制状态</span><span role="status" className={active ? "status active" : "status"}><i />{status}</span></div>
         <h1>{active?.status === "preparing" ? "准备录制" : active ? "正在录制" : "准备录制"}</h1>
         {active ? (
-          <button className="primary stop" disabled={(!!busy && busy !== "starting") || !["preparing", "recording"].includes(active.status)} onClick={stop}>
+          <button className="primary stop" disabled={!canStopRecording(active, busy ? { type: busy } : null)} onClick={stop}>
             <Square size={16} fill="currentColor" />{busy === "stopping" || !["preparing", "recording"].includes(active.status) ? "正在结束…" : "停止录制"}
           </button>
         ) : (
-          <button className="primary" disabled={!!busy} onClick={start}>
+          <button className="primary" disabled={!canStartRecording(active, busy ? { type: busy } : null, exporting)} onClick={start}>
             <Circle size={16} fill="currentColor" />{busy === "starting" ? "正在准备…" : "开始录制"}
           </button>
         )}
+        <p className="disclosure">默认记录本 Chrome 配置中所有已授权的普通网页，包含其他窗口和新标签；请使用仅含获准页面的专用配置。</p>
+        <p className="disclosure">记录保留原值和未遮挡截图，可能包含密码、Cookie 及业务资料；ZIP 未加密。关闭侧边栏不会停止录制。</p>
       </section>
+      {activeNotice && <div className="notice" role="status">{activeNotice}</div>}
       {visibleError && <div className="error" role="alert"><AlertTriangle size={16} /><span>{visibleError}</span></div>}
       <section className="batches" aria-label="录制批次">
         <h2>录制批次</h2>
@@ -185,17 +227,20 @@ function App() {
           <div className="batch-list" role="radiogroup" aria-label="选择录制批次">
             {sessions.map((session) => (
               <label className="batch" key={session.id}>
-                <input type="radio" name="batch" checked={selectedId === session.id} disabled={!!busy}
+                <input type="radio" name="batch" checked={selectedId === session.id} disabled={!!busy || exporting}
                   onChange={() => { preferredSession.current = ""; setSelectedId(session.id); }} />
                 <span className="batch-info"><strong>{new Date(session.startedAt).toLocaleString()}</strong>
-                  <small>{session.status === "interrupted" ? "录制中断" : "已完成"} · {session.id.slice(0, 8)}</small></span>
+                  <small>{batchStatusLabel(session)} · {session.id.slice(0, 8)}</small></span>
               </label>
             ))}
           </div>
         ) : <div className="empty">暂无录制批次</div>}
-        <button className="export" disabled={!selectedId || !!busy} onClick={download}>
-          <Download size={16} />{busy === "exporting" ? "正在导出…" : "导出记录包"}
+        <button className="export" disabled={!canExportRecording(active, selectedId, busy ? { type: busy } : null, exporting)} onClick={download} aria-busy={exporting}>
+          <Download size={16} />{exporting ? exportPhaseLabel(exportPhase) : "导出记录包"}
         </button>
+        {active && <p className="disclosure">请先停止当前录制，再导出记录包。</p>}
+        {exportNotice && <p className="notice" role="status">{exportNotice}</p>}
+        <p className="disclosure">导出会保留本地批次，当前不会自动到期删除；分享与后续副本的保存范围需另行控制。</p>
       </section>
     </main>
   );

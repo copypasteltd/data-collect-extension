@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "version": "0.3.0",
+  "status": "local-release-verified",
+  "finalizedAt": "2026-11-13T11:43:01.931Z",
+  "testSummary": {
+    "javascript": 310,
+    "python": 12,
+    "matrix": 50,
+    "lifecycleCommands": 9,
+    "syntheticErp": true,
+    "exactPackageSmoke": true
+  },
+  "paths": {
+    "extension": "app/release/v0.3.0/logic-recorder-chrome-v0.3.0.zip",
+    "analysisSkill": "app/release/v0.3.0/extension-logic-clone-v0.3.0.zip",
+    "verification": "docs/交付/2026-11-13/native-release/VERIFICATION.json",
+    "packageSmoke": "docs/交付/2026-11-13/native-release/package-smoke.json",
+    "report": "docs/交付/2026-11-13/native-release/RELEASE-REPORT.md"
+  },
+  "hashes": {
+    "app/release/v0.3.0/logic-recorder-chrome-v0.3.0.zip": {
+      "bytes": 136557,
+      "sha256": "fbcd9f444c3a80a54685733bc89daa69a3808a49563297bf2f91c0b9387552bc"
+    },
+    "app/release/v0.3.0/extension-logic-clone-v0.3.0.zip": {
+      "bytes": 22580,
+      "sha256": "e2d1d5bf1c9f64c9196ae5294bdfe4b3c56d5236455ab448c7fbf3877d144182"
+    },
+    "docs/交付/2026-11-13/native-release/VERIFICATION.json": {
+      "bytes": 68864,
+      "sha256": "d324a0ae2e00cb0418cb11f84fe420cb8cc1d83e4de6cd834864b756b4816d6e"
+    },
+    "docs/交付/2026-11-13/native-release/package-smoke.json": {
+      "bytes": 3347,
+      "sha256": "d487c1227e90c3c49ec9daa5217e0b9f7e9f46f6343a7364b504abef7531ed9a"
+    },
+    "docs/交付/2026-11-13/native-release/RELEASE-REPORT.md": {
+      "bytes": 4212,
+      "sha256": "1b5441e56c843b7528a8650d2dcdd66c580b37fe0785d941ba95b4ca61f99c34"
+    },
+    "app/release/v0.3.0/release-manifest.json": {
+      "bytes": 8823,
+      "sha256": "8206f4fa034fde4d4d78c19d48d615a4b8bb540bcab8a2cfaac2d87c1b41f142"
+    }
+  },
+  "notes": [
+    "No isolation environment built per user request",
+    "No public remote Release/store deployment",
+    "Bound verification is fixed before packaging; this receipt binds the subsequently executed exact-package smoke without a circular hash claim"
+  ]
+}

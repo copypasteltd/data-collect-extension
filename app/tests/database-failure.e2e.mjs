@@ -1,4 +1,4 @@
-import { launchExtension } from "./chrome-harness.mjs";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -61,7 +61,7 @@ async function runScenario(mode) {
     console.log(`数据库${mode === "failure" ? "读取失败" : "采集超时"}的缺口和已保存事件可导出`);
   } finally {
     if (browser) await browser.close();
-    await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
     await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 }

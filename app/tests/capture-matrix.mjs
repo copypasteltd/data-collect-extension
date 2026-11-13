@@ -1,80 +1,75 @@
-import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { createCapturePlan } from "./capture-scenarios.mjs";
+import { runCaptureMatrix } from "./capture-matrix-run.mjs";
+import { validationBudgets, validationEnvironment, validationStep } from "./matrix-options.mjs";
+import { runScenario } from "./scenario-runner.mjs";
+import { captureValidationIdentity } from "./validation-identity.mjs";
 
-if (!process.env.CHROME_BIN) throw new Error("请通过 CHROME_BIN 指定正式版 Chrome 的路径");
-const scenarios = [
-  ["combined", { TEST_LARGE_DOM: "1", TEST_LARGE_STORAGE: "1", TEST_DATABASE_GRAPH: "1", TEST_DATABASE_LARGE: "1",
-    TEST_LARGE_REQUEST: "1", TEST_LARGE_RESPONSE: "1", TEST_FILE_CAPTURE: "1", TEST_CANVAS_MANY: "1", TEST_STYLE_CAPTURE: "1" }],
-  ["frames-and-navigation", { TEST_FRAME_TREE: "1", TEST_BACKGROUND_PAGE: "1" }],
-  ["restricted-frame", { TEST_FRAME_RESTRICTED: "1" }],
-  ["dynamic-restricted-frame", { TEST_DYNAMIC_RESTRICTED_FRAME: "1" }],
-  ["frame-injection-failure", { TEST_FRAME_TREE: "1", TEST_FRAME_INJECTION_FAILURE: "1" }],
-  ["page-instances", { TEST_PAGE_INSTANCES: "1" }],
-  ["large-select", { TEST_LARGE_SELECT: "1" }],
-  ["dynamic-form-ime", { TEST_DYNAMIC_FORM: "1" }],
-  ["scroll-containers", { TEST_SCROLL_MANY: "1" }],
-  ["virtual-list-and-lazy", { TEST_VIRTUAL_LIST: "1" }],
-  ["tainted-canvas", { TEST_CANVAS_TAINTED: "1" }],
-  ["webgl-canvas", { TEST_CANVAS_WEBGL: "1" }],
-  ["webgl-canvas-no-buffer", { TEST_CANVAS_WEBGL_NO_BUFFER: "1" }],
-  ["delayed-final-canvas", { TEST_DELAYED_CANVAS: "1" }],
-  ["delayed-final-shadow", { TEST_DELAYED_SHADOW: "1" }],
-  ["cache-and-opaque", { TEST_CACHE_BODY: "1", TEST_CACHE_MANY: "1", TEST_CACHE_OPAQUE: "1" }],
-  ["cache-removal", { TEST_CACHE_REMOVAL: "1" }],
-  ["large-cache-catalog", { TEST_CACHE_CATALOG_LARGE: "1" }],
-  ["database-catalog", { TEST_DATABASE_CATALOG: "1" }],
-  ["large-database-catalog", { TEST_DATABASE_CATALOG_LARGE: "1" }],
-  ["partitioned-cookie", { TEST_PARTITIONED_COOKIE: "1" }],
-  ["file-read-failure", { TEST_FILE_CAPTURE: "1", TEST_FILE_FAILURE: "1" }],
-  ["missing-asset", { TEST_MISSING_ASSET: "1" }],
-  ["quota-failure", { TEST_QUOTA_FAILURE: "1" }],
-  ["coverage-read-failure", { TEST_COVERAGE_FAILURE: "1" }],
-  ["coverage-read-timeout", { TEST_COVERAGE_TIMEOUT: "1" }],
-  ["file-drop", { TEST_FILE_DROP: "1" }],
-  ["network-binary", { TEST_BINARY_REQUEST: "1", TEST_LARGE_BINARY: "1", TEST_LARGE_IMAGE: "1" }],
-  ["network-binary-18mb", { TEST_LARGE_BINARY_18: "1" }],
-  ["visual-resources", { TEST_VISUAL_RESOURCES: "1" }],
-  ["network-redirect", { TEST_REDIRECT: "1" }],
-  ["network-concurrent", { TEST_NETWORK_CONCURRENT: "1" }],
-  ["network-form-fields", { TEST_FORM_FIELDS: "1" }],
-  ["network-text-fields", { TEST_TEXT_FIELDS: "1" }],
-  ["network-xml-fields", { TEST_XML_FIELDS: "1" }],
-  ["network-xml-limit", { TEST_XML_LIMIT: "1" }],
-  ["network-realtime-large", { TEST_REALTIME_LARGE: "1" }],
-  ["mutations", { TEST_MUTATION_BATCH: "1", TEST_RAW_MUTATION: "1" }],
-  ["shadow-style", { TEST_SHADOW_STYLE: "1" }],
-  ["pseudo-style", { TEST_PSEUDO_STYLE: "1" }],
-  ["theme-switch-and-hover", { TEST_THEME_SWITCH: "1" }],
-  ["interaction-descendant-limit", { TEST_INTERACTION_DESCENDANT_LIMIT: "1" }],
-  ["computed-style-stress", { TEST_STYLE_STRESS: "1" }],
-  ["full-page-dpr2", { TEST_FULL_PAGE: "1", TEST_PNG_PIXEL: "1", TEST_DEVICE_SCALE: "2" }],
-  ["fixed-and-nested-scroll", { TEST_FIXED_NESTED: "1" }],
-  ["full-page-tiles", { TEST_FULL_PAGE_TILED: "1" }],
-  ["skill-reconstruction", { TEST_LARGE_DOM: "1", TEST_SKILL_RECONSTRUCT: "1" }],
-  ["long-input-and-clicks", { TEST_LONG_INPUT: "1", TEST_FAST_CLICKS: "1" }],
-];
-const fontPath = process.env.TEST_FONT_PATH || (process.platform === "win32" ? "C:\\Windows\\Fonts\\arial.ttf" : null);
+// Native-host validation entrypoint per the release request. This runner is not
+// an OS isolation launcher or a claim of universal product acceptance.
+const appRoot = fileURLToPath(new URL("../", import.meta.url));
+const budgets = validationBudgets(process.env);
+if (!process.env.CHROME_BIN || !path.isAbsolute(process.env.CHROME_BIN))
+  throw new Error("请通过 CHROME_BIN 指定正式版 Chrome 的绝对路径");
+const executable = process.env.CHROME_BIN;
+const runId = randomUUID();
+const directory = await fs.mkdtemp(path.join(appRoot, "test-matrix-"));
+const reportPath = path.join(directory, "result.json");
+const directories = Object.fromEntries(["home", "temp", "appdata", "localappdata"].map((key) => [key, path.join(directory, key)]));
+for (const folder of Object.values(directories)) await fs.mkdir(folder);
+let fontPath = process.env.TEST_FONT_PATH || (process.platform === "win32" ? "C:\\Windows\\Fonts\\arial.ttf" : null);
 if (fontPath) {
-  try { await fs.access(fontPath); scenarios.push(["font", { TEST_FONT: "1", TEST_FONT_PATH: fontPath }], ["initial-resources", { TEST_INITIAL_RESOURCES: "1", TEST_FONT_PATH: fontPath }]); }
-  catch { console.log("字体测试样本不可用"); }
-} else console.log("字体测试样本不可用");
-const failed = [];
-for (const [name, flags] of scenarios) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith("TEST_")) delete env[key];
-  Object.assign(env, flags);
-  console.log(`开始验证 ${name}`);
-  const code = await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [path.resolve("tests/chrome-errors.e2e.mjs")], {
-      cwd: process.cwd(), env, windowsHide: true, stdio: "inherit",
-    });
-    child.once("error", reject);
-    child.once("exit", (status) => resolve(status));
-  });
-  if (code !== 0) failed.push(name);
+  try { if (!(await fs.stat(fontPath)).isFile()) fontPath = null; } catch { fontPath = null; }
 }
-if (failed.length) {
-  console.error(`未通过: ${failed.join(", ")}`);
+const plan = createCapturePlan({ fontAvailable: !!fontPath });
+const startedAt = Date.now(), controller = new AbortController();
+let stopReason = null, finished = false;
+const requestStop = (reason) => {
+  if (finished || controller.signal.aborted) return;
+  stopReason = reason; controller.abort();
+};
+const interrupt = () => requestStop("SIGINT"), terminate = () => requestStop("SIGTERM");
+process.on("SIGINT", interrupt); process.on("SIGTERM", terminate);
+const deadline = setTimeout(() => requestStop("matrix_deadline"), budgets.matrixMs);
+const envelope = (result) => ({ ...result, runId, startedAt, updatedAt: Date.now(), stopReason, budgets,
+  environment: { nodeVersion: process.versions.node, platform: process.platform, arch: process.arch, chromeVersion: null },
+  qualification: { executionIsolation: "not_attested_by_runner", finalRequirementAcceptance: false,
+    meaning: "Scenario results are candidate evidence only, never OS-isolation or full requirement approval." } });
+let reportNumber = 0;
+const writeReport = async (result) => {
+  const temporary = path.join(directory, `result-${++reportNumber}.tmp`);
+  await fs.writeFile(temporary, JSON.stringify(envelope(result), null, 2) + "\n", { flag: "wx" });
+  await fs.rename(temporary, reportPath);
+};
+console.log(`采集矩阵候选runId=${runId}；报告在本插件app下的独立test-matrix目录`);
+try {
+  const result = await runCaptureMatrix({ plan, signal: controller.signal,
+    captureIdentity: () => validationStep(() => captureValidationIdentity({ appRoot, host: {
+      nodeVersion: process.versions.node, platform: process.platform, arch: process.arch,
+      chromeBinaryPath: executable, chromeVersion: null, chromeBinarySha256: null,
+    } }), { timeoutMs: Math.max(1, budgets.matrixMs - (Date.now() - startedAt)), signal: controller.signal }),
+    runScenario: (scenario) => {
+      console.log(`开始验证 ${scenario.id}`);
+      return runScenario({ id: scenario.id, command: process.execPath,
+        args: [path.join(appRoot, "tests/chrome-errors.e2e.mjs")], cwd: appRoot,
+        env: validationEnvironment(process.env, directories, { executable, flags: scenario.flags, nativeHost: true,
+          fontPath: ["font", "initial-resources"].includes(scenario.id) ? fontPath : null }),
+        timeoutMs: Math.min(budgets.scenarioMs, Math.max(1, budgets.matrixMs - (Date.now() - startedAt))),
+        cleanupMs: budgets.cleanupMs, signal: controller.signal, requireCleanupAck: true });
+    }, onUpdate: (result) => validationStep(() => writeReport(result), { timeoutMs: 5000 }) });
+  if (controller.signal.aborted || !result.passed) {
+    process.exitCode = controller.signal.aborted ? 130 : 1;
+    console.error(`采集矩阵未完整通过：${result.status}`);
+  } else {
+    console.log(`采集矩阵候选场景完成：${result.counts.passed} passed，${result.counts.skipped || 0} skipped；不等最终需求验收。`);
+  }
+} catch {
   process.exitCode = 1;
-} else console.log(`采集验证矩阵通过：${scenarios.length} 项`);
+  console.error("采集矩阵证据记录失败；不得将本轮计为通过");
+} finally {
+  finished = true; clearTimeout(deadline);
+  process.removeListener("SIGINT", interrupt); process.removeListener("SIGTERM", terminate);
+}

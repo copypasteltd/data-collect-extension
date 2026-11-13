@@ -1,0 +1,292 @@
+{
+  "format": "fragment-conformance-v1",
+  "authoredOnly": "Synthetic recipes; JS and Python checks have not been run.",
+  "sessionContract": "Each case is a complete evidence collection for exactly one session.",
+  "numberEncoding": "safeIntegerCases.valueJson is parsed as a JSON number/value by each language.",
+  "safeIntegerCases": [
+    { "name": "zero", "valueJson": "0", "safe": true },
+    { "name": "negative-zero", "valueJson": "-0", "safe": true },
+    { "name": "integer-valued-decimal", "valueJson": "1.0", "safe": true },
+    { "name": "integer-valued-exponent", "valueJson": "1e0", "safe": true },
+    { "name": "max", "valueJson": "9007199254740991", "safe": true },
+    { "name": "min", "valueJson": "-9007199254740991", "safe": true },
+    { "name": "above-max", "valueJson": "9007199254740992", "safe": false },
+    { "name": "below-min", "valueJson": "-9007199254740992", "safe": false },
+    { "name": "true-is-not-one", "valueJson": "true", "safe": false },
+    { "name": "false-is-not-zero", "valueJson": "false", "safe": false },
+    { "name": "fraction", "valueJson": "0.5", "safe": false },
+    { "name": "numeric-string", "valueJson": "\"1\"", "safe": false },
+    { "name": "null", "valueJson": "null", "safe": false },
+    { "name": "array", "valueJson": "[]", "safe": false },
+    { "name": "object", "valueJson": "{}", "safe": false },
+    { "name": "overflow", "valueJson": "1e309", "safe": false }
+  ],
+  "cases": [
+    {
+      "name": "empty-capture-id-is-not-an-identity",
+      "reference": { "captureId": "", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "empty-field-is-not-an-identity",
+      "reference": { "captureId": "fixture", "field": "", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "one-part-confirmed",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }],
+      "complete": true, "expected": "x"
+    },
+    {
+      "name": "integer-valued-json-numbers",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1.0, "parts": 1e0 },
+      "events": [{ "type": "part", "index": 0.0, "data": "x", "payload": { "length": 1e0, "parts": 1.0 } }, { "type": "end", "payload": { "length": 1.0, "parts": 1e0 } }],
+      "complete": true, "expected": "x"
+    },
+    {
+      "name": "negative-zero-index",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": -0, "data": "x" }, { "type": "end" }],
+      "complete": true, "expected": "x"
+    },
+    {
+      "name": "surrogate-pair-split-at-100000",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 100002, "parts": 2 },
+      "events": [
+        { "type": "part", "index": 0, "data": [{ "text": "x", "repeat": 99999 }, "\ud83d"] },
+        { "type": "part", "index": 1, "data": "\ude00z" },
+        { "type": "end" }
+      ],
+      "complete": true, "expected": [{ "text": "x", "repeat": 99999 }, "\ud83d\ude00z"]
+    },
+    {
+      "name": "lone-surrogates-preserved",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 3, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "\ud800x\udc00" }, { "type": "end" }],
+      "complete": true, "expected": "\ud800x\udc00"
+    },
+    {
+      "name": "supplementary-scalar-has-two-utf16-units",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 2, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "\ud83d\ude00" }, { "type": "end" }],
+      "complete": true, "expected": "\ud83d\ude00"
+    },
+    {
+      "name": "part-index-order-is-not-arrival-order",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 100001, "parts": 2 },
+      "events": [
+        { "type": "part", "index": 1, "data": "z" },
+        { "type": "part", "index": 0, "data": [{ "text": "x", "repeat": 100000 }] },
+        { "type": "end" }
+      ],
+      "complete": true, "expected": [{ "text": "x", "repeat": 100000 }, "z"]
+    },
+    {
+      "name": "exact-fragment-boundary",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 100000, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": [{ "text": "x", "repeat": 100000 }] }, { "type": "end" }],
+      "complete": true, "expected": [{ "text": "x", "repeat": 100000 }]
+    },
+    {
+      "name": "missing-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }], "complete": false
+    },
+    {
+      "name": "duplicate-part",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "duplicate-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "end-before-parts",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "end" }, { "type": "part", "index": 0, "data": "x" }], "complete": false
+    },
+    {
+      "name": "part-after-confirmation",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "part", "index": 0, "data": "x" }], "complete": false
+    },
+    {
+      "name": "missing-part-at-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 100001, "parts": 2 },
+      "events": [{ "type": "part", "index": 1, "data": "z" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "wrong-data-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 2, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "wrong-data-type",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": 1 }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "non-100000-boundary",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 100001, "parts": 2 },
+      "events": [{ "type": "part", "index": 0, "data": [{ "text": "x", "repeat": 99999 }] }, { "type": "part", "index": 1, "data": "zz" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "wrong-reference-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 2 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "wrong-part-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x", "payload": { "parts": 2 } }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "wrong-end-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end", "payload": { "length": 2 } }], "complete": false
+    },
+    {
+      "name": "unconfirmed-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end", "payload": { "status": "failed" } }], "complete": false
+    },
+    {
+      "name": "failure-before-parts",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "failure" }, { "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "failure"
+    },
+    {
+      "name": "failure-before-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "failure" }, { "type": "end" }], "complete": false, "error": "failure"
+    },
+    {
+      "name": "failure-after-confirmed-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "failure" }], "complete": false, "error": "failure"
+    },
+    {
+      "name": "failure-needs-only-identity",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "failure", "omit": ["length", "parts", "status"] }], "complete": false, "error": "failure"
+    },
+    {
+      "name": "failure-with-untrusted-metadata-still-vetoes",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "failure", "payload": { "length": "invalid", "parts": -1, "status": "confirmed" } }], "complete": false, "error": "failure"
+    },
+    {
+      "name": "failure-in-other-capture-does-not-veto",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "failure", "payload": { "captureId": "other" } }], "complete": true, "expected": "x"
+    },
+    {
+      "name": "failure-in-other-field-does-not-veto",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "failure", "payload": { "field": "html" } }], "complete": true, "expected": "x"
+    },
+    {
+      "name": "unknown-ack-is-not-fragment-failure",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }, { "type": "other", "kind": "warning", "payload": { "status": "unknown", "reason": "ACK unknown" } }], "complete": true, "expected": "x"
+    },
+    {
+      "name": "unknown-ack-does-not-supply-missing-end",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "other", "kind": "warning", "payload": { "status": "unknown", "reason": "ACK unknown" } }], "complete": false
+    },
+    {
+      "name": "empty-file-fragments-are-not-inline-empty",
+      "reference": { "captureId": "empty", "field": "fileBytesBase64", "length": 0, "parts": 0 },
+      "events": [{ "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "negative-zero-length-is-still-empty",
+      "reference": { "captureId": "empty", "field": "fileBytesBase64", "length": -0, "parts": 0 },
+      "events": [{ "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "safe-max-reference-is-valid-but-missing-evidence",
+      "reference": { "captureId": "max", "field": "sourceHtml", "length": 9007199254740991, "parts": 90071992548 },
+      "events": [], "complete": false, "error": "incomplete"
+    },
+    {
+      "name": "safe-max-full-boundary-reference-is-valid-but-missing-evidence",
+      "reference": { "captureId": "max-boundary", "field": "sourceHtml", "length": 9007199254700000, "parts": 90071992547 },
+      "events": [], "complete": false, "error": "incomplete"
+    },
+    {
+      "name": "unsafe-length-is-not-a-valid-reference",
+      "reference": { "captureId": "unsafe", "field": "sourceHtml", "length": 9007199254740992, "parts": 90071992548 },
+      "events": [], "complete": false, "error": "reference"
+    },
+    {
+      "name": "unsafe-count-is-not-a-valid-reference",
+      "reference": { "captureId": "unsafe", "field": "sourceHtml", "length": 1, "parts": 9007199254740992 },
+      "events": [], "complete": false, "error": "reference"
+    },
+    {
+      "name": "boolean-reference-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": true, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "boolean-reference-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": true },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end" }], "complete": false, "error": "reference"
+    },
+    {
+      "name": "boolean-part-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x", "payload": { "length": true } }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "boolean-part-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x", "payload": { "parts": true } }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "boolean-end-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end", "payload": { "length": true } }], "complete": false
+    },
+    {
+      "name": "boolean-end-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end", "payload": { "parts": true } }], "complete": false
+    },
+    {
+      "name": "boolean-index",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": false, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "fractional-index",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0.5, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "out-of-range-index",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 1, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "unsafe-index",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 9007199254740992, "data": "x" }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "missing-part-length",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x", "omit": ["length"] }, { "type": "end" }], "complete": false
+    },
+    {
+      "name": "missing-end-count",
+      "reference": { "captureId": "fixture", "field": "sourceHtml", "length": 1, "parts": 1 },
+      "events": [{ "type": "part", "index": 0, "data": "x" }, { "type": "end", "omit": ["parts"] }], "complete": false
+    }
+  ]
+}

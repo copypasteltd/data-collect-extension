@@ -1,8 +1,11 @@
 const FRAGMENT_LENGTH = 100000;
 
 export function validateFragments(reference, events) {
-  if (!reference || typeof reference.captureId !== "string" || typeof reference.field !== "string" ||
+  if (!reference || typeof reference !== "object" || Array.isArray(reference) ||
+      typeof reference.captureId !== "string" || !reference.captureId ||
+      typeof reference.field !== "string" || !reference.field ||
       !Number.isSafeInteger(reference.length) || reference.length <= 0 ||
+      !Number.isSafeInteger(reference.parts) ||
       reference.parts !== Math.ceil(reference.length / FRAGMENT_LENGTH))
     throw new Error("分段引用无效");
   const parts = new Map();
@@ -10,6 +13,8 @@ export function validateFragments(reference, events) {
   for (const event of events) {
     const item = event.payload || {};
     if (item.captureId !== reference.captureId || item.field !== reference.field) continue;
+    // A confirmed End never overrides explicit failure evidence, even if failure arrives later.
+    if (event.kind === "capture.fragmentFailure") throw new Error("分段传输失败");
     if (event.kind === "capture.fragmentEnd") {
       if (complete || item.status !== "confirmed" || item.parts !== reference.parts ||
           item.length !== reference.length || parts.size !== reference.parts)
@@ -32,10 +37,12 @@ export function reconstructFragments(reference, events) {
   return validateFragments(reference, events).join("");
 }
 
+// The caller supplies one session's complete evidence; capture IDs are not cross-session identities.
 export function indexFragmentEvidence(events) {
   const groups = new Map();
   for (const event of events) {
-    if (event.kind !== "capture.fragment" && event.kind !== "capture.fragmentEnd") continue;
+    if (event.kind !== "capture.fragment" && event.kind !== "capture.fragmentEnd" &&
+        event.kind !== "capture.fragmentFailure") continue;
     const payload = event.payload || {};
     const key = JSON.stringify([payload.captureId, payload.field]);
     if (!groups.has(key)) groups.set(key, []);

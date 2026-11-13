@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "../tests/chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -22,6 +22,7 @@ const server = http.createServer((request, response) => {
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 let browser;
+const profile = path.join(temp, "profile");
 try {
   const extension = path.join(temp, "extension");
   await fs.cp(path.join(appRoot, "dist"), extension, { recursive: true });
@@ -29,30 +30,24 @@ try {
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  browser = await chromium.launchPersistentContext(path.join(temp, "profile"), {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    viewport: null, acceptDownloads: true,
-    recordVideo: { dir: path.join(temp, "video"), size: { width: 420, height: 900 } },
-    args: ["--window-size=1280,1000", `--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = browser.serviceWorkers()[0] || await browser.waitForEvent("serviceworker", { timeout: 15000 });
-  const site = await browser.newPage();
+  browser = await launchExtension(profile, extension, ["--window-size=1280,1000"]);
+  const context = browser.context;
+  const site = await context.newPage();
   await site.goto(`http://127.0.0.1:${server.address().port}/`);
-  const panel = await browser.newPage();
+  const panel = await context.newPage();
   await panel.setViewportSize({ width: 420, height: 900 });
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
-  const video = panel.video();
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
   await site.bringToFront();
   await panel.waitForTimeout(2200);
-  await panel.screenshot({ path: path.join(media, "01-ready.png") });
+  await panel.screenshot({ path: path.join(media, "v0.3.0-01-ready.png") });
   await panel.waitForTimeout(800);
   await panel.getByRole("button", { name: "开始录制" }).click();
   await panel.getByRole("button", { name: "停止录制" }).waitFor({ timeout: 20000 });
-  await panel.screenshot({ path: path.join(media, "02-recording.png") });
+  await panel.screenshot({ path: path.join(media, "v0.3.0-02-recording.png") });
   await site.locator("#query").fill("C001");
   await site.locator("#search").click();
   await site.getByText("示例客户 A").waitFor();
-  await site.screenshot({ path: path.join(media, "sample-site.png") });
+  await site.screenshot({ path: path.join(media, "v0.3.0-sample-site.png") });
   await panel.waitForTimeout(800);
   await panel.getByRole("button", { name: "停止录制" }).click();
   await panel.getByRole("radio").first().waitFor({ timeout: 20000 });
@@ -67,17 +62,18 @@ try {
   await panel.waitForFunction(() => document.querySelectorAll('input[type="radio"]').length === 2);
   await panel.getByRole("radio").nth(1).check();
   await panel.waitForTimeout(600);
-  await panel.screenshot({ path: path.join(media, "03-history.png") });
+  await panel.screenshot({ path: path.join(media, "v0.3.0-03-history.png") });
   const download = panel.waitForEvent("download", { timeout: 15000 });
   await panel.getByRole("button", { name: "导出记录包" }).click();
   await (await download).saveAs(path.join(temp, "demo.zip"));
   await panel.waitForTimeout(1200);
   await browser.close();
   browser = null;
-  await fs.copyFile(await video.path(), path.join(media, "workflow.webm"));
   console.log(`演示素材已生成：${media}`);
 } finally {
   if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
-  await fs.rm(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  const removed = await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
+  if (removed.status === "removed")
+    await fs.rm(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

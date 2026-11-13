@@ -1,10 +1,9 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync } from "node:crypto";
-import { spawn } from "node:child_process";
 import { unzipSync, strFromU8 } from "fflate";
 
 const server = http.createServer((req, res) => {
@@ -17,7 +16,7 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 async function scenario(prelude, run) {
   const profile = await fs.mkdtemp(path.resolve("test-review-profile-"));
   const extension = await fs.mkdtemp(path.resolve("test-review-extension-"));
-  let context, browser, root, child, exited;
+  let context, browser;
   try {
     await fs.cp(path.resolve("dist"), extension, { recursive: true });
     const manifestPath = path.join(extension, "manifest.json");
@@ -36,33 +35,9 @@ async function scenario(prelude, run) {
       const background = path.join(extension, "background.js");
       await fs.writeFile(background, prelude + "\n" + await fs.readFile(background, "utf8"));
     }
-    let loadedId = extensionId;
-    if (process.env.CHROME_BIN) {
-      child = spawn(process.env.CHROME_BIN, [
-        `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
-        "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
-        "--disable-background-networking", "--no-proxy-server", "about:blank",
-      ], { windowsHide: true, stdio: "ignore" });
-      let launchError;
-      exited = new Promise((resolve) => { child.once("exit", resolve); child.once("error", (error) => { launchError = error; resolve(); }); });
-      let port;
-      const deadline = Date.now() + 60000;
-      while (!port && Date.now() < deadline) {
-        if (launchError) throw launchError;
-        try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
-        catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
-      }
-      assert.ok(port, "Chrome 调试接口未启动");
-      browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-      root = await browser.newBrowserCDPSession();
-      loadedId = (await root.send("Extensions.loadUnpacked", { path: extension })).id;
-      context = browser.contexts()[0];
-    } else {
-      context = await chromium.launchPersistentContext(profile, {
-        executablePath: chromium.executablePath(), headless: true,
-        args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-      });
-    }
+    browser = await launchExtension(profile, extension);
+    context = browser.context;
+    const loadedId = browser.id;
     const workerEvent = context.waitForEvent("serviceworker", { predicate: (entry) => entry.url().includes(loadedId), timeout: 30000 }).catch(() => null);
     const panel = await context.newPage();
     await panel.goto(`chrome-extension://${loadedId}/sidepanel.html`);
@@ -73,12 +48,8 @@ async function scenario(prelude, run) {
     await page.bringToFront();
     await run({ context, worker, page, panel });
   } finally {
-    if (root) await root.send("Browser.close").catch(() => {});
-    if (browser) await browser.close().catch(() => {});
-    else if (context) await context.close();
-    if (child?.exitCode === null) child.kill();
-    if (exited) await exited;
-    await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    if (browser) await browser.close();
+    await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
     await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 }

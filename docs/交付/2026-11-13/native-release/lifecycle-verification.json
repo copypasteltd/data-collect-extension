@@ -1,0 +1,3699 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-13T11:16:26.101Z",
+  "verdict": "pass",
+  "summary": {
+    "commands": 9,
+    "latestPassed": 9,
+    "latestFailed": 0,
+    "totalRuns": 21,
+    "historicalFailedRuns": 6,
+    "allJobsCollected": true,
+    "testsFrozen": true,
+    "candidateVersion": "0.3.0",
+    "finalDistSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+    "finalSourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+    "finalFingerprintStable": true
+  },
+  "environment": {
+    "os": "Windows native",
+    "node": "v24.22.1",
+    "npm": "10.9.2",
+    "chrome": "157.0.8103.40",
+    "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app"
+  },
+  "scope": {
+    "syntheticOnly": true,
+    "actualProcess": "Native Windows Chrome executable, task-owned temporary profiles and extension copies only",
+    "externalConnections": "Test pages only use dynamically allocated 127.0.0.1 loopback fixture servers",
+    "notPerformed": [
+      "No Docker/WSL/VM or other isolated OS environment",
+      "No interaction with user Chrome/profile/credentials or real ERP",
+      "No Chrome restart or process-name shutdown",
+      "No build, dependency reinstall, commit, push, release packaging or deployment by this worker",
+      "Parent default unit, Python and full capture matrix results are outside this report"
+    ],
+    "cleanup": {
+      "ownedChrome": "Each migrated test awaits existing launchExtension.close in finally; cleanup errors fail the command; removeTestProfile only deletes after confirmed owned-observable cleanup",
+      "remainingOwnedProfileFiles": 0,
+      "checkPattern": "test-{attach-stop,status,concurrent,recovery-stop,stop-lifecycle,review,event-ack,event-retry,event-timeout}-profile*/**/*",
+      "assurance": "Owned observable process handles and scoped profile files only; does not claim OS-wide browser process census"
+    }
+  },
+  "fingerprintMethod": {
+    "algorithm": "sha256",
+    "treeDigest": "SHA256(JSON.stringify(files)), with files sorted by path.localeCompare and each item exactly {path,sha256}; paths are relative to app working directory and use forward slashes",
+    "sourceScope": "app/src recursive files only; test/harness hashes recorded separately per command; source digest is not a build-source attestation for historical runs when parent edited source before next build",
+    "finalBuildReuse": "Latest nine passing results all target one unchanged v0.3.0 dist; event-ack final-ready supersedes failed final and final-contract runs, not a single all-green batch"
+  },
+  "findings": [
+    {
+      "id": "LIFE-001",
+      "kind": "test-native-loader",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-attach-stop.initial.log",
+        "lines": [
+          10,
+          16
+        ]
+      },
+      "actual": "Native Chrome 157 did not start extension serviceworker through the historical load-extension flags; wait timed out at15000ms",
+      "fix": "Migrated all nine assigned tests to existing launchExtension/removeTestProfile harness using Extensions.loadUnpacked and owned child cleanup",
+      "outcome": "attach-stop native and final passed"
+    },
+    {
+      "id": "LIFE-002",
+      "kind": "stale-test-contract",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-stop-lifecycle.native.log",
+        "lines": [
+          14,
+          25
+        ]
+      },
+      "actual": "GET_STATE.active.status was ready during delayed state cleanup, because immutable evidence seal had already committed; old test expected stopping",
+      "fix": "Preserve sealed ready state and strengthen same active id/same seal/writeState sealed/UI disabled/direct START rejection/active null after cleanup",
+      "outcome": "Full final stop-lifecycle passed without reverting terminal state"
+    },
+    {
+      "id": "LIFE-003",
+      "kind": "production-bug",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-stop-review-regressions.native.log",
+        "lines": [
+          12,
+          22
+        ]
+      },
+      "actual": "Persistently unresponsive readonly sessions.get made a later STOP wait forever at the new seal watermark read",
+      "fix": "Parent bounded background seal watermark get with 5000ms deadline and kept persistent fault injection and original wait bounds",
+      "source": "app/src/background.js:1437",
+      "outcome": "Final stop-review-regressions all five scenarios passed"
+    },
+    {
+      "id": "LIFE-004",
+      "kind": "stale-fault-injection",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-event-ack.native.log",
+        "lines": [
+          10,
+          25
+        ]
+      },
+      "actual": "Partial acknowledgement expected accepted2/failed1 but got accepted3/failed0; historical put interception never reached append-only add writer",
+      "fix": "Intercept add; duplicate add calls saved original to avoid recursion; keep partial2/1, rollback0/3, single transaction, good/bad persistence and cross-session assertions",
+      "outcome": "All preserved acknowledgement and persistence assertions passed in final-ready"
+    },
+    {
+      "id": "LIFE-005",
+      "kind": "stale-warning-contract",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-event-ack.final.log",
+        "lines": [
+          10,
+          20
+        ]
+      },
+      "actual": "Historical warning expected unconfirmed1, but explicit write rejection is known failed1/unknown0",
+      "fix": "Require warning error matching failed1/unknown0 plus collectorFailedEvents===1 and unknownEvents===0",
+      "outcome": "Stronger warning/counter assertions passed before final-contract receiver failure and in final-ready"
+    },
+    {
+      "id": "LIFE-006",
+      "kind": "stale-fixture-sequencing",
+      "evidence": {
+        "logPath": "app/test-native-lifecycle-event-ack.final-contract.log",
+        "lines": [
+          10,
+          13
+        ]
+      },
+      "actual": "Final fixture suspended CANVAS_OPTIONS but awaited normal START/COLLECTOR_READY for5s; settings timeout shut down collector before test could send STOP_CAPTURE",
+      "fix": "Only third fixture starts acknowledgeEarly; host <=2000ms verifies isolated-world collector and suspended-settings hook; send unscoped STOP_CAPTURE with reply.ok true before timeout, release settings, preserve no-snapshot/finalSTOP assertions",
+      "outcome": "event-ack final-ready passed; no further test changes after freeze"
+    }
+  ],
+  "staticValidation": {
+    "nodeCheck": "All nine assigned mjs files: exit0 after final fixture change",
+    "gitDiffCheck": "Assigned nine test files: exit0; only LF→CRLF notices",
+    "productionEditsByWorker": [],
+    "dependenciesInstalledByWorker": false,
+    "buildStartedByWorker": false
+  },
+  "latestRuns": [
+    {
+      "command": "npm run test:attach-stop",
+      "label": "final",
+      "jobId": "bash-0ab8c85c7f314818",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:04:39.577Z",
+      "finishedAt": "2026-11-13T11:04:53.912Z",
+      "durationSeconds": 14.335,
+      "logPath": "app/test-native-lifecycle-attach-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-attach-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:attach-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/attach-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "停止后迟到的调试连接已关闭"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "5f70c2df494061ea36530d4a589329918a945ef5d0928f7e958bcda6fb5288dd"
+    },
+    {
+      "command": "npm run test:status-isolation",
+      "label": "final",
+      "jobId": "bash-fe24fa6ea7154fd8",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:05:15.836Z",
+      "finishedAt": "2026-11-13T11:05:37.995Z",
+      "durationSeconds": 22.159,
+      "logPath": "app/test-native-lifecycle-status-isolation.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-status-isolation.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:status-isolation"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/status-isolation.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "批次列表无响应时仍可停止，读取恢复后可导出且错误消失"
+        },
+        {
+          "line": 7,
+          "text": "启动确认后发生准备错误时保留中断批次并恢复可操作状态"
+        },
+        {
+          "line": 8,
+          "text": ""
+        }
+      ],
+      "logSha256": "893aaf550861233b333dfc567f4583d3dd182f1393928a5cf2dc1df642a9ed16"
+    },
+    {
+      "command": "npm run test:concurrent-stop",
+      "label": "final",
+      "jobId": "bash-1e97d0a605c44df9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:05:55.910Z",
+      "finishedAt": "2026-11-13T11:06:00.248Z",
+      "durationSeconds": 4.338,
+      "logPath": "app/test-native-lifecycle-concurrent-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-concurrent-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:concurrent-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/concurrent-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "并发停止不影响正常收尾，真正的收尾失败仍标记为中断"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "60e9479dd6f8857cc719cda8d499605ad408075350de969c88862fa012eb50ab"
+    },
+    {
+      "command": "npm run test:recovery-stop",
+      "label": "final",
+      "jobId": "bash-4dcc7eb222ce4294",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:06:25.292Z",
+      "finishedAt": "2026-11-13T11:06:59.166Z",
+      "durationSeconds": 33.874,
+      "logPath": "app/test-native-lifecycle-recovery-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-recovery-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:recovery-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/recovery-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "恢复读取失败时可停止并保留中断批次"
+        },
+        {
+          "line": 7,
+          "text": "重复停止被拒绝，已完成批次不会被覆盖为中断"
+        },
+        {
+          "line": 8,
+          "text": "中断批次写入失败时报告错误，存储恢复后可重新归档"
+        },
+        {
+          "line": 9,
+          "text": "采集器清理失败时报告未确认状态，保留中断批次"
+        },
+        {
+          "line": 10,
+          "text": "归档和清理同时失败时同时报告，写入恢复后保留批次"
+        },
+        {
+          "line": 11,
+          "text": ""
+        }
+      ],
+      "logSha256": "722b457f1b301b679be8784ccdc8e34a8b401b5e06fae9e14eeb73c34aa9188b"
+    },
+    {
+      "command": "npm run test:stop-lifecycle",
+      "label": "final",
+      "jobId": "bash-543e268f8cf645b9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:07:05.959Z",
+      "finishedAt": "2026-11-13T11:09:03.951Z",
+      "durationSeconds": 117.992,
+      "logPath": "app/test-native-lifecycle-stop-lifecycle.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-lifecycle.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "2f1e3980a5f610aa8af62267f083fe0eee078167052e80355d9d3e329397865b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "2f1e3980a5f610aa8af62267f083fe0eee078167052e80355d9d3e329397865b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-lifecycle"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-lifecycle.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "多个页面并行收尾"
+        },
+        {
+          "line": 7,
+          "text": "迟到的采集器注册不会干扰下一批录制"
+        },
+        {
+          "line": 8,
+          "text": "迟到的停止消息不影响下一批录制"
+        },
+        {
+          "line": 9,
+          "text": "收尾超时后可重新录制，迟到收尾消息不会影响新批次"
+        },
+        {
+          "line": 10,
+          "text": "关闭并重开侧边栏不会打断停止收尾"
+        },
+        {
+          "line": 11,
+          "text": "启动接口超时后可停止并清理迟到注册"
+        },
+        {
+          "line": 12,
+          "text": "迟到的状态清理不会删除新录制状态"
+        },
+        {
+          "line": 13,
+          "text": "迟到的调试连接关闭不会中断新录制"
+        },
+        {
+          "line": 14,
+          "text": "录制状态写入未完成时可停止，迟到写入不会覆盖新批次"
+        },
+        {
+          "line": 15,
+          "text": "准备期间可停止并导出，迟到注入不影响下一批录制"
+        },
+        {
+          "line": 16,
+          "text": ""
+        }
+      ],
+      "logSha256": "71a5d729cfc12f729e93b48c7579cdf402d4d52f254c8783283d113d79dc68ff"
+    },
+    {
+      "command": "npm run test:stop-review-regressions",
+      "label": "final",
+      "jobId": "bash-971e58e613b94e0b",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:09:38.567Z",
+      "finishedAt": "2026-11-13T11:10:46.349Z",
+      "durationSeconds": 67.782,
+      "logPath": "app/test-native-lifecycle-stop-review-regressions.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-review-regressions.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-review-regressions"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-review-regressions.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "会话状态读取超时时停止并保留已保存事件"
+        },
+        {
+          "line": 7,
+          "text": "状态不可读取时拒绝过期停止请求，保留并可停止较新批次"
+        },
+        {
+          "line": 8,
+          "text": "框架未确认关闭时报告错误，新批次接管旧采集器并记录输入"
+        },
+        {
+          "line": 9,
+          "text": "无法枚举框架时尝试广播关闭并报告无法确认"
+        },
+        {
+          "line": 10,
+          "text": "中断批次写入失败后自动重试，恢复后可导出既有事件"
+        },
+        {
+          "line": 11,
+          "text": ""
+        }
+      ],
+      "logSha256": "fabfe9c1153e099dae164e77dca09ea4ec03530b99ee30552095e737545bf19e"
+    },
+    {
+      "command": "npm run test:event-ack",
+      "label": "final-ready",
+      "jobId": "bash-75470574fd9e49c9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:14:51.981Z",
+      "finishedAt": "2026-11-13T11:14:57.338Z",
+      "durationSeconds": 5.357,
+      "logPath": "app/test-native-lifecycle-event-ack.final-ready.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-ack.final-ready.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "1bba381fd9580902b86094d13c3f4f99029bb9db8c3f333ddeefd2eb2f382597",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "1bba381fd9580902b86094d13c3f4f99029bb9db8c3f333ddeefd2eb2f382597",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-ack"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-ack.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "部分事件持久化确认、失败提示和跨录制消息隔离通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "587819b04064af02870dfd5fbfc75250744b26eee3bf163238c66a7e82547f2d"
+    },
+    {
+      "command": "npm run test:event-retry",
+      "label": "final",
+      "jobId": "bash-8d39d8084698481d",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:11:13.915Z",
+      "finishedAt": "2026-11-13T11:11:19.456Z",
+      "durationSeconds": 5.541,
+      "logPath": "app/test-native-lifecycle-event-retry.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-retry.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-retry"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-retry.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "确认丢失、后台重启、并发重试、标识冲突与截图提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "4b36c320b459166a47b75623821d1e7b744e635d4e875767b83391b5dffb3336"
+    },
+    {
+      "command": "npm run test:event-timeout",
+      "label": "final",
+      "jobId": "bash-9f7a370a363c47c2",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:11:37.812Z",
+      "finishedAt": "2026-11-13T11:11:59.288Z",
+      "durationSeconds": 21.476,
+      "logPath": "app/test-native-lifecycle-event-timeout.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-timeout.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-timeout"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-timeout.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "单次和持续无响应、去重重试、通信恢复与收尾提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "9a468909ab8cd54ea6751c413f16d1f4c2df729c216b140a96cd5d201ec03989"
+    }
+  ],
+  "runs": [
+    {
+      "command": "npm run test:attach-stop",
+      "label": "initial",
+      "jobId": "bash-f985c8afcb5944e7",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:55:07.073Z",
+      "finishedAt": "2026-11-13T10:55:23.936Z",
+      "durationSeconds": 16.863,
+      "logPath": "app/test-native-lifecycle-attach-stop.initial.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-attach-stop.initial.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.2.0",
+        "distSha256": "69c5d090c09c0d72f8daec72e51fa0ec82da9b11e17f3e7765ff21167acdf901",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "24f9ba54b5f56b298f460f6df4028e6f41362c184cbc642a854883921a9f746d",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.2.0",
+        "distSha256": "69c5d090c09c0d72f8daec72e51fa0ec82da9b11e17f3e7765ff21167acdf901",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "24f9ba54b5f56b298f460f6df4028e6f41362c184cbc642a854883921a9f746d",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:attach-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/attach-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 7,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 8,
+          "text": "    ^"
+        },
+        {
+          "line": 9,
+          "text": ""
+        },
+        {
+          "line": 10,
+          "text": "browserContext.waitForEvent: Timeout 15000ms exceeded while waiting for event \"serviceworker\""
+        },
+        {
+          "line": 11,
+          "text": "    at E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\tests\\attach-stop.e2e.mjs:26:63 {"
+        },
+        {
+          "line": 12,
+          "text": "  log: [],"
+        },
+        {
+          "line": 13,
+          "text": "  name: 'TimeoutError'"
+        },
+        {
+          "line": 14,
+          "text": "}"
+        },
+        {
+          "line": 15,
+          "text": ""
+        },
+        {
+          "line": 16,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 17,
+          "text": ""
+        }
+      ],
+      "logSha256": "351395c07d75b292e3efe47e58062c82770920759a01920df261967b22eedd12"
+    },
+    {
+      "command": "npm run test:attach-stop",
+      "label": "native",
+      "jobId": "bash-f67cdc23ddec4346",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:56:50.755Z",
+      "finishedAt": "2026-11-13T10:57:05.018Z",
+      "durationSeconds": 14.263,
+      "logPath": "app/test-native-lifecycle-attach-stop.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-attach-stop.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:attach-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/attach-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "停止后迟到的调试连接已关闭"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "f554dc8dd1945ed46229d8a7251a0e2e89d2fd02074fbc66b30c83c3ce99e8a2"
+    },
+    {
+      "command": "npm run test:status-isolation",
+      "label": "native",
+      "jobId": "bash-ca77d1899f1c4e4f",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:57:12.338Z",
+      "finishedAt": "2026-11-13T10:57:39.205Z",
+      "durationSeconds": 26.867,
+      "logPath": "app/test-native-lifecycle-status-isolation.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-status-isolation.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:status-isolation"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/status-isolation.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "批次列表无响应时仍可停止，读取恢复后可导出且错误消失"
+        },
+        {
+          "line": 7,
+          "text": "启动确认后发生准备错误时保留中断批次并恢复可操作状态"
+        },
+        {
+          "line": 8,
+          "text": ""
+        }
+      ],
+      "logSha256": "80863dc5b8919a49b6a6aa84df1a77f1c2c048ce6f49af58d12232647aef5fb6"
+    },
+    {
+      "command": "npm run test:concurrent-stop",
+      "label": "native",
+      "jobId": "bash-00ff7cb64a7442ae",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:57:50.793Z",
+      "finishedAt": "2026-11-13T10:57:54.407Z",
+      "durationSeconds": 3.614,
+      "logPath": "app/test-native-lifecycle-concurrent-stop.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-concurrent-stop.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:concurrent-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/concurrent-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "并发停止不影响正常收尾，真正的收尾失败仍标记为中断"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "2bf05d86c6b5bf62ee0611720288ed64a0d09fd60ddb6a7e225f7fc6a62bd3e0"
+    },
+    {
+      "command": "npm run test:recovery-stop",
+      "label": "native",
+      "jobId": "bash-f3281445523f447b",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:58:20.936Z",
+      "finishedAt": "2026-11-13T10:58:58.093Z",
+      "durationSeconds": 37.157,
+      "logPath": "app/test-native-lifecycle-recovery-stop.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-recovery-stop.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:recovery-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/recovery-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "恢复读取失败时可停止并保留中断批次"
+        },
+        {
+          "line": 7,
+          "text": "重复停止被拒绝，已完成批次不会被覆盖为中断"
+        },
+        {
+          "line": 8,
+          "text": "中断批次写入失败时报告错误，存储恢复后可重新归档"
+        },
+        {
+          "line": 9,
+          "text": "采集器清理失败时报告未确认状态，保留中断批次"
+        },
+        {
+          "line": 10,
+          "text": "归档和清理同时失败时同时报告，写入恢复后保留批次"
+        },
+        {
+          "line": 11,
+          "text": ""
+        }
+      ],
+      "logSha256": "12c02031609f14a0935474003dc350c3fcacf39c346d3b01a373d0eef0537bc4"
+    },
+    {
+      "command": "npm run test:stop-lifecycle",
+      "label": "native",
+      "jobId": "bash-3623e9c64ea0434a",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T10:59:09.467Z",
+      "finishedAt": "2026-11-13T11:00:19.509Z",
+      "durationSeconds": 70.042,
+      "logPath": "app/test-native-lifecycle-stop-lifecycle.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-lifecycle.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "1b6bf139a810d03db0d221a8fba191a869903115f939f0a78376d99cf89d3fa7",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "1b6bf139a810d03db0d221a8fba191a869903115f939f0a78376d99cf89d3fa7",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-lifecycle"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-lifecycle.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "多个页面并行收尾"
+        },
+        {
+          "line": 7,
+          "text": "迟到的采集器注册不会干扰下一批录制"
+        },
+        {
+          "line": 8,
+          "text": "迟到的停止消息不影响下一批录制"
+        },
+        {
+          "line": 9,
+          "text": "收尾超时后可重新录制，迟到收尾消息不会影响新批次"
+        },
+        {
+          "line": 10,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 11,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 12,
+          "text": "    ^"
+        },
+        {
+          "line": 13,
+          "text": ""
+        },
+        {
+          "line": 14,
+          "text": "AssertionError [ERR_ASSERTION]: 状态清理期间不能提前开放下一批录制"
+        },
+        {
+          "line": 15,
+          "text": "+ actual - expected"
+        },
+        {
+          "line": 16,
+          "text": ""
+        },
+        {
+          "line": 17,
+          "text": "+ 'ready'"
+        },
+        {
+          "line": 18,
+          "text": "- 'stopping'"
+        },
+        {
+          "line": 19,
+          "text": ""
+        },
+        {
+          "line": 20,
+          "text": "    at file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/stop-lifecycle.e2e.mjs:264:10 {"
+        },
+        {
+          "line": 21,
+          "text": "  generatedMessage: false,"
+        },
+        {
+          "line": 22,
+          "text": "  code: 'ERR_ASSERTION',"
+        },
+        {
+          "line": 23,
+          "text": "  actual: 'ready',"
+        },
+        {
+          "line": 24,
+          "text": "  expected: 'stopping',"
+        },
+        {
+          "line": 25,
+          "text": "  operator: 'strictEqual',"
+        },
+        {
+          "line": 26,
+          "text": "  diff: 'simple'"
+        },
+        {
+          "line": 27,
+          "text": "}"
+        },
+        {
+          "line": 28,
+          "text": ""
+        },
+        {
+          "line": 29,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 30,
+          "text": ""
+        }
+      ],
+      "logSha256": "c49cc4a98cb7f52537b35fe2ab7f0421117b38288d625edff30bb8d6e7fe3bc0"
+    },
+    {
+      "command": "npm run test:stop-review-regressions",
+      "label": "native",
+      "jobId": "bash-68852a37195f4f86",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:00:25.669Z",
+      "finishedAt": "2026-11-13T11:01:42.329Z",
+      "durationSeconds": 76.66,
+      "logPath": "app/test-native-lifecycle-stop-review-regressions.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-review-regressions.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-review-regressions"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-review-regressions.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "会话状态读取超时时停止并保留已保存事件"
+        },
+        {
+          "line": 7,
+          "text": "状态不可读取时拒绝过期停止请求，保留并可停止较新批次"
+        },
+        {
+          "line": 8,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 9,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 10,
+          "text": "    ^"
+        },
+        {
+          "line": 11,
+          "text": ""
+        },
+        {
+          "line": 12,
+          "text": "locator.waitFor: Timeout 30000ms exceeded."
+        },
+        {
+          "line": 13,
+          "text": "Call log:"
+        },
+        {
+          "line": 14,
+          "text": "\u001b[2m  - waiting for getByRole('button', { name: '开始录制' }) to be visible\u001b[22m"
+        },
+        {
+          "line": 15,
+          "text": ""
+        },
+        {
+          "line": 16,
+          "text": "    at E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\tests\\stop-review-regressions.e2e.mjs:169:55"
+        },
+        {
+          "line": 17,
+          "text": "    at async scenario (E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\tests\\stop-review-regressions.e2e.mjs:49:5)"
+        },
+        {
+          "line": 18,
+          "text": "    at async file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/stop-review-regressions.e2e.mjs:139:3 {"
+        },
+        {
+          "line": 19,
+          "text": "  log: ["
+        },
+        {
+          "line": 20,
+          "text": "    \"  - waiting for getByRole('button', { name: '开始录制' }) to be visible\""
+        },
+        {
+          "line": 21,
+          "text": "  ],"
+        },
+        {
+          "line": 22,
+          "text": "  name: 'TimeoutError'"
+        },
+        {
+          "line": 23,
+          "text": "}"
+        },
+        {
+          "line": 24,
+          "text": ""
+        },
+        {
+          "line": 25,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 26,
+          "text": ""
+        }
+      ],
+      "logSha256": "b3deb311e8a9297a077a74627b5257379aa03a32aa52935e32ce6337ebf60d48"
+    },
+    {
+      "command": "npm run test:event-ack",
+      "label": "native",
+      "jobId": "bash-864e5765b9ab4c3a",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:01:48.710Z",
+      "finishedAt": "2026-11-13T11:01:53.127Z",
+      "durationSeconds": 4.417,
+      "logPath": "app/test-native-lifecycle-event-ack.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-ack.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "35868888afcca906daa992804c7c381c9a368497aac3f67185df2648022ee3a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "35868888afcca906daa992804c7c381c9a368497aac3f67185df2648022ee3a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": true,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-ack"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-ack.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 7,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 8,
+          "text": "    ^"
+        },
+        {
+          "line": 9,
+          "text": ""
+        },
+        {
+          "line": 10,
+          "text": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+        },
+        {
+          "line": 11,
+          "text": "+ actual - expected"
+        },
+        {
+          "line": 12,
+          "text": ""
+        },
+        {
+          "line": 13,
+          "text": "  {"
+        },
+        {
+          "line": 14,
+          "text": "+   accepted: 3,"
+        },
+        {
+          "line": 15,
+          "text": "+   failed: 0"
+        },
+        {
+          "line": 16,
+          "text": "-   accepted: 2,"
+        },
+        {
+          "line": 17,
+          "text": "-   failed: 1"
+        },
+        {
+          "line": 18,
+          "text": "  }"
+        },
+        {
+          "line": 19,
+          "text": ""
+        },
+        {
+          "line": 20,
+          "text": "    at file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/event-ack.e2e.mjs:79:10 {"
+        },
+        {
+          "line": 21,
+          "text": "  generatedMessage: true,"
+        },
+        {
+          "line": 22,
+          "text": "  code: 'ERR_ASSERTION',"
+        },
+        {
+          "line": 23,
+          "text": "  actual: { accepted: 3, failed: 0 },"
+        },
+        {
+          "line": 24,
+          "text": "  expected: { accepted: 2, failed: 1 },"
+        },
+        {
+          "line": 25,
+          "text": "  operator: 'deepStrictEqual',"
+        },
+        {
+          "line": 26,
+          "text": "  diff: 'simple'"
+        },
+        {
+          "line": 27,
+          "text": "}"
+        },
+        {
+          "line": 28,
+          "text": ""
+        },
+        {
+          "line": 29,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 30,
+          "text": ""
+        }
+      ],
+      "logSha256": "b962456028add30004deec4fa5f7cfc5a4f4875ab452633185f7ecbd0a07fcdb"
+    },
+    {
+      "command": "npm run test:event-retry",
+      "label": "native",
+      "jobId": "bash-f8bd6a9c7db3412d",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:02:14.570Z",
+      "finishedAt": "2026-11-13T11:02:18.759Z",
+      "durationSeconds": 4.189,
+      "logPath": "app/test-native-lifecycle-event-retry.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-retry.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-retry"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-retry.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "确认丢失、后台重启、并发重试、标识冲突与截图提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "cd59ebdf2279c2e0337ae1e33ba879ed41a4af370479c710810f03bd04adc58c"
+    },
+    {
+      "command": "npm run test:event-timeout",
+      "label": "native",
+      "jobId": "bash-59b84315f66c480a",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:02:36.304Z",
+      "finishedAt": "2026-11-13T11:02:57.302Z",
+      "durationSeconds": 20.998,
+      "logPath": "app/test-native-lifecycle-event-timeout.native.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-timeout.native.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": true,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-timeout"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-timeout.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "单次和持续无响应、去重重试、通信恢复与收尾提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "9cceeba918c7a87c3d036b8bec6a2024afd5336468d47b415e7a3123339c3f9c"
+    },
+    {
+      "command": "npm run test:attach-stop",
+      "label": "final",
+      "jobId": "bash-0ab8c85c7f314818",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:04:39.577Z",
+      "finishedAt": "2026-11-13T11:04:53.912Z",
+      "durationSeconds": 14.335,
+      "logPath": "app/test-native-lifecycle-attach-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-attach-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/attach-stop.e2e.mjs": "824e5c0806b295d69b69dbe838f78c62b84d8f84e094410015cd3e15c52ee49b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:attach-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/attach-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "停止后迟到的调试连接已关闭"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "5f70c2df494061ea36530d4a589329918a945ef5d0928f7e958bcda6fb5288dd"
+    },
+    {
+      "command": "npm run test:status-isolation",
+      "label": "final",
+      "jobId": "bash-fe24fa6ea7154fd8",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:05:15.836Z",
+      "finishedAt": "2026-11-13T11:05:37.995Z",
+      "durationSeconds": 22.159,
+      "logPath": "app/test-native-lifecycle-status-isolation.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-status-isolation.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/status-isolation.e2e.mjs": "1ba3e1604bf44d6fe1a2dfabf2e19a9bedc55b2a66c232de85d368f942b5dac1",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:status-isolation"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/status-isolation.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "批次列表无响应时仍可停止，读取恢复后可导出且错误消失"
+        },
+        {
+          "line": 7,
+          "text": "启动确认后发生准备错误时保留中断批次并恢复可操作状态"
+        },
+        {
+          "line": 8,
+          "text": ""
+        }
+      ],
+      "logSha256": "893aaf550861233b333dfc567f4583d3dd182f1393928a5cf2dc1df642a9ed16"
+    },
+    {
+      "command": "npm run test:concurrent-stop",
+      "label": "final",
+      "jobId": "bash-1e97d0a605c44df9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:05:55.910Z",
+      "finishedAt": "2026-11-13T11:06:00.248Z",
+      "durationSeconds": 4.338,
+      "logPath": "app/test-native-lifecycle-concurrent-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-concurrent-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/concurrent-stop.e2e.mjs": "a84320c23c1b9527e8db4b3a47dd45db15a5759bfc1b0f0762c2d13a626d6085",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:concurrent-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/concurrent-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "并发停止不影响正常收尾，真正的收尾失败仍标记为中断"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "60e9479dd6f8857cc719cda8d499605ad408075350de969c88862fa012eb50ab"
+    },
+    {
+      "command": "npm run test:recovery-stop",
+      "label": "final",
+      "jobId": "bash-4dcc7eb222ce4294",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:06:25.292Z",
+      "finishedAt": "2026-11-13T11:06:59.166Z",
+      "durationSeconds": 33.874,
+      "logPath": "app/test-native-lifecycle-recovery-stop.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-recovery-stop.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/recovery-stop.e2e.mjs": "c90910eec0e9b53427e5bae16b9d1a9c490db48110e430765ee5834c164b6a86",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:recovery-stop"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/recovery-stop.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "恢复读取失败时可停止并保留中断批次"
+        },
+        {
+          "line": 7,
+          "text": "重复停止被拒绝，已完成批次不会被覆盖为中断"
+        },
+        {
+          "line": 8,
+          "text": "中断批次写入失败时报告错误，存储恢复后可重新归档"
+        },
+        {
+          "line": 9,
+          "text": "采集器清理失败时报告未确认状态，保留中断批次"
+        },
+        {
+          "line": 10,
+          "text": "归档和清理同时失败时同时报告，写入恢复后保留批次"
+        },
+        {
+          "line": 11,
+          "text": ""
+        }
+      ],
+      "logSha256": "722b457f1b301b679be8784ccdc8e34a8b401b5e06fae9e14eeb73c34aa9188b"
+    },
+    {
+      "command": "npm run test:stop-lifecycle",
+      "label": "final",
+      "jobId": "bash-543e268f8cf645b9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:07:05.959Z",
+      "finishedAt": "2026-11-13T11:09:03.951Z",
+      "durationSeconds": 117.992,
+      "logPath": "app/test-native-lifecycle-stop-lifecycle.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-lifecycle.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "2f1e3980a5f610aa8af62267f083fe0eee078167052e80355d9d3e329397865b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-lifecycle.e2e.mjs": "2f1e3980a5f610aa8af62267f083fe0eee078167052e80355d9d3e329397865b",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-lifecycle"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-lifecycle.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "多个页面并行收尾"
+        },
+        {
+          "line": 7,
+          "text": "迟到的采集器注册不会干扰下一批录制"
+        },
+        {
+          "line": 8,
+          "text": "迟到的停止消息不影响下一批录制"
+        },
+        {
+          "line": 9,
+          "text": "收尾超时后可重新录制，迟到收尾消息不会影响新批次"
+        },
+        {
+          "line": 10,
+          "text": "关闭并重开侧边栏不会打断停止收尾"
+        },
+        {
+          "line": 11,
+          "text": "启动接口超时后可停止并清理迟到注册"
+        },
+        {
+          "line": 12,
+          "text": "迟到的状态清理不会删除新录制状态"
+        },
+        {
+          "line": 13,
+          "text": "迟到的调试连接关闭不会中断新录制"
+        },
+        {
+          "line": 14,
+          "text": "录制状态写入未完成时可停止，迟到写入不会覆盖新批次"
+        },
+        {
+          "line": 15,
+          "text": "准备期间可停止并导出，迟到注入不影响下一批录制"
+        },
+        {
+          "line": 16,
+          "text": ""
+        }
+      ],
+      "logSha256": "71a5d729cfc12f729e93b48c7579cdf402d4d52f254c8783283d113d79dc68ff"
+    },
+    {
+      "command": "npm run test:stop-review-regressions",
+      "label": "final",
+      "jobId": "bash-971e58e613b94e0b",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:09:38.567Z",
+      "finishedAt": "2026-11-13T11:10:46.349Z",
+      "durationSeconds": 67.782,
+      "logPath": "app/test-native-lifecycle-stop-review-regressions.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-stop-review-regressions.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/stop-review-regressions.e2e.mjs": "6e44052dc3bf1f2cb3184a9c8187ddd0d448971a970869d1112b6414a09e79a9",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:stop-review-regressions"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/stop-review-regressions.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "会话状态读取超时时停止并保留已保存事件"
+        },
+        {
+          "line": 7,
+          "text": "状态不可读取时拒绝过期停止请求，保留并可停止较新批次"
+        },
+        {
+          "line": 8,
+          "text": "框架未确认关闭时报告错误，新批次接管旧采集器并记录输入"
+        },
+        {
+          "line": 9,
+          "text": "无法枚举框架时尝试广播关闭并报告无法确认"
+        },
+        {
+          "line": 10,
+          "text": "中断批次写入失败后自动重试，恢复后可导出既有事件"
+        },
+        {
+          "line": 11,
+          "text": ""
+        }
+      ],
+      "logSha256": "fabfe9c1153e099dae164e77dca09ea4ec03530b99ee30552095e737545bf19e"
+    },
+    {
+      "command": "npm run test:event-ack",
+      "label": "final",
+      "jobId": "bash-2b85cb9f49594429",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:10:55.096Z",
+      "finishedAt": "2026-11-13T11:10:59.571Z",
+      "durationSeconds": 4.475,
+      "logPath": "app/test-native-lifecycle-event-ack.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-ack.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "cff17ca9161236b96cb355f28dc2d52659bf1cd2eb2bdedf040e6e319e233d07",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "cff17ca9161236b96cb355f28dc2d52659bf1cd2eb2bdedf040e6e319e233d07",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-ack"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-ack.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 7,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 8,
+          "text": "    ^"
+        },
+        {
+          "line": 9,
+          "text": ""
+        },
+        {
+          "line": 10,
+          "text": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:"
+        },
+        {
+          "line": 11,
+          "text": ""
+        },
+        {
+          "line": 12,
+          "text": "  assert.ok(firstEvents.some((event) => event.kind === \"warning\" && /未确认：1 条/.test(event.payload.error || \"\")))"
+        },
+        {
+          "line": 13,
+          "text": ""
+        },
+        {
+          "line": 14,
+          "text": "    at file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/event-ack.e2e.mjs:107:10 {"
+        },
+        {
+          "line": 15,
+          "text": "  generatedMessage: true,"
+        },
+        {
+          "line": 16,
+          "text": "  code: 'ERR_ASSERTION',"
+        },
+        {
+          "line": 17,
+          "text": "  actual: false,"
+        },
+        {
+          "line": 18,
+          "text": "  expected: true,"
+        },
+        {
+          "line": 19,
+          "text": "  operator: '==',"
+        },
+        {
+          "line": 20,
+          "text": "  diff: 'simple'"
+        },
+        {
+          "line": 21,
+          "text": "}"
+        },
+        {
+          "line": 22,
+          "text": ""
+        },
+        {
+          "line": 23,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 24,
+          "text": ""
+        }
+      ],
+      "logSha256": "babd343ec25d75ae84facb0f6d6d36ede5f3179028c42932ff6d7a830ca291ac"
+    },
+    {
+      "command": "npm run test:event-retry",
+      "label": "final",
+      "jobId": "bash-8d39d8084698481d",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:11:13.915Z",
+      "finishedAt": "2026-11-13T11:11:19.456Z",
+      "durationSeconds": 5.541,
+      "logPath": "app/test-native-lifecycle-event-retry.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-retry.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-retry.e2e.mjs": "d19fb6d6168bbeec455ed20806da7c8723cddf02be67eee8c7b07a41727b7abf",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-retry"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-retry.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "确认丢失、后台重启、并发重试、标识冲突与截图提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "4b36c320b459166a47b75623821d1e7b744e635d4e875767b83391b5dffb3336"
+    },
+    {
+      "command": "npm run test:event-timeout",
+      "label": "final",
+      "jobId": "bash-9f7a370a363c47c2",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:11:37.812Z",
+      "finishedAt": "2026-11-13T11:11:59.288Z",
+      "durationSeconds": 21.476,
+      "logPath": "app/test-native-lifecycle-event-timeout.final.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-timeout.final.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-timeout.e2e.mjs": "c4022c99449ed1ae4035359e1b249ba7d8943ecdbf4d7a405c3b5f365458f2bc",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-timeout"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-timeout.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "单次和持续无响应、去重重试、通信恢复与收尾提示通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "9a468909ab8cd54ea6751c413f16d1f4c2df729c216b140a96cd5d201ec03989"
+    },
+    {
+      "command": "npm run test:event-ack",
+      "label": "final-contract",
+      "jobId": "bash-23b213157aa740fa",
+      "exitCode": 1,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:12:41.072Z",
+      "finishedAt": "2026-11-13T11:12:51.960Z",
+      "durationSeconds": 10.888,
+      "logPath": "app/test-native-lifecycle-event-ack.final-contract.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-ack.final-contract.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "b77d08577d389b480af5334572a7225663a105c962719cab751fc4816972829f",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "b77d08577d389b480af5334572a7225663a105c962719cab751fc4816972829f",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-ack"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-ack.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "node:internal/modules/run_main:107"
+        },
+        {
+          "line": 7,
+          "text": "    triggerUncaughtException("
+        },
+        {
+          "line": 8,
+          "text": "    ^"
+        },
+        {
+          "line": 9,
+          "text": ""
+        },
+        {
+          "line": 10,
+          "text": "worker.evaluate: Error: Could not establish connection. Receiving end does not exist."
+        },
+        {
+          "line": 11,
+          "text": "    at E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\tests\\event-ack.e2e.mjs:158:16 {"
+        },
+        {
+          "line": 12,
+          "text": "  log: []"
+        },
+        {
+          "line": 13,
+          "text": "}"
+        },
+        {
+          "line": 14,
+          "text": ""
+        },
+        {
+          "line": 15,
+          "text": "Node.js v24.22.1"
+        },
+        {
+          "line": 16,
+          "text": ""
+        }
+      ],
+      "logSha256": "ebc5b4ffdfd0a93e010bf4aaa0a904b5270127522ab4621c1ffee5f6e2ab7713"
+    },
+    {
+      "command": "npm run test:event-ack",
+      "label": "final-ready",
+      "jobId": "bash-75470574fd9e49c9",
+      "exitCode": 0,
+      "signal": null,
+      "launchError": null,
+      "startedAt": "2026-11-13T11:14:51.981Z",
+      "finishedAt": "2026-11-13T11:14:57.338Z",
+      "durationSeconds": 5.357,
+      "logPath": "app/test-native-lifecycle-event-ack.final-ready.log",
+      "resultPath": "app/test-native-lifecycle-runner/test-native-lifecycle-event-ack.final-ready.json",
+      "cwd": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app",
+      "chromeBin": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      "before": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "1bba381fd9580902b86094d13c3f4f99029bb9db8c3f333ddeefd2eb2f382597",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "after": {
+        "version": "0.3.0",
+        "distSha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+        "sourceSha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+        "harnessSha256": {
+          "tests/event-ack.e2e.mjs": "1bba381fd9580902b86094d13c3f4f99029bb9db8c3f333ddeefd2eb2f382597",
+          "tests/chrome-harness.mjs": "e1ee69b0e9897dcebb7c8dc6d8d7739b2011317b99a1ead75c1930c62115e713",
+          "tests/owned-chrome-cleanup.mjs": "cf6fcfdcd81bed698c5709759612460286e4f33509fa5dc6107d6873d15c3ae0",
+          "tests/profile-cleanup-guard.mjs": "273fa750e32fdda5a2030b388116abb281e04241b72ae1e0c54ff530b637c897"
+        }
+      },
+      "distChangedDuringCommand": false,
+      "sourceChangedDuringCommand": false,
+      "output": [
+        {
+          "line": 2,
+          "text": ""
+        },
+        {
+          "line": 3,
+          "text": "> logic-recorder@0.3.0 test:event-ack"
+        },
+        {
+          "line": 4,
+          "text": "> node tests/event-ack.e2e.mjs"
+        },
+        {
+          "line": 5,
+          "text": ""
+        },
+        {
+          "line": 6,
+          "text": "部分事件持久化确认、失败提示和跨录制消息隔离通过"
+        },
+        {
+          "line": 7,
+          "text": ""
+        }
+      ],
+      "logSha256": "587819b04064af02870dfd5fbfc75250744b26eee3bf163238c66a7e82547f2d"
+    }
+  ],
+  "builds": {
+    "69c5d090c09c0d72f8daec72e51fa0ec82da9b11e17f3e7765ff21167acdf901": {
+      "version": "0.2.0",
+      "root": "dist",
+      "sha256": "69c5d090c09c0d72f8daec72e51fa0ec82da9b11e17f3e7765ff21167acdf901",
+      "files": [
+        {
+          "path": "dist/assets/fragments-BNYRFXTO.js",
+          "sha256": "d1490063f014dd8cd5aa378f3adba4270b5896f36f9f838a92e31beed49a8958"
+        },
+        {
+          "path": "dist/assets/sidepanel-CsDiNiKk.js",
+          "sha256": "97bbc0d5ebfa88356adeaa4e1545d54da95ccd82017594844e284c407c2d0831"
+        },
+        {
+          "path": "dist/assets/sidepanel-RQU0TV3r.css",
+          "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+        },
+        {
+          "path": "dist/background.js",
+          "sha256": "7b94292f652be0c16140c983fc40b0bfca25f719151fb5a51ca5a493372f2c23"
+        },
+        {
+          "path": "dist/content.js",
+          "sha256": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44"
+        },
+        {
+          "path": "dist/icons/icon-128.png",
+          "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+        },
+        {
+          "path": "dist/icons/icon-16.png",
+          "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+        },
+        {
+          "path": "dist/icons/icon-32.png",
+          "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+        },
+        {
+          "path": "dist/icons/icon-48.png",
+          "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+        },
+        {
+          "path": "dist/manifest.json",
+          "sha256": "0f22a7735c13ee6faa7fe5aa35e52ed0f3a86d60a76834326438c90704896a42"
+        },
+        {
+          "path": "dist/sidepanel.html",
+          "sha256": "4fd4663795c554a37b4277af0f2ab27a48dea5983b6227df500a27f6937152b0"
+        }
+      ]
+    },
+    "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f": {
+      "version": "0.3.0",
+      "root": "dist",
+      "sha256": "da9ffaf80946eb7149e9f538abab9909f31799de1f32be47702ff68ace63b91f",
+      "files": [
+        {
+          "path": "dist/assets/fragments-BNYRFXTO.js",
+          "sha256": "d1490063f014dd8cd5aa378f3adba4270b5896f36f9f838a92e31beed49a8958"
+        },
+        {
+          "path": "dist/assets/sidepanel-CsDiNiKk.js",
+          "sha256": "97bbc0d5ebfa88356adeaa4e1545d54da95ccd82017594844e284c407c2d0831"
+        },
+        {
+          "path": "dist/assets/sidepanel-RQU0TV3r.css",
+          "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+        },
+        {
+          "path": "dist/background.js",
+          "sha256": "7b94292f652be0c16140c983fc40b0bfca25f719151fb5a51ca5a493372f2c23"
+        },
+        {
+          "path": "dist/content.js",
+          "sha256": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44"
+        },
+        {
+          "path": "dist/icons/icon-128.png",
+          "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+        },
+        {
+          "path": "dist/icons/icon-16.png",
+          "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+        },
+        {
+          "path": "dist/icons/icon-32.png",
+          "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+        },
+        {
+          "path": "dist/icons/icon-48.png",
+          "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+        },
+        {
+          "path": "dist/manifest.json",
+          "sha256": "adb09326e683a384662fdcf0c547b31c6a406f10f3a8b6305616e55b9920dda4"
+        },
+        {
+          "path": "dist/sidepanel.html",
+          "sha256": "4fd4663795c554a37b4277af0f2ab27a48dea5983b6227df500a27f6937152b0"
+        }
+      ]
+    },
+    "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c": {
+      "version": "0.3.0",
+      "root": "dist",
+      "sha256": "cbd773c1213fbfaeeb9cfe31165077a75d2b0b6f72d98c263b86205b5d23ca4c",
+      "files": [
+        {
+          "path": "dist/assets/fragments-BNYRFXTO.js",
+          "sha256": "d1490063f014dd8cd5aa378f3adba4270b5896f36f9f838a92e31beed49a8958"
+        },
+        {
+          "path": "dist/assets/sidepanel-BqDTISq8.js",
+          "sha256": "e161484b1436043e1319408e3cf2d0f4966c2be83dc40740fc1506c33a3c2cf9"
+        },
+        {
+          "path": "dist/assets/sidepanel-RQU0TV3r.css",
+          "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+        },
+        {
+          "path": "dist/background.js",
+          "sha256": "761c0c223864f94432069d4ce2134f9e298fdd6d46167283076255f82cdc64fa"
+        },
+        {
+          "path": "dist/content.js",
+          "sha256": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44"
+        },
+        {
+          "path": "dist/icons/icon-128.png",
+          "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+        },
+        {
+          "path": "dist/icons/icon-16.png",
+          "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+        },
+        {
+          "path": "dist/icons/icon-32.png",
+          "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+        },
+        {
+          "path": "dist/icons/icon-48.png",
+          "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+        },
+        {
+          "path": "dist/manifest.json",
+          "sha256": "adb09326e683a384662fdcf0c547b31c6a406f10f3a8b6305616e55b9920dda4"
+        },
+        {
+          "path": "dist/sidepanel.html",
+          "sha256": "15268967f7735232554c8130ed599c2428dae14b8b16f955aae96f45890ff61e"
+        }
+      ]
+    }
+  },
+  "sources": {
+    "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817": {
+      "root": "src",
+      "sha256": "cb5f00dc25ab88902f31e384bdc6df0d2c3e58721b904ddb6fa7441db8af6817",
+      "files": [
+        {
+          "path": "src/analysis.js",
+          "sha256": "6eb82001293594684f91f4abfb1b90f6951673fe40405c5635458ac91e797c1b"
+        },
+        {
+          "path": "src/archive-index.js",
+          "sha256": "d371c965aea1ed11af2ab38c5317138fb71793fcdd8f4cd27cc1d3b4d2f66a57"
+        },
+        {
+          "path": "src/archive-provenance.js",
+          "sha256": "4bf49ae741e1f51dc5e964d3b38d8c8622ee9eb9006efb1b6375cb2bb592ac64"
+        },
+        {
+          "path": "src/archive.js",
+          "sha256": "7d50266600b6af7175ae1c5eb50e2008eb11c0eb727c70db8268401c145b18b5"
+        },
+        {
+          "path": "src/background-style.js",
+          "sha256": "ec5d00b1ef9470d9200d9e8fe535dbedf236630701b72ce87270188b0fd58b28"
+        },
+        {
+          "path": "src/background.js",
+          "sha256": "8d1ba6c31954cf8444329c084ae6d11747e7a419ee32574c061719bd0dbb57c3"
+        },
+        {
+          "path": "src/batch-outcome.js",
+          "sha256": "5ef7ca5d39531510b6fd798ef5636cdf9cdc8322b35d70dbcc5356de37a75511"
+        },
+        {
+          "path": "src/browser-field-summary.js",
+          "sha256": "a56295bd59aa153c08e2499e49e9b685a319da03d6a40ddec3fe6946dd4207a2"
+        },
+        {
+          "path": "src/browser-observations.js",
+          "sha256": "903133d83540e678955b42c19ef3e2747c753472dc5f7fcdf14a83a48a655ca5"
+        },
+        {
+          "path": "src/cache-catalog-coverage.js",
+          "sha256": "886237e31d7329158574bfddd9dbe346744a337e041934ee2ce50098fd86ecf2"
+        },
+        {
+          "path": "src/cache-coverage.js",
+          "sha256": "add13ac26f0496ca8ac98c4b522eed588315e57c4b5ed2a736845d55fde53938"
+        },
+        {
+          "path": "src/canvas-coverage.js",
+          "sha256": "5a9fcb75f4bded7970b30e4faefb9d47cc1b849b4d1444abd342cc37e6dc8c2c"
+        },
+        {
+          "path": "src/capture-limits.js",
+          "sha256": "fbcc0c38570e1ba7294ba271f16e61d8efcc902c1c70869383107cbf556daad9"
+        },
+        {
+          "path": "src/computed-style-coverage.js",
+          "sha256": "3d99ec6f1701d5f99b3fc95c4bd2e8d2b5aafe0c15c0c216d0fa5fa1bede79a5"
+        },
+        {
+          "path": "src/computed-style-encoder.js",
+          "sha256": "4db9ca22a04e6e8ba506863864d88bd7511f9ea3e5209a342d298af14fec4027"
+        },
+        {
+          "path": "src/computed-style-packing.js",
+          "sha256": "77fadfcf929cda8365eb801110ddca0a4e5e9c6487d6ad28e9e08c9911dc2e74"
+        },
+        {
+          "path": "src/content.js",
+          "sha256": "71b80afa192ece18f28b348f5e49312074be4f3465e3a773f6ece3000b0855c9"
+        },
+        {
+          "path": "src/database-catalog-coverage.js",
+          "sha256": "9aa7f9ff48bb761a9054ac5c241f85114a56ffa23dfab21776a89b53f9a5d3bc"
+        },
+        {
+          "path": "src/database-coverage.js",
+          "sha256": "d35616511183912d4d8fc7c9b113642fbef323048c767b5ef52921978e2498bd"
+        },
+        {
+          "path": "src/database-graph.js",
+          "sha256": "173101363cefb34d98749b57c24f76e2dd74061a552bdb18c055362ac2e13749"
+        },
+        {
+          "path": "src/database-value.js",
+          "sha256": "b6d9088f01e648a73731ba8a8588971db8b85e8b5604f7193f66b2e33a02730c"
+        },
+        {
+          "path": "src/db.js",
+          "sha256": "493b138539c7be8494e839b04e2a108a7e719b64d55190d22c8add05afbff2f2"
+        },
+        {
+          "path": "src/delivery.js",
+          "sha256": "31d7ce0772b6333fa28bcdcaf1e06bfc00469395da1e817f9c6ed7870ca55d91"
+        },
+        {
+          "path": "src/downloads.js",
+          "sha256": "0f52e80a25c8bed9164f19de6d677bee585d12b881d65d6ccd431a12473594a8"
+        },
+        {
+          "path": "src/event-order.js",
+          "sha256": "03da8024363324bca48cccb83c943a26e38944dce01384e1a4ac891c642ee7a7"
+        },
+        {
+          "path": "src/field-observations.js",
+          "sha256": "257c25d17f9f67890af0db8586bf85b7328a70b55144dbc44da4f5f10afd4dff"
+        },
+        {
+          "path": "src/field-summary.js",
+          "sha256": "d87495b18765e87e8957a465d7383874dbddf86120e9bcaf7e37efc3125bc10b"
+        },
+        {
+          "path": "src/font-format.js",
+          "sha256": "295e9e1300e40d7c8f58efd09b133b04140cdc619a4219540aaf3a6647da6a57"
+        },
+        {
+          "path": "src/font-resources.js",
+          "sha256": "f4770b24b74ff962be9f90410d3b42c7222481e524a57dbd9b59cd969d5aa0cf"
+        },
+        {
+          "path": "src/fragment-terminals.js",
+          "sha256": "ac7452090541719220c14ab7226d420af869d411f594b619eaad0b3a2ed8ad85"
+        },
+        {
+          "path": "src/fragment-writer.js",
+          "sha256": "6b43c7ad54c81713ae26311bb5408d59808d8833cdcded0439b602d7684c0e53"
+        },
+        {
+          "path": "src/fragments.js",
+          "sha256": "736cd8ba8ad81008827385636653510659dc0442dd751480463457ff2ad94f18"
+        },
+        {
+          "path": "src/full-page-coverage.js",
+          "sha256": "615cdfa9fe38a12f9288ea78ac846658ec6bda793020016363f020d3cdecfcfd"
+        },
+        {
+          "path": "src/full-page-tiles.js",
+          "sha256": "e548047fbd520ea9f0f99ec3730dcef0eeb83b5b0c4fdf3d82da445a3381bb5e"
+        },
+        {
+          "path": "src/interaction-style-coverage.js",
+          "sha256": "192b7f08252356fd638d8a9c813ba7062ce274c77316008b0c1081a3d1facc41"
+        },
+        {
+          "path": "src/interface-index.js",
+          "sha256": "7d7f39204649d0584886f6073c11edae5226ad4ba05530991f3d8c7e29f70ba1"
+        },
+        {
+          "path": "src/large-response.js",
+          "sha256": "3f35e947acc6ff5cc7f97956418d38f1ef8d7d26d88a82c34a9f8c6c96fa6b67"
+        },
+        {
+          "path": "src/mutation-coverage.js",
+          "sha256": "b1c3727a5aac704842180ec156b1748f9e0ed4c292119c9e200e42398a91f383"
+        },
+        {
+          "path": "src/mutations.js",
+          "sha256": "38c7a9c504f23fd5467c410b1b0199a53c547ca3500935ec64dc413525ad5c49"
+        },
+        {
+          "path": "src/network-recovery.js",
+          "sha256": "5cfd2d1fc7c11504b2d8fab6cf32ab0c469bb2af4f5a1fd3062327e81f9a73c8"
+        },
+        {
+          "path": "src/numeric-constraints.js",
+          "sha256": "f7dbd54e417dc797c377868d3248d8f543594c956524fb88d0e9e8207bbc7645"
+        },
+        {
+          "path": "src/openapi.js",
+          "sha256": "1c3d4fdbfe92f1a83133d4da4f18605acc335ab6f5e777e4fb5f29d61922cdb2"
+        },
+        {
+          "path": "src/page-instances.js",
+          "sha256": "b3fedece7a5ea3015ae14d10d7b675b37c5f23b1bef8d97041c4384db9ba6531"
+        },
+        {
+          "path": "src/page-replay.js",
+          "sha256": "85a0fb6d38340e7e1d4b9ae0fec8ac8406ddd41acb2941281a6a7eafdbaa6d0f"
+        },
+        {
+          "path": "src/panel-state.js",
+          "sha256": "9ffcb7a570c0a657eb0eaec5e85a9a3aebeff899c1b3912f72ae4ef67ce417e5"
+        },
+        {
+          "path": "src/popover-state.js",
+          "sha256": "68f109e10919ad34fecaf4713575c7ad3031feefdf0cdeb6bd433257f671156c"
+        },
+        {
+          "path": "src/privacy.js",
+          "sha256": "5372947cf1a56d655e3500d862180322831b14a5f31b86687b81b396dd37f51e"
+        },
+        {
+          "path": "src/realtime-coverage.js",
+          "sha256": "855f44cc5abd0117278babfffba60f7b8d5eee84b45c4cea2234e0e03e62de1d"
+        },
+        {
+          "path": "src/relationships.js",
+          "sha256": "8dcde15c2216812938b37c2dbcaafdb191f35c940cdc43079e479b5f341ceb8e"
+        },
+        {
+          "path": "src/replay-outcome.js",
+          "sha256": "9496d50c2e57d2ce3ad0c99c0af69c006d854f6e2a1b53b4a5d18dada1c4d8c5"
+        },
+        {
+          "path": "src/replay.jsx",
+          "sha256": "b65450bae22060b386879a9919b70394ded0386adb18474d6fec6c4c3331bda1"
+        },
+        {
+          "path": "src/request-entry-coverage.js",
+          "sha256": "93cc7026a96910ae2df5b4c4dce10420b6c3cedf54789f4c12936ba58f154435"
+        },
+        {
+          "path": "src/request-snapshot.js",
+          "sha256": "a15537bc797b28a229f2ab7620ca068adcf1c7237346d48e7d9998b0a16de727"
+        },
+        {
+          "path": "src/resource-scope.js",
+          "sha256": "8878cbd1ada769d1ed0a103eac8d29a0f434b6693d8cb0fdabead01d5afb06ce"
+        },
+        {
+          "path": "src/response-body.js",
+          "sha256": "41841e0f87a58fe6c6e905fcb9d4a82b19fc3ce0bb3d41ef84def0e741b04878"
+        },
+        {
+          "path": "src/screenshots.js",
+          "sha256": "84464527e5b9d154e29aff91cc3107d94c96634fec5328d10c6c02d2daebc46d"
+        },
+        {
+          "path": "src/scroll-state.js",
+          "sha256": "5b8ef2c1429be0eae06f4a759eae241d532b885d6a9c011a1f233396c657574d"
+        },
+        {
+          "path": "src/session-lifecycle.js",
+          "sha256": "5acc8f8e4893bc4f3cce15bff8740a9c0aa8e6092595412e021f413d774ced8a"
+        },
+        {
+          "path": "src/session-lock.js",
+          "sha256": "4d14e69e014b1b20b6e3fd6c6c028f472d3bf10ce89391b1053322e365cff4fb"
+        },
+        {
+          "path": "src/session-ownership.js",
+          "sha256": "0dab94a614d95a6d1cdede4f8410517264c8f2b031a5f494795d1a274afdef84"
+        },
+        {
+          "path": "src/session-tasks.js",
+          "sha256": "34d0a8ef12d46fd17b67ccfa9ceb6f3b22bc8cd569b5773543f58ff13d8ff323"
+        },
+        {
+          "path": "src/shadow-coverage.js",
+          "sha256": "c55665e76228f9742ac7984244f4e0ae3142bbe68a70290209ea586ba84c10b0"
+        },
+        {
+          "path": "src/sidepanel.jsx",
+          "sha256": "2a15677d52475c3183b60fc4ecaa304642f39a675b31688f42e5966d95670081"
+        },
+        {
+          "path": "src/snapshot.js",
+          "sha256": "101046b1c58baaa810a75ebdd18db77360a37724826c5918fd5b557212c2c87c"
+        },
+        {
+          "path": "src/storage-diagnostics.js",
+          "sha256": "4938834ad69c653fccffa48214fae1f95c784f21635442a2d7978c7bb715374f"
+        },
+        {
+          "path": "src/style-observations.js",
+          "sha256": "1521626375f69120fb2b7269c7f8e5d910cfd96571e2930ad8d6f673f95a02df"
+        },
+        {
+          "path": "src/style.css",
+          "sha256": "4e390471a487d676d9dc20cfae16b1d5fbfad5bb36297861d03d5657d68b68e9"
+        },
+        {
+          "path": "src/stylesheet-resources.js",
+          "sha256": "5fb70442f6724b7c81a48222405b8c3fc6d3819a74bd1e3bb6e6430f60461cd6"
+        },
+        {
+          "path": "src/viewer.jsx",
+          "sha256": "e123d0e43651cf7048f2a373e0c0fefa934e9be694f2328567bb8cfcf49b0c26"
+        }
+      ]
+    },
+    "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee": {
+      "root": "src",
+      "sha256": "d2c99f148cb5b0fc6acd15dd3418da4e60bcb1ad8c0dbe751663322884cd9dee",
+      "files": [
+        {
+          "path": "src/analysis.js",
+          "sha256": "6eb82001293594684f91f4abfb1b90f6951673fe40405c5635458ac91e797c1b"
+        },
+        {
+          "path": "src/archive-index.js",
+          "sha256": "d371c965aea1ed11af2ab38c5317138fb71793fcdd8f4cd27cc1d3b4d2f66a57"
+        },
+        {
+          "path": "src/archive-provenance.js",
+          "sha256": "4bf49ae741e1f51dc5e964d3b38d8c8622ee9eb9006efb1b6375cb2bb592ac64"
+        },
+        {
+          "path": "src/archive.js",
+          "sha256": "7d50266600b6af7175ae1c5eb50e2008eb11c0eb727c70db8268401c145b18b5"
+        },
+        {
+          "path": "src/background-style.js",
+          "sha256": "ec5d00b1ef9470d9200d9e8fe535dbedf236630701b72ce87270188b0fd58b28"
+        },
+        {
+          "path": "src/background.js",
+          "sha256": "8d1ba6c31954cf8444329c084ae6d11747e7a419ee32574c061719bd0dbb57c3"
+        },
+        {
+          "path": "src/batch-outcome.js",
+          "sha256": "5ef7ca5d39531510b6fd798ef5636cdf9cdc8322b35d70dbcc5356de37a75511"
+        },
+        {
+          "path": "src/browser-field-summary.js",
+          "sha256": "a56295bd59aa153c08e2499e49e9b685a319da03d6a40ddec3fe6946dd4207a2"
+        },
+        {
+          "path": "src/browser-observations.js",
+          "sha256": "903133d83540e678955b42c19ef3e2747c753472dc5f7fcdf14a83a48a655ca5"
+        },
+        {
+          "path": "src/cache-catalog-coverage.js",
+          "sha256": "886237e31d7329158574bfddd9dbe346744a337e041934ee2ce50098fd86ecf2"
+        },
+        {
+          "path": "src/cache-coverage.js",
+          "sha256": "add13ac26f0496ca8ac98c4b522eed588315e57c4b5ed2a736845d55fde53938"
+        },
+        {
+          "path": "src/canvas-coverage.js",
+          "sha256": "5a9fcb75f4bded7970b30e4faefb9d47cc1b849b4d1444abd342cc37e6dc8c2c"
+        },
+        {
+          "path": "src/capture-limits.js",
+          "sha256": "fbcc0c38570e1ba7294ba271f16e61d8efcc902c1c70869383107cbf556daad9"
+        },
+        {
+          "path": "src/computed-style-coverage.js",
+          "sha256": "3d99ec6f1701d5f99b3fc95c4bd2e8d2b5aafe0c15c0c216d0fa5fa1bede79a5"
+        },
+        {
+          "path": "src/computed-style-encoder.js",
+          "sha256": "4db9ca22a04e6e8ba506863864d88bd7511f9ea3e5209a342d298af14fec4027"
+        },
+        {
+          "path": "src/computed-style-packing.js",
+          "sha256": "77fadfcf929cda8365eb801110ddca0a4e5e9c6487d6ad28e9e08c9911dc2e74"
+        },
+        {
+          "path": "src/content.js",
+          "sha256": "71b80afa192ece18f28b348f5e49312074be4f3465e3a773f6ece3000b0855c9"
+        },
+        {
+          "path": "src/database-catalog-coverage.js",
+          "sha256": "9aa7f9ff48bb761a9054ac5c241f85114a56ffa23dfab21776a89b53f9a5d3bc"
+        },
+        {
+          "path": "src/database-coverage.js",
+          "sha256": "d35616511183912d4d8fc7c9b113642fbef323048c767b5ef52921978e2498bd"
+        },
+        {
+          "path": "src/database-graph.js",
+          "sha256": "173101363cefb34d98749b57c24f76e2dd74061a552bdb18c055362ac2e13749"
+        },
+        {
+          "path": "src/database-value.js",
+          "sha256": "b6d9088f01e648a73731ba8a8588971db8b85e8b5604f7193f66b2e33a02730c"
+        },
+        {
+          "path": "src/db.js",
+          "sha256": "493b138539c7be8494e839b04e2a108a7e719b64d55190d22c8add05afbff2f2"
+        },
+        {
+          "path": "src/delivery.js",
+          "sha256": "31d7ce0772b6333fa28bcdcaf1e06bfc00469395da1e817f9c6ed7870ca55d91"
+        },
+        {
+          "path": "src/downloads.js",
+          "sha256": "6ffcf97b76d943d32565b6602dbac2aed892c048340ed83de721e4d778beea40"
+        },
+        {
+          "path": "src/event-order.js",
+          "sha256": "03da8024363324bca48cccb83c943a26e38944dce01384e1a4ac891c642ee7a7"
+        },
+        {
+          "path": "src/field-observations.js",
+          "sha256": "257c25d17f9f67890af0db8586bf85b7328a70b55144dbc44da4f5f10afd4dff"
+        },
+        {
+          "path": "src/field-summary.js",
+          "sha256": "d87495b18765e87e8957a465d7383874dbddf86120e9bcaf7e37efc3125bc10b"
+        },
+        {
+          "path": "src/font-format.js",
+          "sha256": "295e9e1300e40d7c8f58efd09b133b04140cdc619a4219540aaf3a6647da6a57"
+        },
+        {
+          "path": "src/font-resources.js",
+          "sha256": "f4770b24b74ff962be9f90410d3b42c7222481e524a57dbd9b59cd969d5aa0cf"
+        },
+        {
+          "path": "src/fragment-terminals.js",
+          "sha256": "ac7452090541719220c14ab7226d420af869d411f594b619eaad0b3a2ed8ad85"
+        },
+        {
+          "path": "src/fragment-writer.js",
+          "sha256": "6b43c7ad54c81713ae26311bb5408d59808d8833cdcded0439b602d7684c0e53"
+        },
+        {
+          "path": "src/fragments.js",
+          "sha256": "736cd8ba8ad81008827385636653510659dc0442dd751480463457ff2ad94f18"
+        },
+        {
+          "path": "src/full-page-coverage.js",
+          "sha256": "615cdfa9fe38a12f9288ea78ac846658ec6bda793020016363f020d3cdecfcfd"
+        },
+        {
+          "path": "src/full-page-tiles.js",
+          "sha256": "e548047fbd520ea9f0f99ec3730dcef0eeb83b5b0c4fdf3d82da445a3381bb5e"
+        },
+        {
+          "path": "src/interaction-style-coverage.js",
+          "sha256": "192b7f08252356fd638d8a9c813ba7062ce274c77316008b0c1081a3d1facc41"
+        },
+        {
+          "path": "src/interface-index.js",
+          "sha256": "7d7f39204649d0584886f6073c11edae5226ad4ba05530991f3d8c7e29f70ba1"
+        },
+        {
+          "path": "src/large-response.js",
+          "sha256": "3f35e947acc6ff5cc7f97956418d38f1ef8d7d26d88a82c34a9f8c6c96fa6b67"
+        },
+        {
+          "path": "src/mutation-coverage.js",
+          "sha256": "b1c3727a5aac704842180ec156b1748f9e0ed4c292119c9e200e42398a91f383"
+        },
+        {
+          "path": "src/mutations.js",
+          "sha256": "38c7a9c504f23fd5467c410b1b0199a53c547ca3500935ec64dc413525ad5c49"
+        },
+        {
+          "path": "src/network-recovery.js",
+          "sha256": "5cfd2d1fc7c11504b2d8fab6cf32ab0c469bb2af4f5a1fd3062327e81f9a73c8"
+        },
+        {
+          "path": "src/numeric-constraints.js",
+          "sha256": "f7dbd54e417dc797c377868d3248d8f543594c956524fb88d0e9e8207bbc7645"
+        },
+        {
+          "path": "src/openapi.js",
+          "sha256": "1c3d4fdbfe92f1a83133d4da4f18605acc335ab6f5e777e4fb5f29d61922cdb2"
+        },
+        {
+          "path": "src/page-instances.js",
+          "sha256": "b3fedece7a5ea3015ae14d10d7b675b37c5f23b1bef8d97041c4384db9ba6531"
+        },
+        {
+          "path": "src/page-replay.js",
+          "sha256": "85a0fb6d38340e7e1d4b9ae0fec8ac8406ddd41acb2941281a6a7eafdbaa6d0f"
+        },
+        {
+          "path": "src/panel-state.js",
+          "sha256": "9ffcb7a570c0a657eb0eaec5e85a9a3aebeff899c1b3912f72ae4ef67ce417e5"
+        },
+        {
+          "path": "src/popover-state.js",
+          "sha256": "68f109e10919ad34fecaf4713575c7ad3031feefdf0cdeb6bd433257f671156c"
+        },
+        {
+          "path": "src/privacy.js",
+          "sha256": "5372947cf1a56d655e3500d862180322831b14a5f31b86687b81b396dd37f51e"
+        },
+        {
+          "path": "src/realtime-coverage.js",
+          "sha256": "855f44cc5abd0117278babfffba60f7b8d5eee84b45c4cea2234e0e03e62de1d"
+        },
+        {
+          "path": "src/relationships.js",
+          "sha256": "8dcde15c2216812938b37c2dbcaafdb191f35c940cdc43079e479b5f341ceb8e"
+        },
+        {
+          "path": "src/replay-outcome.js",
+          "sha256": "9496d50c2e57d2ce3ad0c99c0af69c006d854f6e2a1b53b4a5d18dada1c4d8c5"
+        },
+        {
+          "path": "src/replay.jsx",
+          "sha256": "b65450bae22060b386879a9919b70394ded0386adb18474d6fec6c4c3331bda1"
+        },
+        {
+          "path": "src/request-entry-coverage.js",
+          "sha256": "93cc7026a96910ae2df5b4c4dce10420b6c3cedf54789f4c12936ba58f154435"
+        },
+        {
+          "path": "src/request-snapshot.js",
+          "sha256": "a15537bc797b28a229f2ab7620ca068adcf1c7237346d48e7d9998b0a16de727"
+        },
+        {
+          "path": "src/resource-scope.js",
+          "sha256": "8878cbd1ada769d1ed0a103eac8d29a0f434b6693d8cb0fdabead01d5afb06ce"
+        },
+        {
+          "path": "src/response-body.js",
+          "sha256": "41841e0f87a58fe6c6e905fcb9d4a82b19fc3ce0bb3d41ef84def0e741b04878"
+        },
+        {
+          "path": "src/screenshots.js",
+          "sha256": "84464527e5b9d154e29aff91cc3107d94c96634fec5328d10c6c02d2daebc46d"
+        },
+        {
+          "path": "src/scroll-state.js",
+          "sha256": "5b8ef2c1429be0eae06f4a759eae241d532b885d6a9c011a1f233396c657574d"
+        },
+        {
+          "path": "src/session-lifecycle.js",
+          "sha256": "5acc8f8e4893bc4f3cce15bff8740a9c0aa8e6092595412e021f413d774ced8a"
+        },
+        {
+          "path": "src/session-lock.js",
+          "sha256": "4d14e69e014b1b20b6e3fd6c6c028f472d3bf10ce89391b1053322e365cff4fb"
+        },
+        {
+          "path": "src/session-ownership.js",
+          "sha256": "0dab94a614d95a6d1cdede4f8410517264c8f2b031a5f494795d1a274afdef84"
+        },
+        {
+          "path": "src/session-tasks.js",
+          "sha256": "34d0a8ef12d46fd17b67ccfa9ceb6f3b22bc8cd569b5773543f58ff13d8ff323"
+        },
+        {
+          "path": "src/shadow-coverage.js",
+          "sha256": "c55665e76228f9742ac7984244f4e0ae3142bbe68a70290209ea586ba84c10b0"
+        },
+        {
+          "path": "src/sidepanel.jsx",
+          "sha256": "2a15677d52475c3183b60fc4ecaa304642f39a675b31688f42e5966d95670081"
+        },
+        {
+          "path": "src/snapshot.js",
+          "sha256": "101046b1c58baaa810a75ebdd18db77360a37724826c5918fd5b557212c2c87c"
+        },
+        {
+          "path": "src/storage-diagnostics.js",
+          "sha256": "4938834ad69c653fccffa48214fae1f95c784f21635442a2d7978c7bb715374f"
+        },
+        {
+          "path": "src/style-observations.js",
+          "sha256": "1521626375f69120fb2b7269c7f8e5d910cfd96571e2930ad8d6f673f95a02df"
+        },
+        {
+          "path": "src/style.css",
+          "sha256": "4e390471a487d676d9dc20cfae16b1d5fbfad5bb36297861d03d5657d68b68e9"
+        },
+        {
+          "path": "src/stylesheet-resources.js",
+          "sha256": "5fb70442f6724b7c81a48222405b8c3fc6d3819a74bd1e3bb6e6430f60461cd6"
+        },
+        {
+          "path": "src/viewer.jsx",
+          "sha256": "e123d0e43651cf7048f2a373e0c0fefa934e9be694f2328567bb8cfcf49b0c26"
+        }
+      ]
+    },
+    "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090": {
+      "root": "src",
+      "sha256": "9e1c4c27f79e5f1d2e74e7f60bd1ae989e7f5d551769e33da83bbc67e734f090",
+      "files": [
+        {
+          "path": "src/analysis.js",
+          "sha256": "6eb82001293594684f91f4abfb1b90f6951673fe40405c5635458ac91e797c1b"
+        },
+        {
+          "path": "src/archive-index.js",
+          "sha256": "d371c965aea1ed11af2ab38c5317138fb71793fcdd8f4cd27cc1d3b4d2f66a57"
+        },
+        {
+          "path": "src/archive-provenance.js",
+          "sha256": "4bf49ae741e1f51dc5e964d3b38d8c8622ee9eb9006efb1b6375cb2bb592ac64"
+        },
+        {
+          "path": "src/archive.js",
+          "sha256": "7d50266600b6af7175ae1c5eb50e2008eb11c0eb727c70db8268401c145b18b5"
+        },
+        {
+          "path": "src/background-style.js",
+          "sha256": "ec5d00b1ef9470d9200d9e8fe535dbedf236630701b72ce87270188b0fd58b28"
+        },
+        {
+          "path": "src/background.js",
+          "sha256": "c101b94f992b9607ab7f28ccbc2c48154e0171c1f5bed4e1f58a316e843e4019"
+        },
+        {
+          "path": "src/batch-outcome.js",
+          "sha256": "5ef7ca5d39531510b6fd798ef5636cdf9cdc8322b35d70dbcc5356de37a75511"
+        },
+        {
+          "path": "src/browser-field-summary.js",
+          "sha256": "a56295bd59aa153c08e2499e49e9b685a319da03d6a40ddec3fe6946dd4207a2"
+        },
+        {
+          "path": "src/browser-observations.js",
+          "sha256": "903133d83540e678955b42c19ef3e2747c753472dc5f7fcdf14a83a48a655ca5"
+        },
+        {
+          "path": "src/cache-catalog-coverage.js",
+          "sha256": "886237e31d7329158574bfddd9dbe346744a337e041934ee2ce50098fd86ecf2"
+        },
+        {
+          "path": "src/cache-coverage.js",
+          "sha256": "add13ac26f0496ca8ac98c4b522eed588315e57c4b5ed2a736845d55fde53938"
+        },
+        {
+          "path": "src/canvas-coverage.js",
+          "sha256": "5a9fcb75f4bded7970b30e4faefb9d47cc1b849b4d1444abd342cc37e6dc8c2c"
+        },
+        {
+          "path": "src/capture-limits.js",
+          "sha256": "fbcc0c38570e1ba7294ba271f16e61d8efcc902c1c70869383107cbf556daad9"
+        },
+        {
+          "path": "src/computed-style-coverage.js",
+          "sha256": "3d99ec6f1701d5f99b3fc95c4bd2e8d2b5aafe0c15c0c216d0fa5fa1bede79a5"
+        },
+        {
+          "path": "src/computed-style-encoder.js",
+          "sha256": "4db9ca22a04e6e8ba506863864d88bd7511f9ea3e5209a342d298af14fec4027"
+        },
+        {
+          "path": "src/computed-style-packing.js",
+          "sha256": "77fadfcf929cda8365eb801110ddca0a4e5e9c6487d6ad28e9e08c9911dc2e74"
+        },
+        {
+          "path": "src/content.js",
+          "sha256": "71b80afa192ece18f28b348f5e49312074be4f3465e3a773f6ece3000b0855c9"
+        },
+        {
+          "path": "src/database-catalog-coverage.js",
+          "sha256": "9aa7f9ff48bb761a9054ac5c241f85114a56ffa23dfab21776a89b53f9a5d3bc"
+        },
+        {
+          "path": "src/database-coverage.js",
+          "sha256": "d35616511183912d4d8fc7c9b113642fbef323048c767b5ef52921978e2498bd"
+        },
+        {
+          "path": "src/database-graph.js",
+          "sha256": "173101363cefb34d98749b57c24f76e2dd74061a552bdb18c055362ac2e13749"
+        },
+        {
+          "path": "src/database-value.js",
+          "sha256": "b6d9088f01e648a73731ba8a8588971db8b85e8b5604f7193f66b2e33a02730c"
+        },
+        {
+          "path": "src/db.js",
+          "sha256": "493b138539c7be8494e839b04e2a108a7e719b64d55190d22c8add05afbff2f2"
+        },
+        {
+          "path": "src/delivery.js",
+          "sha256": "31d7ce0772b6333fa28bcdcaf1e06bfc00469395da1e817f9c6ed7870ca55d91"
+        },
+        {
+          "path": "src/downloads.js",
+          "sha256": "6ffcf97b76d943d32565b6602dbac2aed892c048340ed83de721e4d778beea40"
+        },
+        {
+          "path": "src/event-order.js",
+          "sha256": "03da8024363324bca48cccb83c943a26e38944dce01384e1a4ac891c642ee7a7"
+        },
+        {
+          "path": "src/field-observations.js",
+          "sha256": "257c25d17f9f67890af0db8586bf85b7328a70b55144dbc44da4f5f10afd4dff"
+        },
+        {
+          "path": "src/field-summary.js",
+          "sha256": "d87495b18765e87e8957a465d7383874dbddf86120e9bcaf7e37efc3125bc10b"
+        },
+        {
+          "path": "src/font-format.js",
+          "sha256": "295e9e1300e40d7c8f58efd09b133b04140cdc619a4219540aaf3a6647da6a57"
+        },
+        {
+          "path": "src/font-resources.js",
+          "sha256": "f4770b24b74ff962be9f90410d3b42c7222481e524a57dbd9b59cd969d5aa0cf"
+        },
+        {
+          "path": "src/fragment-terminals.js",
+          "sha256": "ac7452090541719220c14ab7226d420af869d411f594b619eaad0b3a2ed8ad85"
+        },
+        {
+          "path": "src/fragment-writer.js",
+          "sha256": "6b43c7ad54c81713ae26311bb5408d59808d8833cdcded0439b602d7684c0e53"
+        },
+        {
+          "path": "src/fragments.js",
+          "sha256": "736cd8ba8ad81008827385636653510659dc0442dd751480463457ff2ad94f18"
+        },
+        {
+          "path": "src/full-page-coverage.js",
+          "sha256": "615cdfa9fe38a12f9288ea78ac846658ec6bda793020016363f020d3cdecfcfd"
+        },
+        {
+          "path": "src/full-page-tiles.js",
+          "sha256": "e548047fbd520ea9f0f99ec3730dcef0eeb83b5b0c4fdf3d82da445a3381bb5e"
+        },
+        {
+          "path": "src/interaction-style-coverage.js",
+          "sha256": "192b7f08252356fd638d8a9c813ba7062ce274c77316008b0c1081a3d1facc41"
+        },
+        {
+          "path": "src/interface-index.js",
+          "sha256": "7d7f39204649d0584886f6073c11edae5226ad4ba05530991f3d8c7e29f70ba1"
+        },
+        {
+          "path": "src/large-response.js",
+          "sha256": "3f35e947acc6ff5cc7f97956418d38f1ef8d7d26d88a82c34a9f8c6c96fa6b67"
+        },
+        {
+          "path": "src/mutation-coverage.js",
+          "sha256": "b1c3727a5aac704842180ec156b1748f9e0ed4c292119c9e200e42398a91f383"
+        },
+        {
+          "path": "src/mutations.js",
+          "sha256": "38c7a9c504f23fd5467c410b1b0199a53c547ca3500935ec64dc413525ad5c49"
+        },
+        {
+          "path": "src/network-recovery.js",
+          "sha256": "5cfd2d1fc7c11504b2d8fab6cf32ab0c469bb2af4f5a1fd3062327e81f9a73c8"
+        },
+        {
+          "path": "src/numeric-constraints.js",
+          "sha256": "f7dbd54e417dc797c377868d3248d8f543594c956524fb88d0e9e8207bbc7645"
+        },
+        {
+          "path": "src/openapi.js",
+          "sha256": "1c3d4fdbfe92f1a83133d4da4f18605acc335ab6f5e777e4fb5f29d61922cdb2"
+        },
+        {
+          "path": "src/page-instances.js",
+          "sha256": "b3fedece7a5ea3015ae14d10d7b675b37c5f23b1bef8d97041c4384db9ba6531"
+        },
+        {
+          "path": "src/page-replay.js",
+          "sha256": "85a0fb6d38340e7e1d4b9ae0fec8ac8406ddd41acb2941281a6a7eafdbaa6d0f"
+        },
+        {
+          "path": "src/panel-state.js",
+          "sha256": "9ffcb7a570c0a657eb0eaec5e85a9a3aebeff899c1b3912f72ae4ef67ce417e5"
+        },
+        {
+          "path": "src/popover-state.js",
+          "sha256": "68f109e10919ad34fecaf4713575c7ad3031feefdf0cdeb6bd433257f671156c"
+        },
+        {
+          "path": "src/privacy.js",
+          "sha256": "5372947cf1a56d655e3500d862180322831b14a5f31b86687b81b396dd37f51e"
+        },
+        {
+          "path": "src/realtime-coverage.js",
+          "sha256": "855f44cc5abd0117278babfffba60f7b8d5eee84b45c4cea2234e0e03e62de1d"
+        },
+        {
+          "path": "src/relationships.js",
+          "sha256": "8dcde15c2216812938b37c2dbcaafdb191f35c940cdc43079e479b5f341ceb8e"
+        },
+        {
+          "path": "src/replay-outcome.js",
+          "sha256": "9496d50c2e57d2ce3ad0c99c0af69c006d854f6e2a1b53b4a5d18dada1c4d8c5"
+        },
+        {
+          "path": "src/replay.jsx",
+          "sha256": "b65450bae22060b386879a9919b70394ded0386adb18474d6fec6c4c3331bda1"
+        },
+        {
+          "path": "src/request-entry-coverage.js",
+          "sha256": "93cc7026a96910ae2df5b4c4dce10420b6c3cedf54789f4c12936ba58f154435"
+        },
+        {
+          "path": "src/request-snapshot.js",
+          "sha256": "a15537bc797b28a229f2ab7620ca068adcf1c7237346d48e7d9998b0a16de727"
+        },
+        {
+          "path": "src/resource-scope.js",
+          "sha256": "8878cbd1ada769d1ed0a103eac8d29a0f434b6693d8cb0fdabead01d5afb06ce"
+        },
+        {
+          "path": "src/response-body.js",
+          "sha256": "41841e0f87a58fe6c6e905fcb9d4a82b19fc3ce0bb3d41ef84def0e741b04878"
+        },
+        {
+          "path": "src/screenshots.js",
+          "sha256": "84464527e5b9d154e29aff91cc3107d94c96634fec5328d10c6c02d2daebc46d"
+        },
+        {
+          "path": "src/scroll-state.js",
+          "sha256": "5b8ef2c1429be0eae06f4a759eae241d532b885d6a9c011a1f233396c657574d"
+        },
+        {
+          "path": "src/session-lifecycle.js",
+          "sha256": "5acc8f8e4893bc4f3cce15bff8740a9c0aa8e6092595412e021f413d774ced8a"
+        },
+        {
+          "path": "src/session-lock.js",
+          "sha256": "4d14e69e014b1b20b6e3fd6c6c028f472d3bf10ce89391b1053322e365cff4fb"
+        },
+        {
+          "path": "src/session-ownership.js",
+          "sha256": "0dab94a614d95a6d1cdede4f8410517264c8f2b031a5f494795d1a274afdef84"
+        },
+        {
+          "path": "src/session-tasks.js",
+          "sha256": "34d0a8ef12d46fd17b67ccfa9ceb6f3b22bc8cd569b5773543f58ff13d8ff323"
+        },
+        {
+          "path": "src/shadow-coverage.js",
+          "sha256": "c55665e76228f9742ac7984244f4e0ae3142bbe68a70290209ea586ba84c10b0"
+        },
+        {
+          "path": "src/sidepanel.jsx",
+          "sha256": "2a15677d52475c3183b60fc4ecaa304642f39a675b31688f42e5966d95670081"
+        },
+        {
+          "path": "src/snapshot.js",
+          "sha256": "101046b1c58baaa810a75ebdd18db77360a37724826c5918fd5b557212c2c87c"
+        },
+        {
+          "path": "src/storage-diagnostics.js",
+          "sha256": "4938834ad69c653fccffa48214fae1f95c784f21635442a2d7978c7bb715374f"
+        },
+        {
+          "path": "src/style-observations.js",
+          "sha256": "1521626375f69120fb2b7269c7f8e5d910cfd96571e2930ad8d6f673f95a02df"
+        },
+        {
+          "path": "src/style.css",
+          "sha256": "4e390471a487d676d9dc20cfae16b1d5fbfad5bb36297861d03d5657d68b68e9"
+        },
+        {
+          "path": "src/stylesheet-resources.js",
+          "sha256": "5fb70442f6724b7c81a48222405b8c3fc6d3819a74bd1e3bb6e6430f60461cd6"
+        },
+        {
+          "path": "src/viewer.jsx",
+          "sha256": "e123d0e43651cf7048f2a373e0c0fefa934e9be694f2328567bb8cfcf49b0c26"
+        }
+      ]
+    }
+  }
+}

@@ -192,5 +192,119 @@ class ArchiveIndexTests(unittest.TestCase):
         self.assertFalse(output.exists())
 
 
+class FragmentContractTests(unittest.TestCase):
+    """Synthetic in-memory fragment checks; authored but not executed for ARCH06."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("fragment_reconstruction", RECONSTRUCT)
+        cls.fragments = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.fragments)
+        cls.fixture = json.loads((Path(__file__).parent / "fixtures" / "fragment-conformance.json").read_text(encoding="utf-8"))
+
+    @staticmethod
+    def expand_fixture_text(value):
+        if isinstance(value, list):
+            return "".join(part if isinstance(part, str) else part["text"] * part["repeat"] for part in value)
+        return value
+
+    def fixture_events(self, entry):
+        kinds = {"part": "capture.fragment", "end": "capture.fragmentEnd", "failure": "capture.fragmentFailure"}
+        events = []
+        for offset, recipe in enumerate(entry["events"]):
+            payload = dict(entry["reference"])
+            if recipe["type"] == "part":
+                payload.update(index=recipe["index"], data=self.expand_fixture_text(recipe["data"]))
+            if recipe["type"] == "end":
+                payload["status"] = "confirmed"
+            if recipe["type"] == "failure":
+                payload["status"] = "failed"
+            payload.update(recipe.get("payload", {}))
+            for key in recipe.get("omit", []):
+                payload.pop(key, None)
+            events.append({"kind": kinds.get(recipe["type"], recipe.get("kind")), "seq": offset + 1, "payload": payload})
+        return events
+
+    def test_shared_fragment_conformance_fixture(self):
+        self.assertEqual(self.fixture["format"], "fragment-conformance-v1")
+        errors = {"reference": "invalid fragment reference", "failure": "reported failure",
+                  "incomplete": "transfer is incomplete"}
+        for entry in self.fixture["cases"]:
+            with self.subTest(case=entry["name"]):
+                events = self.fixture_events(entry)
+                if entry["complete"]:
+                    actual = self.fragments.reconstruct(entry["reference"], events)
+                    expected = self.expand_fixture_text(entry["expected"])
+                    # Compare UTF-16 units, not Python scalar-count or normalized replacement text.
+                    self.assertEqual(actual.encode("utf-16-le", "surrogatepass"),
+                                     expected.encode("utf-16-le", "surrogatepass"))
+                    self.assertEqual(self.fragments.utf16_length(actual), entry["reference"]["length"])
+                else:
+                    with self.assertRaisesRegex(ValueError, errors.get(entry.get("error"), ".")):
+                        self.fragments.reconstruct(entry["reference"], events)
+
+    def test_shared_numeric_oracle_for_every_fragment_metadata_position(self):
+        targets = (("reference", "length"), ("reference", "parts"), (0, "length"), (0, "parts"),
+                   (1, "length"), (1, "parts"), (0, "index"))
+        for numeric in self.fixture["safeIntegerCases"]:
+            value = json.loads(numeric["valueJson"])
+            self.assertEqual(self.fragments.is_safe_integer(value), numeric["safe"], numeric["name"])
+            for target, key in targets:
+                with self.subTest(numeric=numeric["name"], target=target, key=key):
+                    reference = {"captureId": "numeric", "field": "sourceHtml", "length": 1, "parts": 1}
+                    events = [
+                        {"kind": "capture.fragment", "payload": {**reference, "index": 0, "data": "x"}},
+                        {"kind": "capture.fragmentEnd", "payload": {**reference, "status": "confirmed"}},
+                    ]
+                    if target == "reference":
+                        reference[key] = value
+                    else:
+                        events[target]["payload"][key] = value
+                    expected = numeric["safe"] and value == (0 if key == "index" else 1)
+                    if expected:
+                        self.assertEqual(self.fragments.reconstruct(reference, events), "x")
+                    else:
+                        with self.assertRaises(ValueError):
+                            self.fragments.reconstruct(reference, events)
+
+    def test_failure_overrides_confirmation_at_every_position(self):
+        reference = {"captureId": "failure", "field": "sourceHtml", "length": 1, "parts": 1}
+        part = {"kind": "capture.fragment", "payload": {**reference, "index": 0, "data": "x"}}
+        end = {"kind": "capture.fragmentEnd", "payload": {**reference, "status": "confirmed"}}
+        for metadata in ({}, {"length": "invalid", "parts": 0, "status": "confirmed"}):
+            failure = {"kind": "capture.fragmentFailure", "payload": {
+                "captureId": reference["captureId"], "field": reference["field"], **metadata}}
+            for position in range(3):
+                with self.subTest(metadata=metadata, position=position):
+                    events = [part, end]
+                    events.insert(position, failure)
+                    with self.assertRaisesRegex(ValueError, "reported failure"):
+                        self.fragments.reconstruct(reference, events)
+
+    def test_numeric_metadata_uses_safe_integer_values_not_python_equality(self):
+        reference = {"captureId": "numeric", "field": "sourceHtml", "length": 1, "parts": 1}
+        part = {"kind": "capture.fragment", "payload": {**reference, "index": 0, "data": "x"}}
+        end = {"kind": "capture.fragmentEnd", "payload": {**reference, "status": "confirmed"}}
+        invalid = (True, False, None, "1", 0.5, float("inf"), float("-inf"), float("nan"),
+                   9007199254740992, -9007199254740992)
+        for key in ("length", "parts"):
+            for value in invalid:
+                with self.subTest(target="reference", key=key, value=value):
+                    with self.assertRaises(ValueError):
+                        self.fragments.reconstruct({**reference, key: value}, [part, end])
+                for target in range(2):
+                    with self.subTest(target=target, key=key, value=value):
+                        events = [{**event, "payload": dict(event["payload"])} for event in (part, end)]
+                        events[target]["payload"][key] = value
+                        with self.assertRaises(ValueError):
+                            self.fragments.reconstruct(reference, events)
+        for value in invalid:
+            with self.subTest(key="index", value=value):
+                bad_part = {**part, "payload": {**part["payload"], "index": value}}
+                with self.assertRaises(ValueError):
+                    self.fragments.reconstruct(reference, [bad_part, end])
+
+
 if __name__ == "__main__":
     unittest.main()

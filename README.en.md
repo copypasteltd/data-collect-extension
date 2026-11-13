@@ -1,142 +1,81 @@
 # Logic Recorder
 
-Record authorized browser workflows from the Chrome side panel and export a selected recording as a ZIP archive.
+Record authorized browser workflows and observable page/network evidence in Chrome, then export a selected batch locally. Current delivery: **v0.3.0**.
 
-[中文](README.md) · [Installation and usage (Chinese)](docs/插件安装与使用说明.md) · [Technical design (Chinese)](docs/Chrome扩展技术开发文档.md) · [Requirements (Chinese)](docs/Chrome扩展需求梳理.md) · [2026-11-11 Update Specification (Chinese)](docs/20261111内容更新细则文档.md) · [Changelog](docs/CHANGELOG.md)
+[中文](<README.md>) · [Installation](<docs/插件安装与使用说明.md>) · [Release verification](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [Changelog](<docs/CHANGELOG.md>)
 
-> This is a **0.2.0 development preview**. It records only visited and observable activity. Browser restrictions, permissions, timing, and size limits can cause gaps; it cannot guarantee reconstruction of a whole website or its server source.
+## Deliverables
 
-> Some items in the 2026-11-11 specification remain incomplete or insufficiently verified. See the [implementation progress](docs/20261111内容更新实施进度.md) for verified behavior and remaining work.
+**Recommended: [complete release bundle](<app/release/logic-recorder-release-v0.3.0.zip>)**, including both archives, installation/release notes, actual verification and checksums.
 
-## Demo
+- [Chrome extension ZIP](<app/release/v0.3.0/logic-recorder-chrome-v0.3.0.zip>) — extract and load unpacked; Node.js/Python are not required to record.
+- [Analysis skill ZIP](<app/release/v0.3.0/extension-logic-clone-v0.3.0.zip>) — integrity validation, SQLite indexing, fragment reconstruction and style decoding; Python 3.9+ standard library.
+- [SHA-256 checksums](<app/release/v0.3.0/SHA256SUMS.txt>) · [Actual verification report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
 
-![Recording, choosing a batch, and exporting in the side panel](docs/media/workflow.gif)
+Four primary operations remain: **Start, Stop, select a batch, Export**. This version repairs per-batch acknowledgement, fragment terminal handling, source-scoped dictionaries, immutable sealing, late-task ownership and Stop/export control; it adds clear operational warnings and provenance. Historical results are not counted as passing this build.
 
-[Watch MP4](docs/media/workflow.mp4) · [Watch WebM](docs/media/workflow.webm) · [Demo media](docs/DEMO.md)
+At the user's request, development verification runs directly on the current Windows installation without building an OS isolation environment. Only synthetic local sites and test-owned browser data directories are used, not real business data or the user's existing profile. Earlier blocked/isolation documents are historical and are not prerequisites of this release.
 
-| Ready | Recording | Select a batch |
-| :---: | :---: | :---: |
-| <img src="docs/media/01-ready.png" width="220" alt="Ready to record"> | <img src="docs/media/02-recording.png" width="220" alt="Recording"> | <img src="docs/media/03-history.png" width="220" alt="Select a recording"> |
+## Install and update
 
-The demo uses fictional local data in an isolated test browser. The side panel only starts and stops recording, selects a batch, and exports it; it does not display recorded content or provide in-extension viewing, importing, or replay.
+1. Extract the extension ZIP to a stable directory.
+2. Open `chrome://extensions`, enable Developer mode, and choose **Load unpacked**.
+3. Select the directory directly containing `manifest.json`.
+4. Pin/click Logic Recorder to open its side panel.
 
-## Install
-
-Chrome 125 or later is required. Download `logic-recorder-chrome-v0.2.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract it, open `chrome://extensions`, enable Developer mode, select “Load unpacked,” and choose the extracted directory containing `manifest.json`.
-
-To build from source instead, you also need Node.js 20 or later and npm:
-
-```powershell
-cd app
-npm ci
-npm run build
-```
-
-Open `chrome://extensions`, enable Developer mode, choose “Load unpacked,” and select `app/dist` in this project. Click the extension icon to open its side panel. After changing source files, rebuild and reload the extension.
+The manifest declares Chrome 125+. See the release report for the browser/OS actually tested; the minimum version and other platforms are not implicitly verified. Before updating, stop recording and export needed batches. Replace files in the existing extension directory and reload it; uninstalling may remove local data.
 
 ## Use
 
-1. Open an HTTP or HTTPS page you are authorized to record and click the extension icon.
-2. Click “开始录制” and grant Chrome's website access request. The extension attempts to record all authorized ordinary pages, including pages already open and those opened later.
-3. Work normally and click “停止录制” when finished. You can also stop during preparation; saved data is kept as an interrupted batch. Recording or finalization continues in the background if the side panel closes; exiting the browser may interrupt the batch.
-4. Select a completed or interrupted batch under “录制批次” and click “导出记录包”. Select other batches to export them separately. Interrupted batches contain only data saved before interruption.
+1. Open only HTTP(S) sites you are authorized to record. A dedicated business profile is recommended; a separate window does not isolate other windows in the same profile.
+2. Click **开始录制**, and grant Chrome's native site-access request. The default scope includes all authorized ordinary pages, including other windows and pages opened later.
+3. Work normally, then click **停止录制**. Stop also works during preparation. Closing the side panel does not stop recording.
+4. Wait for the batch, select it, and click **导出记录包**. No new historical export starts during recording; export state does not own Stop.
 
-Batches and ZIP files stay local; the extension does not upload recordings. Uninstalling the extension may remove its local data, so export batches you need first.
+“Stopped, exportable” is not a guarantee of complete evidence. “Verification needed” or “interrupted” requires checking gaps in the archive. Saved portions remain exportable. A download confirmation timeout is reported as an error/unknown outcome, not success; the local batch remains available for retry.
 
-With many or slow pages, preparation continues in the background while the side panel shows “准备中”; Stop remains available. A temporary batch-list read failure does not block status updates or Stop, and its message clears when reading recovers.
+Recordings stay local and are not uploaded by the extension. There is no automatic expiry/deletion, in-extension content viewer, import or replay. Exported files and external indexes remain the holder's responsibility.
 
-If the worker cannot restore an active recording after a restart, Stop attempts to close collectors and mark the batch interrupted. If local storage cannot be written, the side panel reports the archival failure; batches can be read again after storage recovers, and completed batches are not overwritten.
+## Current interface
 
-If session state cannot be read, the extension attempts to stop using saved batch information. When another unfinished batch exists or ownership cannot be confirmed, it asks the user to wait for state recovery to avoid stopping the wrong batch. Unconfirmed collector readiness or shutdown is recorded or reported; interrupted recordings contain only saved data.
+| Ready | Batch selection |
+| :---: | :---: |
+| ![v0.3.0 ready](<docs/media/v0.3.0-01-ready.png>) | ![v0.3.0 batch selection](<docs/media/v0.3.0-03-history.png>) |
 
-## Recorded Data
+These are real extension screenshots using synthetic local data. Automation pre-grants host access in a temporary extension copy; it does not prove native permission-dialog acceptance/denial. See [media notes](<docs/DEMO.md>).
 
-The extension attempts to capture in-scope pages, actions, screenshots, requests and responses, cookies, site storage, and accessible resources. New recordings retain browser-provided values without masking passwords, authentication fields, or screenshots. Each page snapshot separately stores a serialized DOM, which is not the original HTTP byte stream and excludes Shadow DOM and live form values not reflected in attributes.
+## Data handling and limitations
 
-Archives may contain passwords, credentials, personal information, and business data. **ZIP files are not encrypted and anyone with a copy can read them.** Record only authorized pages and handle archives accordingly. Values hidden in older recordings cannot be recovered.
+**Archives may contain passwords, authorization headers, cookies, tokens, input, file contents, personal/business data and unmasked screenshots. ZIP files are not encrypted.** Record only authorized pages and control local/backup/sharing access. Indexes also retain raw values.
 
-### ZIP Layout
+Archives contain a manifest, integrity hashes, raw event chunks, screenshots/resources, event/page/relationship indexes, source-scoped field observations and theme data.
 
-```text
-manifest.json                 Batch metadata, status, event chunks, and limits
-integrity.json                File sizes and SHA-256 checksums
-timeline/events-00001.jsonl   Chunked actions, pages, network, and state events
-screenshots/                  Captured screenshots
-resources/index.json          Resource index
-resources/                    Captured images, fonts, and other resources
-indexes/                      Event and direct-relationship indexes in newer archives
-data-dictionary/              Field observations and summaries in newer archives
-styles/                       Theme and color observations in newer archives
-```
+- Large payloads may use fragments. Verify all parts and a unique confirmed End; matching Failure or data after End invalidates completeness.
+- Serialized DOM is not server source or original HTTP bytes. Raw and derived views differ.
+- Screenshots can be shared/missing; tiled full-page images are not atomic. Canvas PNGs are not guaranteed to match the composited screen.
+- IDB/Cache start/end sampling is best effort, not a global transaction or a complete history. Cookie evidence is domain-scoped, not proof of action causality.
+- Nearby times do not prove causality; missing/unknown/unobserved does not mean absent. Hashes establish consistency with the included list, not authenticity.
+- Browser restrictions, navigation, debugger detachment and resource pressure can leave gaps. Arbitrary duration/size, unvisited branches, server logic or a deployable whole-site clone are not guaranteed.
 
-`page.snapshot.payload.sourceHtml` holds the serialized DOM; `html` is a separate sanitized snapshot, and `sourceStatus` describes whether the DOM was captured. Network events use `requestId` to associate requests, responses, and outcomes. When text decoding fails, browser-provided bytes may be retained with `encoding: "base64"` and a `textStatus`. Checksums detect changes but do not establish authenticity or provide encryption.
+See the [archive reference](<app/skills/extension-logic-clone/references/archive-format.md>) and [analysis guide](<docs/技能使用说明.md>).
 
-Version 0.2.0 may store large DOM snapshots, inputs, files, and browser data as event fragments. Verify all fragments and their completion record before reconstructing them. Some screenshots use PNG or separately timed tiles. Network and browser-data dictionaries refer back to original events; unobserved data must not be treated as absent. See the [archive format](app/skills/extension-logic-clone/references/archive-format.md) for the full reading rules.
+## Analysis and development
 
-## Recording Analysis Skill
-
-The repository includes [`$extension-logic-clone`](app/skills/extension-logic-clone/SKILL.md) to validate archives, trace page and request evidence, and rebuild observed workflows when requested. It runs outside the extension and does not change the side-panel interface. Its indexing tool requires Python 3.9 or later and uses only the standard library.
-
-Alternatively, download `extension-logic-clone-v0.2.0.zip` from [GitHub Releases](https://github.com/copypasteltd/data-collect-extension/releases), extract its `extension-logic-clone` folder into the current user's `.codex/skills/` directory, and start a new Codex session.
-
-From the repository root in Windows PowerShell, install it into the current user's Codex skills directory:
+Extract the skill's `extension-logic-clone` folder into the user's Codex skills directory, inspecting existing files before updating. Or invoke the standard-library indexer directly with a new output path:
 
 ```powershell
-$skillRoot = Join-Path $env:USERPROFILE '.codex\skills'
-New-Item -ItemType Directory -Force -Path $skillRoot | Out-Null
-$skillTarget = Join-Path $skillRoot 'extension-logic-clone'
-if (Test-Path -LiteralPath $skillTarget) { throw 'Skill directory already exists; inspect it before updating' }
-Copy-Item -LiteralPath '.\app\skills\extension-logic-clone' -Destination $skillTarget -Recurse
+python ./app/skills/extension-logic-clone/scripts/index_archive.py recording.zip --output new-index.sqlite3
 ```
-
-Start a new Codex session and provide the ZIP and output location, for example:
-
-```text
-$extension-logic-clone Analyze D:\recordings\session.zip, document the observed pages, actions, and requests, and rebuild the observed workflow in D:\work\reconstruction.
-```
-
-To build a queryable index directly, choose an output file that does not already exist:
-
-```powershell
-python .\app\skills\extension-logic-clone\scripts\index_archive.py D:\recordings\session.zip --output D:\work\recording-index.sqlite3
-```
-
-The index contains complete raw events and may include passwords and credentials; do not commit it to a repository. See the [skill guide](docs/技能使用说明.md) for reading rules, queries, and limits.
-
-## Limitations
-
-- Activity before recording starts cannot be recovered. Restricted pages, cross-origin frames, debugger interruptions, and data unavailable to Chrome can create gaps.
-- Screenshot frequency, active-tab state, and timing can cause shared or missing screenshots. Canvas capture is static and best effort.
-- Snapshots, DOM, input, request and response bodies, databases, and resources have size or count limits. Gaps are recorded in events and batch metadata. File contents, cached responses, and intermediate database changes are not guaranteed.
-- A recording can support analysis of observed paths; it cannot guarantee recovery of unvisited branches, original source, server logic, or a deployable copy of a complete site.
-
-See the [usage guide](docs/插件安装与使用说明.md) and [technical design](docs/Chrome扩展技术开发文档.md) for details.
-
-## Development
 
 ```powershell
 cd app
 npm ci
 npm run build
 npm test
-npm run test:e2e
-npm run test:startup-tabs
-npm run test:startup-many-tabs
-npm run test:status-isolation
-npm run test:attach-stop
-npm run test:stop-lifecycle
-npm run test:recovery-stop
-npm run test:stop-review-regressions
-npm run test:stop-timeout
-npm run test:query-parameters
-npm run test:response-encoding
 npm run test:skill
-# Set CHROME_BIN to the official Chrome executable in this terminal first
+$env:CHROME_BIN='C:/Program Files/Google/Chrome/Application/chrome.exe'
+npm run test:e2e
 npm run test:capture-matrix
-npm run test:recording-performance
-npm run test:database-failure
-npm run test:tab-close
-npm run test:fragment-interruption
 ```
 
-Browser tests need Playwright Chromium. Run `npx playwright install chromium`. The capture matrix requires `CHROME_BIN` to point to the official Chrome executable; on Windows PowerShell, for example, use `$env:CHROME_BIN='C:\Program Files\Google\Chrome\Application\chrome.exe'`. The same setting can be used with `npm run test:chrome-errors` to check HTTP recording and the extension error list. The skill test needs Python 3.9+. Tests use fictional local data and close their own browsers and temporary services. Docker and WSL are not used. Earlier viewer-related files in `app/tests/` remain as historical references and are not current side-panel test entry points.
+The [release report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) distinguishes actual results from limitations. No Docker/WSL or replacement user browser is used; tests only clean resources they create. Historical viewer tests do not define the current UI.

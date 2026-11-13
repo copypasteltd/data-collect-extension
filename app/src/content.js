@@ -1,4 +1,5 @@
 import { createEventDelivery } from "./delivery.js";
+import { createCaptureCompletion } from "./batch-outcome.js";
 import { singleBackgroundUrl, fontSourceUrls } from "./background-style.js";
 import { encodeDatabaseValue } from "./database-value.js";
 import { FRAGMENT_LENGTH, fragmentReference } from "./fragment-writer.js";
@@ -47,6 +48,8 @@ import { packComputedEntries } from "./computed-style-encoder.js";
   let canvasMode = "pending";
   let canvasPendingSnapshot = false;
   let buffer = [];
+  // Sticky producer interruption must survive late transport acknowledgement reconciliation.
+  const captureCompletion = createCaptureCompletion();
   const captureSettings = (() => {
     let timeout;
     return Promise.race([
@@ -125,7 +128,9 @@ import { packComputedEntries } from "./computed-style-encoder.js";
   const send = () => {
     clearTimeout(timer);
     timer = null;
-    if (!buffer.length) return delivery.flush();
+    // Empty send is a queue barrier (null), never the previous batch outcome.
+    if (!buffer.length) return delivery.flush().then(() => null);
+    // A non-empty send returns only the detached buffer batch outcome.
     const events = buffer;
     buffer = [];
     return delivery.enqueue(events);
@@ -140,18 +145,17 @@ import { packComputedEntries } from "./computed-style-encoder.js";
     const transfer = (async () => {
       await send();
       for (let index = 0; index < reference.parts && !stopped; index++) {
-        const failedBefore = delivery.failedEvents;
-        await delivery.enqueue([{ kind: "capture.fragment", payload: {
+        const outcome = await delivery.enqueue([{ kind: "capture.fragment", payload: {
           ...reference, index, data: text.slice(index * FRAGMENT_LENGTH, (index + 1) * FRAGMENT_LENGTH),
         }, screenshot: false, time: Date.now() }]);
-        if (delivery.failedEvents !== failedBefore) return false;
+        captureCompletion.requireConfirmed(outcome);
       }
       if (!stopped) {
-        const failedBefore = delivery.failedEvents;
-        await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: {
+        const outcome = await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: {
           ...reference, status: "confirmed",
         }, screenshot: false, time: Date.now() }]);
-        return delivery.failedEvents === failedBefore;
+        captureCompletion.requireConfirmed(outcome);
+        return true;
       }
       return false;
     })();
@@ -166,18 +170,18 @@ import { packComputedEntries } from "./computed-style-encoder.js";
       for (let index = 0; index < reference.parts && !stopped; index++) {
         const bytes = new Uint8Array(await file.slice(index * 75000, (index + 1) * 75000).arrayBuffer());
         const data = btoa(String.fromCharCode(...bytes));
-        const before = delivery.failedEvents;
-        await delivery.enqueue([{ kind: "capture.fragment", payload: { ...reference, index, data },
+        const outcome = await delivery.enqueue([{ kind: "capture.fragment", payload: { ...reference, index, data },
           screenshot: false, time: Date.now() }]);
-        if (before !== delivery.failedEvents) throw new Error("文件分段写入未确认");
+        captureCompletion.requireConfirmed(outcome);
       }
       if (stopped) return false;
-      const before = delivery.failedEvents;
-      await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: { ...reference, status: "confirmed" },
+      const outcome = await delivery.enqueue([{ kind: "capture.fragmentEnd", payload: { ...reference, status: "confirmed" },
         screenshot: false, time: Date.now() }]);
-      if (before !== delivery.failedEvents) throw new Error("文件结束状态未确认");
+      captureCompletion.requireConfirmed(outcome);
       return true;
     }).catch((error) => {
+      // An unacknowledged End may already be committed; do not append a contradictory Failure.
+      if (error?.deliveryUnconfirmed) throw error;
       if (!stopped) emit("capture.fragmentFailure", { ...reference, status: "failed", reason: String(error) });
       return false;
     });
@@ -706,16 +710,19 @@ import { packComputedEntries } from "./computed-style-encoder.js";
           failures++;
           result = { ...info, status: "unavailable", reason: String(error) };
         }
-        const before = delivery.failedEvents;
-        await delivery.enqueue([{ kind: "page.shadowRoot", payload: result, screenshot: false, time: observedAt }]);
-        if (delivery.failedEvents !== before) return;
+        const outcome = await delivery.enqueue([{ kind: "page.shadowRoot", payload: result, screenshot: false, time: observedAt }]);
+        captureCompletion.requireConfirmed(outcome);
         if (reference && !await sendFragments(html, reference)) return;
         processed++;
       }
-      if (!stopped) await delivery.enqueue([{ kind: "page.shadowRootEnd", payload: {
-        snapshotId, captureId, total: roots.length, processed, failures, status: failures ? "partial" : "captured",
-      }, screenshot: false, time: Date.now() }]);
+      if (!stopped) {
+        const outcome = await delivery.enqueue([{ kind: "page.shadowRootEnd", payload: {
+          snapshotId, captureId, total: roots.length, processed, failures, status: failures ? "partial" : "captured",
+        }, screenshot: false, time: Date.now() }]);
+        captureCompletion.requireConfirmed(outcome);
+      }
     })().catch((error) => {
+      if (error?.deliveryUnconfirmed) return;
       if (!stopped) emit("page.shadowRootEnd", { snapshotId, captureId, status: "failed", reason: String(error) });
     });
     shadowSourceTask = transfer;
@@ -768,6 +775,7 @@ import { packComputedEntries } from "./computed-style-encoder.js";
             mime: "image/png", size: blob.size, reference });
           if (!await sendFile(blob, reference)) failed++;
         } catch (error) {
+          if (error?.deliveryUnconfirmed) return;
           failed++;
           emit("canvas.capture", { ...info, status: "unavailable", reason: String(error) });
         }
@@ -830,17 +838,20 @@ import { packComputedEntries } from "./computed-style-encoder.js";
         }
         const packedEntries = await packComputedEntries(entries);
         if (stopped) return;
-        const failedBefore = delivery.failedEvents;
-        await delivery.enqueue([{ kind: "page.computedStyle", payload: { snapshotId, captureId,
+        const outcome = await delivery.enqueue([{ kind: "page.computedStyle", payload: { snapshotId, captureId,
           batchIndex, batchCount, ...packedEntries }, screenshot: false, time: Date.now() }]);
-        if (delivery.failedEvents !== failedBefore) return;
+        captureCompletion.requireConfirmed(outcome);
         processed += entries.length;
       }
-      if (!stopped) await delivery.enqueue([{ kind: "page.computedStyleEnd", payload: {
-        snapshotId, captureId, total: elements.length, processed, failures, enumerationStatus,
-        status: failures || enumerationStatus !== "captured" ? "partial" : "captured",
-      }, screenshot: false, time: Date.now() }]);
+      if (!stopped) {
+        const outcome = await delivery.enqueue([{ kind: "page.computedStyleEnd", payload: {
+          snapshotId, captureId, total: elements.length, processed, failures, enumerationStatus,
+          status: failures || enumerationStatus !== "captured" ? "partial" : "captured",
+        }, screenshot: false, time: Date.now() }]);
+        captureCompletion.requireConfirmed(outcome);
+      }
     })().catch((error) => {
+      if (error?.deliveryUnconfirmed) return;
       if (!stopped) emit("page.computedStyleEnd", { snapshotId, captureId, status: "failed", reason: String(error) });
     });
     computedStyleTask = transfer;
@@ -1972,11 +1983,11 @@ import { packComputedEntries } from "./computed-style-encoder.js";
           let batch = [], batchBytes = 0, saved = 0, failed = 0, scanned = 0, scanError = null, graphDb;
           const flushRows = async () => {
             if (!batch.length) return true;
-            const before = delivery.failedEvents;
-            await delivery.enqueue(batch);
+            const outcome = await delivery.enqueue(batch);
             batch = [];
             batchBytes = 0;
-            return before === delivery.failedEvents;
+            captureCompletion.requireConfirmed(outcome);
+            return true;
           };
           await send();
           try {
@@ -1999,15 +2010,16 @@ import { packComputedEntries } from "./computed-style-encoder.js";
                       const reference = fragmentReference(json, newCaptureId(), "databaseGraph");
                       payload = { graphCaptureId, database: info.name, store: row.store, index,
                         observedAt: row.observedAt, status: graph.issues.length ? "partial" : "fragmented", graphReference: reference };
-                      const before = delivery.failedEvents;
-                      await delivery.enqueue([{ kind: "database.record", payload, screenshot: false, time: Date.now() }]);
-                      if (before !== delivery.failedEvents || !await sendFragments(json, reference)) throw new Error("数据库记录分段未确认");
+                      const outcome = await delivery.enqueue([{ kind: "database.record", payload, screenshot: false, time: Date.now() }]);
+                      captureCompletion.requireConfirmed(outcome);
+                      if (!await sendFragments(json, reference)) throw new Error("数据库记录分段未确认");
                       saved++;
                       continue;
                     }
                     payload = { graphCaptureId, database: info.name, store: row.store, index,
                       observedAt: row.observedAt, status: graph.issues.length ? "partial" : "captured", graph };
                   } catch (error) {
+                    if (error?.deliveryUnconfirmed) throw error;
                     failed++;
                     payload = { graphCaptureId, database: info.name, store: row.store, index,
                       observedAt: row.observedAt, status: "unavailable", reason: String(error) };
@@ -2032,7 +2044,10 @@ import { packComputedEntries } from "./computed-style-encoder.js";
                 status: matches ? "count_matched" : "count_changed_or_unavailable",
                 consistency: "batched_non_atomic" });
             }
-          } catch (error) { failed++; scanError = String(error); }
+          } catch (error) {
+            if (error?.deliveryUnconfirmed) return;
+            failed++; scanError = String(error);
+          }
           finally { graphDb?.close(); }
           if (!await flushRows()) failed++;
           if (!stopped) emit("database.recordsEnd", { reason, graphCaptureId, database: info.name,
@@ -2046,6 +2061,7 @@ import { packComputedEntries } from "./computed-style-encoder.js";
       if (!stopped) emit("database.catalogEnd", { reason, catalogId, count: databases.length, processed,
         status: processed === databases.length ? "captured" : "partial" });
     } catch (error) {
+      if (error?.deliveryUnconfirmed) return;
       emit("database.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(), status: "unavailable", reasonDetail: String(error) });
       emit("database.catalogEnd", { reason, catalogId, status: "unavailable", reasonDetail: String(error) });
       emit("database.snapshot", {
@@ -2058,12 +2074,20 @@ import { packComputedEntries } from "./computed-style-encoder.js";
   async function captureCache(reason) {
     const catalogId = newCaptureId();
     let deadline = Date.now() + 2500;
-    const withinDeadline = (promise) => {
+    const withinDeadline = (promise, deliveryPending = false) => {
       let timer;
       return Promise.race([
         promise,
         new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error("缓存采集超时")), Math.max(0, deadline - Date.now()));
+          timer = setTimeout(() => {
+            const error = new Error("缓存采集超时");
+            // This deadline does not cancel a fragment commit already in flight.
+            if (deliveryPending) {
+              captureCompletion.markIncomplete();
+              error.deliveryUnconfirmed = true;
+            }
+            reject(error);
+          }, Math.max(0, deadline - Date.now()));
         }),
       ]).finally(() => clearTimeout(timer));
     };
@@ -2127,8 +2151,9 @@ import { packComputedEntries } from "./computed-style-encoder.js";
                 encoding: "base64", size: bytes.length, ...(reference ? { reference, status: "fragmented" } : { data, status: "captured" }),
               } });
               emitted = true;
-              if (reference && !await withinDeadline(sendFragments(data, reference))) responseGaps++;
+              if (reference && !await withinDeadline(sendFragments(data, reference), true)) responseGaps++;
             } catch (error) {
+              if (error?.deliveryUnconfirmed) return;
               responseGaps++;
               emit(emitted ? "cache.entryFailure" : "cache.entry", { ...info,
                 status: Date.now() >= deadline ? "timeout" : "unavailable", reason: String(error) });
@@ -2152,6 +2177,7 @@ import { packComputedEntries } from "./computed-style-encoder.js";
             truncated: requests.length > attempted || nameStatus === "omitted_size" || responseGaps > 0,
           });
         } catch (error) {
+          if (error?.deliveryUnconfirmed) return;
           const timedOut = Date.now() >= deadline;
           emit("cache.snapshot", {
             reason, catalogId, catalogIndex: nameIndex, name: safeName, status: timedOut ? "timeout" : "unavailable",
@@ -2163,6 +2189,7 @@ import { packComputedEntries } from "./computed-style-encoder.js";
       if (!stopped) emit("cache.catalogEnd", { reason, catalogId, count: names.length, processed,
         status: processed === names.length ? "captured" : "partial" });
     } catch (error) {
+      if (error?.deliveryUnconfirmed) return;
       emit("cache.catalog", { reason, catalogId, url: location.href, observedAt: Date.now(),
         status: Date.now() >= deadline ? "timeout" : "unavailable", reasonDetail: String(error) });
       emit("cache.snapshot", {
@@ -2233,7 +2260,7 @@ import { packComputedEntries } from "./computed-style-encoder.js";
         beginStateCapture("cache", "stop", () => captureCache("stop")),
       ];
       const snapshots = Promise.all(captures.map((capture) => capture.promise)).then(async () => {
-        while (fragmentTransfers.size) await Promise.all([...fragmentTransfers]);
+        while (fragmentTransfers.size) await Promise.allSettled([...fragmentTransfers]);
       });
       let timeout;
       Promise.race([
@@ -2242,16 +2269,15 @@ import { packComputedEntries } from "./computed-style-encoder.js";
       ])
         .then((timedOut) => {
           clearTimeout(timeout);
-          if (timedOut) for (const capture of captures) finishStateCapture(capture, "timeout");
+          if (timedOut) {
+            captureCompletion.markIncomplete();
+            for (const capture of captures) finishStateCapture(capture, "timeout");
+          }
           stopped = true;
           return send();
         })
-        .then(() =>
-          reply({
-            ok: delivery.failedEvents === 0,
-            failedEvents: delivery.failedEvents,
-          }),
-        );
+        // Counts describe transport; sticky completion describes producers that stopped early.
+        .then(() => reply(captureCompletion.summary(delivery)));
       return true;
     }
     if (msg.type === "SNAPSHOT") {

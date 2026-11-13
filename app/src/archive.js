@@ -15,11 +15,13 @@ import { observeNetworkBody, observeNetworkQuery } from "./field-observations.js
 import { observeThemeValues } from "./style-observations.js";
 import { createFieldSummary } from "./field-summary.js";
 import { directRelationships } from "./relationships.js";
-import { observeBrowserData } from "./browser-observations.js";
+import { observeBrowserData, incompleteBrowserObservation } from "./browser-observations.js";
 import { createBrowserFieldSummary } from "./browser-field-summary.js";
 import { createPageInstances } from "./page-instances.js";
 import { createInterfaceIndex } from "./interface-index.js";
 import { reconstructFragments } from "./fragments.js";
+import { createFragmentTerminals } from "./fragment-terminals.js";
+import { createArchiveProvenance, readArchiveExporterVersion } from "./archive-provenance.js";
 
 const digest = async (bytes) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
@@ -65,6 +67,21 @@ async function readLocalSessionData(id) {
 export async function createArchive(id, onProgress = () => {}) {
   return withSessionLock(id, "shared", () => createArchiveData(id, onProgress));
 }
+export function archiveSeal(session) {
+  if (session?.seal == null) return null;
+  const seal = session.seal;
+  if (!Number.isSafeInteger(seal.revision) || seal.revision <= 0 || session.revision !== seal.revision ||
+      ![seal.lastSeq, seal.eventCount, seal.assetCount, seal.sealedAt].every((value) => Number.isSafeInteger(value) && value >= 0))
+    throw new Error("记录封存信息无效，无法导出");
+  return { revision: seal.revision, lastSeq: seal.lastSeq, eventCount: seal.eventCount,
+    assetCount: seal.assetCount, sealedAt: seal.sealedAt };
+}
+
+export function sameArchiveSeal(session, expected) {
+  // Legacy terminal sessions remain count-checked; do not manufacture an immutable snapshot for them.
+  return expected === null || JSON.stringify(archiveSeal(session)) === JSON.stringify(expected);
+}
+
 async function createArchiveData(id, onProgress) {
   const session = await get("sessions", id);
   if (!session || !["ready", "interrupted"].includes(session.status))
@@ -74,6 +91,7 @@ async function createArchiveData(id, onProgress) {
     if (!(stored?.blob instanceof Blob)) throw new Error("已导入的记录包不存在");
     return { blob: stored.blob, importIssues: [] };
   }
+  const sealed = archiveSeal(session);
   const assets = await all("assets", id);
   if (assets.length > 25000) throw new Error("截图和资源数量超过单包上限");
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
@@ -90,6 +108,26 @@ async function createArchiveData(id, onProgress) {
     browserObservationChunks = [],
     browserFieldSummaryChunks = [],
     themeObservationChunks = [];
+  if (sealed && (sealed.eventCount !== count || sealed.assetCount !== assets.length))
+    throw new Error("记录与封存计数不一致，无法导出");
+  const fragmentTerminals = createFragmentTerminals();
+  let terminalAfter = 0, terminalEventCount = 0;
+  while (true) {
+    const events = await eventPage(id, terminalAfter);
+    if (!events.length) break;
+    for (const event of events) {
+      fragmentTerminals.add(event);
+      terminalAfter = event.seq;
+      terminalEventCount++;
+    }
+  }
+  if (terminalEventCount !== count || (sealed && terminalAfter !== sealed.lastSeq))
+    throw new Error("分段终态预扫与记录计数或封存序号不一致");
+  if (sealed) {
+    const afterPrepass = await get("sessions", id);
+    if (!afterPrepass || !["ready", "interrupted"].includes(afterPrepass.status) || !sameArchiveSeal(afterPrepass, sealed))
+      throw new Error("记录在分段终态预扫期间发生变化，请重新下载");
+  }
   let resolveZip, rejectZip, zipError;
   const finished = new Promise((resolve, reject) => {
     resolveZip = resolve;
@@ -152,6 +190,7 @@ async function createArchiveData(id, onProgress) {
   }
   const requestEndpoints = new Map(), fieldSummary = createFieldSummary();
   const pendingBrowserFragments = new Map();
+  const browserFragmentKey = (reference) => JSON.stringify([reference?.captureId, reference?.field]);
   let after = 0,
     eventCount = 0,
     batch = [],
@@ -230,27 +269,26 @@ async function createArchiveData(id, onProgress) {
       const browserReference = event.kind === "storage.snapshot" ? event.payload?.storageReference
         : event.kind === "database.record" ? event.payload?.graphReference : null;
       if (browserReference) {
-        if (pendingBrowserFragments.has(browserReference.captureId)) throw new Error("浏览器数据分段标识重复");
-        pendingBrowserFragments.set(browserReference.captureId, { reference: browserReference, event,
+        if (pendingBrowserFragments.has(browserFragmentKey(browserReference))) throw new Error("浏览器数据分段标识重复");
+        pendingBrowserFragments.set(browserFragmentKey(browserReference), { reference: browserReference, event,
           evidence: { path, line: index + 1, fragmentCaptureId: browserReference.captureId }, parts: [] });
       } else {
         for (const observation of observeBrowserData(event, { path, line: index + 1 })) await writeBrowserObservation(observation);
       }
       if (["capture.fragment", "capture.fragmentEnd", "capture.fragmentFailure"].includes(event.kind)) {
-        const pending = pendingBrowserFragments.get(event.payload?.captureId);
+        const pending = pendingBrowserFragments.get(browserFragmentKey(event.payload));
         if (pending) {
           pending.parts.push(event);
           if (event.kind === "capture.fragmentEnd" || event.kind === "capture.fragmentFailure") {
             try {
               if (event.kind === "capture.fragmentFailure") throw new Error("分段传输失败");
+              fragmentTerminals.validate(pending.reference);
               const decoded = JSON.parse(reconstructFragments(pending.reference, pending.parts));
               for (const observation of observeBrowserData(pending.event, pending.evidence, decoded)) await writeBrowserObservation(observation);
             } catch (error) {
-              await writeBrowserObservation({ kind: "sample", domain: pending.event.kind === "storage.snapshot" ? "storage" : "indexeddb",
-                database: pending.event.payload?.database, store: pending.event.payload?.store,
-                source: { eventId: pending.event.id, ...pending.evidence }, status: "incomplete", reason: String(error) });
+              await writeBrowserObservation(incompleteBrowserObservation(pending.event, pending.evidence, String(error)));
             }
-            pendingBrowserFragments.delete(event.payload.captureId);
+            pendingBrowserFragments.delete(browserFragmentKey(event.payload));
           }
         }
       }
@@ -280,9 +318,7 @@ async function createArchiveData(id, onProgress) {
   await flushEvents();
   await fieldWriter.flush();
   for (const pending of pendingBrowserFragments.values())
-    await writeBrowserObservation({ kind: "sample", domain: pending.event.kind === "storage.snapshot" ? "storage" : "indexeddb",
-      database: pending.event.payload?.database, store: pending.event.payload?.store,
-      source: { eventId: pending.event.id, ...pending.evidence }, status: "incomplete", reason: "未收到分段结束确认" });
+    await writeBrowserObservation(incompleteBrowserObservation(pending.event, pending.evidence, "未收到分段结束确认"));
   await browserWriter.flush();
   for (const row of browserSummary.results()) await browserSummaryWriter.add(row);
   await browserSummaryWriter.flush();
@@ -294,7 +330,8 @@ async function createArchiveData(id, onProgress) {
   await pageWriter.flush();
   for (const endpoint of interfaces.results()) await interfaceWriter.add(endpoint);
   await interfaceWriter.flush();
-  if (eventCount !== count) throw new Error("记录数据不完整，无法导出");
+  if (eventCount !== count || eventCount !== terminalEventCount || after !== terminalAfter ||
+      (sealed && after !== sealed.lastSeq)) throw new Error("记录与分段终态预扫或封存信息不一致，无法导出");
   await addFile(
     "resources/index.json",
     strToU8(
@@ -320,6 +357,7 @@ async function createArchiveData(id, onProgress) {
     format: "logic-recorder",
     version: 2,
     session,
+    provenance: createArchiveProvenance(session, readArchiveExporterVersion()),
     eventCount,
     eventChunks,
     eventIndexChunks,
@@ -355,7 +393,7 @@ async function createArchiveData(id, onProgress) {
     get("sessions", id), countEvents(id), countAssets(id),
   ]);
   if (!latest || !["ready", "interrupted"].includes(latest.status) ||
-      finalEvents !== eventCount || finalAssets !== assets.length)
+      finalEvents !== eventCount || finalAssets !== assets.length || !sameArchiveSeal(latest, sealed))
     throw new Error("记录在打包期间发生变化，请重新下载");
   const importIssues = [];
   if (blob.size > 300000000) importIssues.push("ZIP 超过 300 MB");

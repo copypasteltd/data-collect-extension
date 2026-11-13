@@ -1,5 +1,24 @@
 # 逻辑记录包：格式和证据
 
+## v0.3.0 读取契约
+
+v0.3.0修复分段终态、派生来源与封存一致性；读取器支持记录格式v1/v2，完整发布验证结果随release另附。全部原始事件应保留；下述更严格校验不允许通过删掉Failure或重复片来“修好”原包。
+
+- 分段引用的captureId/field必须非空字符串；length为正安全整数，parts为ceil(length/100000)，index为非负且小于parts的安全整数。长度单位是UTF-16代码单元，不是UTF-8字节。JSON整数值如1.0/1e0与1等价，bool不等价；索引-0按0，超过9007199254740991拒绝。
+- 必须齐全的唯一分片、精确长度和唯一confirmed End；End后同组额外fragment、任何同captureId+field的显式fragmentFailure（无论其附带metadata是否缺失/错误）均使内容不完整。Failure不因End先到而被覆盖。
+- 发送方unknown ACK表示提交事实未知，不是内容读取失败，不应制造相反Failure；已返回unknown的批次结果不会被改写，迟到确认只作协调诊断。停止后的captured/ready仍不能单独证明全部内容完整。
+- 空文件继续以内联空Base64表示，不通过length=0引用冒充完整分片。单个重组调用需来自一个会话的完整有序证据；工具不主动跨会话查询补片。
+- SQLite mode=ro只禁止该连接写入，不证明索引来源、不可变或原ZIP已验证；应由调用者先校验ZIP/索引的来源与文件hash，再在使用资源时复核。
+- 新派生browser observation携带明确source identity，未知partition不跨document盲目并为同库；历史缺identity的汇总需按legacy规则解释，不补造浏览器实际未提供的storageKey。新封存revision为可选字段，旧终态无seal不凭空补造。
+
+## 可选版本来源与存储诊断
+
+新本地 v2 导出可带 `manifest.provenance`：`schemaVersion:1` 仅标此元数据结构；`producerVersion` 只来自批次创建时已持久化的 `session.producerVersion`，缺失或不合法为 `null`；`exporterVersion` 来自导出当下真实扩展 runtime 版本，API缺失/错误或版本无效同样为 `null`。不能用 exporter、当前包名或时间给旧录制补造 producer。导入原 Blob 早退保持不重包，旧 v1/v2 没有此字段仍按原规则读取。
+
+`provenance.derivations` 当前只标实际派生规则：`browserObservations:2`、`browserFieldSummary:2`、`fragmentValidation:1`、`fragmentTerminals:1`。这些不是完整事件schema、transport握手、平台支持或验证通过声明，未知标签需保持未知而不推断已采集能力。
+
+会话可含固定大小的 `storageDiagnostic`，仅保存已报告错误的枚举分类、白名单name/code、phase、finalEvent和安全观察时间；不含原error.message/stack或业务内容。`quota_reported`、`abort_reported`等只说明信号，不证明实际根因。该字段不改变既有封存、原值和失败/未知语义，也不是业务质量判定；验证范围应以随release的实际报告为准，字段存在本身不表示测试或业务验收通过。
+
 ## 目录与版本
 
 - `manifest.json`：`format: "logic-recorder"`、`version`（1 或 2）、`session`、事件及资源计数、`partial`、能力限制。`partial` 为真表示录制异常中断；非中断也不证明没有缺口。`session.coverage`、`session.gaps` 和事件中的失败状态应一并检查。
@@ -17,13 +36,13 @@
 - 如果观察来源指定 `assetPath`，字段偏移基于该附件按 `decodedAs` 解码后的文本，而不是 ZIP 或附件字节偏移。附件必须经清单校验；无法按该编码解码时记录失败，不推测缺失字段。
 - `manifest.fieldSummaryChunks` 汇总已关联接口的 JSON 与表单编码字段出现次数、出现过的样本数、类型和冲突；数组位置归并为 `arrayItem`，重复键按名称汇总，原始位置和每次出现仍以 `fieldObservationChunks` 为准。汇总包含可解析与总样本数，不表示必填性或完整契约。
 - `manifest.browserObservationChunks` 整理 Cookie 属性、键值存储键以及 IndexedDB 图节点和字段类型。分段来源以 `fragmentCaptureId` 指向原事件的引用；重组失败会产生 `incomplete` 样本，不表示缺失字段不存在。数据库图的 `field-path` 在对象和数组字段上使用 JSON Pointer 转义规则；跨 Map 或 Set 的路径为 `null`，需按 `location` 中的 `key`、`mapEntry`/`part`、`setEntry` 逐步定位原始图。`cycle` 标记循环引用，`field-path-coverage` 表示路径整理不完整；`nodeId` 是图内标识。
-- `manifest.browserFieldSummaryChunks` 按数据库、仓库与路径汇总 IndexedDB 的观察记录数、类型和冲突，并给出部分原事件位置；完整逐条来源以 `browserObservationChunks` 为准。数组索引按实际位置保存；不能据此推断字段必填或未观察字段不存在。旧包可能不含此文件。
+- `manifest.browserFieldSummaryChunks` 按可证来源命名空间、数据库、仓库与路径汇总 IndexedDB 的观察记录数、类型和冲突，并给出部分原事件位置；完整逐条来源以 `browserObservationChunks` 为准。数组索引按实际位置保存；不能据此推断字段必填或未观察字段不存在。旧包可能不含此文件。
 - `manifest.themeObservationChunks` 列出从计算样式整理的颜色属性、主题变量及部分背景相关属性，保留值、节点、采样时间和原始事件位置；复杂背景值是原始属性值，不代表已解析出的单个颜色或推断出的主题。
 - `resources/index.json` 列出资源 `id`、`type`、`mime`。截图按 MIME 位于 `screenshots/<assetId>.png` 或旧记录的 `screenshots/<assetId>.jpg`，其他资源位于 `resources/<assetId>.bin`。只读取清单内已验证的条目；`.bin` 类型须看索引而不是猜扩展名。
 
 ## 事件
 
-事件字段包括 `id`、`sessionId`、`seq`、`time`、`kind`、`payload`，并可能包含 `tabId`、`frameId`、`documentId`。时间是 Unix 毫秒；按 `time, seq` 查看，并保留 `seq` 作为采集序号。它们不是跨页面或网络的严格因果时钟。
+事件字段包括 `id`、`sessionId`、`seq`、`time`、`kind`、`payload`，并可能包含 `tabId`、`frameId`、`documentId`。时间是 Unix 毫秒；按 `time, seq` 查看，并保留 `seq` 作为后台接纳/提交顺序。幂等重试的既存事件不改序号，部分失败补写可在当前水位后获得新序号；空洞不单独证明丢失。它们不是跨页面或网络的严格因果时钟。
 
 - `page.snapshot`：`payload.url`、`title`、`sourceHtml`、`sourceStatus`、`sourceLength`、`html`、`status`、`viewport`、样式/画布/组件覆盖信息。`sourceHtml` 不保证存在、不包含 Shadow DOM、动态属性外的表单值或原始 HTTP 字节；旧版无此字段。`html` 为受限快照，不是可直接运行的原站页面。
 - `frame.tree` 记录浏览器枚举到的初始框架、父框架和文档标识；`navigation.committed` 记录后续框架导航与父子标识。`navigation.frameUnavailable` 表示录制期间观察到的范围外框架导航，`frameScopeGaps` 是初始范围外或出错框架及后续范围外导航的事件计数，同一框架多次导航可能被多次计数。框架列在树中不代表采集器一定注入成功，应结合对应 `frameId`、`documentId` 的页面事件和失败信息核对；授权范围外的框架不会提供页面内容。

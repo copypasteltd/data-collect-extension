@@ -3,6 +3,16 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.3.0 - 2026-11-13（本地 release / Local release）
+
+- 按用户要求直接在当前 Windows 原生环境修复、编译和验证，不建设隔离环境；发布包与真实执行记录见[本版交付](<交付/2026-11-13/native-release/RELEASE-REPORT.md>)。 / Build and verify directly on the current Windows host, without constructing an isolation environment.
+- 修复独立BatchOutcome、提交未知/失败、producer中止sticky标志、分段终态/UTF16/安全整数及JS/Python一致性。 / Repair per-batch outcomes, transport uncertainty, sticky producer state and cross-consumer fragment rules.
+- 增加owner任务/写链、写准入和持久seal水位；修复真实故障测试揭示的封存水位读取无deadline。 / Fence writes and ownership around sealing and bound the seal metadata read found by native regression.
+- 修复跨来源字典分组、版本来源、固定大小存储诊断、停止/导出状态隔离和有界下载确认poll。 / Source-scope dictionaries, retain truthful version metadata and diagnostics, separate Stop/export, and bound download confirmation.
+- 本版真实JS/Python、Chrome端到端/生命周期、完整采集矩阵、合成ERP流程、持续录制样本及打包/解压加载检查按报告逐项记录；历史失败/修复不隐藏。 / Report actual unit, consumer, browser, capture, ERP, workload and package checks together with initial failures and repairs.
+- 更新双语README、安装/更新/隐私说明、格式与当前截图，保留四项主要操作；不增加查看/导入/回放/自动删除。不把预授权测试当原生权限弹窗验证，也不声称macOS/125下界真机已测。 / Update docs and actual UI screenshots while keeping the four-operation product and explicit platform/permission limits.
+- 此前自动轮次的隔离阻塞与not-run记录保存在历史交付目录；已被用户最新“不做隔离、打包编译交付”指令和本版实际结果取代，不作为当前发布前置。 / Earlier isolation blockers and not-run notes are historical, superseded by the native release instruction and current evidence.
+
 ## 0.2.0 - 2026-11-13（预览版 / Preview）
 
 - 新增 2026-11-11 内容更新细则及实施进度；01–26 尚未全部完成验收。 / Add the 2026-11-11 update specification and implementation progress; acceptance of items 01–26 remains incomplete.

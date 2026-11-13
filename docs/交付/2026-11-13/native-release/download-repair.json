@@ -1,0 +1,93 @@
+{
+  "task": "F02 downloadBlob bounded confirmation recovery",
+  "sourceStable": true,
+  "sourceChanges": [
+    "app/src/downloads.js",
+    "app/tests/download-recovery.test.js"
+  ],
+  "unchangedExistingTests": "app/tests/downloads.test.js",
+  "defaults": {
+    "launchTimeoutMs": 15000,
+    "completionTimeoutMs": 180000,
+    "pollMs": 1000,
+    "searchTimeoutMs": 15000,
+    "cancelTimeoutMs": 1000
+  },
+  "bounds": {
+    "knownId": "launch wait <= launchTimeoutMs, then confirmation <= completionTimeoutMs; failure cleanup may wait at most cancelTimeoutMs before releasing URL",
+    "unknownLaunch": "launch deadline releases URL; eventual valid late id is observed and best-effort cancelled with bounded acknowledgement; unknown launch cannot be guaranteed cancelled",
+    "poll": "one search at a time, independent search deadline, no further search after settled; Chrome search promises cannot be physically aborted",
+    "warning": "All bounds are timer scheduling bounds while JavaScript runs, not wall-clock guarantees during browser suspension, nor Blob generation/recording SLOs"
+  },
+  "behavior": {
+    "signature": "downloadBlob(blob, filename, options = {})",
+    "terminalStates": [
+      "complete",
+      "interrupted"
+    ],
+    "pausedIsNotComplete": true,
+    "events": [
+      "onChanged",
+      "onErased"
+    ],
+    "lateResultsIsolated": true,
+    "blobPreservedForRetry": true,
+    "urlLifetime": "normal success waits for complete; known-id failure attempts cancellation and waits bounded acknowledgement before revoke; unknown launch releases at timeout and reports final state unknown",
+    "failureMessage": "下载最终状态未知，请检查浏览器下载列表后重试；取消不代表文件已删除",
+    "optionalSignal": true,
+    "uiChanges": false,
+    "dependenciesAdded": 0
+  },
+  "verification": [
+    {
+      "command": "node --version",
+      "cwd": "app",
+      "exitCode": 0,
+      "output": "v24.22.1"
+    },
+    {
+      "command": "node --test tests/downloads.test.js tests/download-recovery.test.js",
+      "cwd": "app",
+      "exitCode": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "durationMs": 131.4738
+    },
+    {
+      "command": "git diff --check -- src/downloads.js tests/downloads.test.js tests/download-recovery.test.js && git diff --stat -- src/downloads.js tests/downloads.test.js",
+      "cwd": "app",
+      "exitCode": 0,
+      "note": "No whitespace error; Git warned LF may become CRLF on next touch. New recovery test untracked and tested directly."
+    }
+  ],
+  "coverage": [
+    "Original 4 tests unchanged: completion/listener cleanup, interruption, early terminal search, erase/query failure/event-query race",
+    "Missed terminal event recovered by serial polling while retaining Blob URL",
+    "Persistent in_progress/paused reaches bounded completion deadline, requests cancel and original Blob can retry",
+    "Second search independently times out; late search result/old event cannot settle retry",
+    "Launch timeout reports unknown; eventual late id cancels only old operation",
+    "Unresponsive cancel bounded; URL remains until cancel request/ack budget; late reject observed",
+    "AbortSignal completion abort and pre-abort cleanup",
+    "Exact default launch/completion/poll timers verified with injected fake clock"
+  ],
+  "scopeAssurance": {
+    "dirtyPreserved": true,
+    "chromeStarted": false,
+    "userDownloadsTouched": false,
+    "secretsRead": false,
+    "agentTeamsUsed": false,
+    "delegated": false,
+    "commitOrPush": false,
+    "buildOrPackageChanged": false,
+    "releaseBuild": "Parent-owned: source stable sent immediately after test pass; no release build executed by this delegated repair"
+  },
+  "limits": [
+    "Best-effort cancel is not a promise that an unknown launch stopped or a downloaded file was deleted",
+    "No production browser/user-download check: only synthetic mock Chrome APIs exercised",
+    "Root READMEs and CHANGELOG not modified under exclusive task scope; parent coordinates release documentation",
+    "Underlying never-settling Chrome API promise may remain pending in Chrome; owned listeners/timers/Blob URL are released with late settlement observers"
+  ]
+}

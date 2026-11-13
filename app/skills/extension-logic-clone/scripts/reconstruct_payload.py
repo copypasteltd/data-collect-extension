@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Reconstruct one validated recording reference from an existing SQLite index."""
+"""Reconstruct one fragment reference from a caller-supplied, single-session SQLite index.
+
+Fragment checks do not validate the index provenance or the source ZIP.
+"""
 import argparse
 import base64
 from contextlib import closing
@@ -10,6 +13,13 @@ import sys
 from pathlib import Path
 
 FRAGMENT_LENGTH = 100000
+MAX_SAFE_INTEGER = 9007199254740991
+
+
+def is_safe_integer(value):
+    # Match Number.isSafeInteger for JSON numbers, including 1.0 but excluding bool.
+    return (type(value) in (int, float) and -MAX_SAFE_INTEGER <= value <= MAX_SAFE_INTEGER
+            and int(value) == value)
 
 
 def utf16_length(value):
@@ -35,13 +45,16 @@ def pointer_value(value, pointer):
 
 
 def reconstruct(reference, events):
+    """Validate all matching fragment evidence from one session in recording order."""
     if not isinstance(reference, dict):
         raise ValueError("invalid fragment reference")
     capture_id, field = reference.get("captureId"), reference.get("field")
     length, count = reference.get("length"), reference.get("parts")
-    if (not isinstance(capture_id, str) or not isinstance(field, str)
-            or type(length) is not int or length <= 0 or type(count) is not int
-            or count != (length + FRAGMENT_LENGTH - 1) // FRAGMENT_LENGTH):
+    if (not isinstance(capture_id, str) or not capture_id or not isinstance(field, str) or not field
+            or not is_safe_integer(length) or length <= 0 or not is_safe_integer(count)):
+        raise ValueError("invalid fragment reference")
+    length, count = int(length), int(count)
+    if count != (length + FRAGMENT_LENGTH - 1) // FRAGMENT_LENGTH:
         raise ValueError("invalid fragment reference")
     parts = {}
     confirmed = False
@@ -57,14 +70,20 @@ def reconstruct(reference, events):
             raise ValueError("fragment transfer reported failure")
         if event.get("kind") == "capture.fragment":
             index, data = item.get("index"), item.get("data")
-            if (confirmed or type(index) is not int or index < 0 or index >= count or index in parts
-                    or item.get("parts") != count or item.get("length") != length or not isinstance(data, str)
-                    or utf16_length(data) != min(FRAGMENT_LENGTH, length - index * FRAGMENT_LENGTH)):
+            if (confirmed or not is_safe_integer(index) or index < 0 or index >= count or index in parts
+                    or not is_safe_integer(item.get("parts")) or item["parts"] != count
+                    or not is_safe_integer(item.get("length")) or item["length"] != length
+                    or not isinstance(data, str)):
+                raise ValueError("invalid or duplicate fragment")
+            index = int(index)
+            if utf16_length(data) != min(FRAGMENT_LENGTH, length - index * FRAGMENT_LENGTH):
                 raise ValueError("invalid or duplicate fragment")
             parts[index] = data
         elif event.get("kind") == "capture.fragmentEnd":
-            if (confirmed or item.get("status") != "confirmed" or item.get("parts") != count
-                    or item.get("length") != length or len(parts) != count):
+            if (confirmed or item.get("status") != "confirmed"
+                    or not is_safe_integer(item.get("parts")) or item["parts"] != count
+                    or not is_safe_integer(item.get("length")) or item["length"] != length
+                    or len(parts) != count):
                 raise ValueError("fragment transfer is incomplete")
             confirmed = True
     if not confirmed or len(parts) != count:

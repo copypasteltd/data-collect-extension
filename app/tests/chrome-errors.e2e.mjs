@@ -10,17 +10,60 @@ import { unpackComputedEntries } from "../src/computed-style-packing.js";
 import { indexComputedStyleEvidence } from "../src/computed-style-coverage.js";
 import { createHash, randomInt } from "node:crypto";
 import { WebSocketServer } from "ws";
+import { attachCleanup, cleanupError, createOwnedChromeCleanup, installValidationStop } from "./owned-chrome-cleanup.mjs";
 
+let server, sockets, profile, child, browser, root, scenarioError, scenarioFailed = false, chromeStderr = "";
+const profilePrefix = path.resolve("test-chrome-errors-profile-");
+const httpConnections = new Set();
+const onConnection = (connection) => {
+  const forget = () => httpConnections.delete(connection);
+  httpConnections.add(connection);
+  connection.once("close", forget);
+};
+const onStderr = (chunk) => { chromeStderr = (chromeStderr + chunk.toString()).slice(-8000); };
+const cleanup = createOwnedChromeCleanup({
+  getRoot: () => root, getBrowser: () => browser,
+  afterChrome: [
+    { name: "websocket.clients", close: async () => {
+      const results = await Promise.allSettled([...(sockets?.clients ?? [])].map((connection) =>
+        Promise.resolve().then(() => connection.terminate())));
+      if (results.some((result) => result.status === "rejected")) throw new Error("Owned WebSocket termination failed");
+    } },
+    { name: "websocket.close", close: () => sockets ? new Promise((resolve, reject) =>
+      sockets.close((error) => error ? reject(error) : resolve())) : undefined },
+    { name: "http.connections", close: async () => {
+      const results = await Promise.allSettled([...httpConnections].map((connection) =>
+        Promise.resolve().then(() => connection.destroy())));
+      if (results.some((result) => result.status === "rejected")) throw new Error("Owned HTTP connection destruction failed");
+    } },
+    { name: "server.close", close: () => server ? new Promise((resolve, reject) =>
+      server.close((error) => error && error.code !== "ERR_SERVER_NOT_RUNNING" ? reject(error) : resolve())) : undefined },
+  ],
+  profile: {
+    isCreated: () => Boolean(profile),
+    isTrusted: async () => {
+      if (!profile || !path.isAbsolute(profile) || path.resolve(profile) !== profile ||
+          path.dirname(profile) !== path.dirname(profilePrefix) || !profile.startsWith(profilePrefix) ||
+          !/^[A-Za-z0-9]+$/.test(profile.slice(profilePrefix.length))) return false;
+      const info = await fs.lstat(profile);
+      return info.isDirectory() && !info.isSymbolicLink() && await fs.realpath(profile) === profile;
+    },
+    remove: () => fs.rm(profile, { recursive: true, force: true, maxRetries: 0 }),
+  },
+});
+const stopControl = installValidationStop({ processLike: process, cleanup: () => cleanup.close() });
 const executable = process.env.CHROME_BIN;
+try {
 if (!executable) throw new Error("请通过 CHROME_BIN 指定正式版 Chrome 的路径");
 const webglTest = process.env.TEST_CANVAS_WEBGL === "1" || process.env.TEST_CANVAS_WEBGL_NO_BUFFER === "1";
 const fontFixture = process.env.TEST_FONT === "1" || process.env.TEST_INITIAL_RESOURCES === "1" ? await fs.readFile(process.env.TEST_FONT_PATH || "C:\\Windows\\Fonts\\arial.ttf") : null;
+if (cleanup.closing) throw new Error("Validation stop requested during startup");
 const imageFixture = () => Buffer.concat([
   Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+nmioAAAAASUVORK5CYII=", "base64"),
   Buffer.alloc(2100000, 0x31),
 ]);
 const svgFixture = (url) => `<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><title>${url}</title><rect width="4" height="4" fill="#2468ac"/></svg>`;
-const server = http.createServer((req, res) => {
+server = http.createServer((req, res) => {
   if (req.url === "/fixture-font.ttf" && fontFixture) {
     res.writeHead(200, { "Content-Type": "font/ttf" });
     res.end(fontFixture);
@@ -107,8 +150,9 @@ const server = http.createServer((req, res) => {
     res.end(`<!doctype html><title>Extension error test</title>${style}${initialResources}<input id="input"><button id="send" onclick="fetch('/api')">Send</button>${file}${select}${dynamicSelect}${styleStress}${fixedNested}${virtualList}${canvases}${delayedCanvas}${webglCanvas}${tainted}${scrolls}${frame}${large}`);
   }
 });
+server.on("connection", onConnection);
 if (process.env.TEST_REALTIME_LARGE === "1") {
-  const sockets = new WebSocketServer({ noServer: true });
+  sockets = new WebSocketServer({ noServer: true });
   server.on("upgrade", (request, socket, head) => {
     if (request.url !== "/fixture-socket") { socket.destroy(); return; }
     sockets.handleUpgrade(request, socket, head, (connection) => {
@@ -119,47 +163,46 @@ if (process.env.TEST_REALTIME_LARGE === "1") {
 let serverStarted = false;
 for (let attempt = 0; attempt < 30 && !serverStarted; attempt++) {
   try {
-    await new Promise((resolve, reject) => {
-      const fail = (error) => { server.removeListener("listening", ready); reject(error); };
-      const ready = () => { server.removeListener("error", fail); resolve(); };
+    await cleanup.trackSetup(() => new Promise((resolve, reject) => {
+      const detach = () => { server.removeListener("listening", ready); server.removeListener("error", fail); };
+      const fail = (error) => { detach(); reject(error); };
+      const ready = () => { detach(); resolve(); };
       server.once("error", fail);
       server.once("listening", ready);
-      server.listen(randomInt(20000, 60000), "127.0.0.1");
-    });
+      try { server.listen(randomInt(20000, 60000), "127.0.0.1"); } catch (error) { fail(error); }
+    }));
     serverStarted = true;
   } catch (error) {
     if (error.code !== "EADDRINUSE" && error.code !== "EACCES") throw error;
   }
 }
 if (!serverStarted) throw new Error("无法为本地测试服务找到可用端口");
-const profile = await fs.mkdtemp(path.resolve("test-chrome-errors-profile-"));
-const child = spawn(executable, [
+await cleanup.trackSetup(async () => { profile = await fs.mkdtemp(profilePrefix); });
+if (cleanup.closing) throw new Error("Validation stop requested during startup");
+child = cleanup.registerChild(spawn(executable, [
   `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
   "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
   "--disable-background-networking", "--no-proxy-server",
   ...(webglTest ? ["--enable-unsafe-swiftshader"] : []),
   "--host-resolver-rules=MAP recorder.test 127.0.0.1", "--window-size=1000,700",
   ...(process.env.TEST_DEVICE_SCALE ? [`--force-device-scale-factor=${process.env.TEST_DEVICE_SCALE}`] : []), "about:blank",
-], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
-let chromeStderr = "";
-child.stderr.on("data", (chunk) => { chromeStderr = (chromeStderr + chunk.toString()).slice(-8000); });
-let launchError;
-const exited = new Promise((resolve) => {
-  child.once("exit", resolve);
-  child.once("error", (error) => { launchError = error; resolve(); });
-});
-let browser, root;
-try {
+], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] }));
+// Lifecycle listeners above, and the diagnostic drain below, precede every startup await.
+child.stderr.on("data", onStderr);
   let port;
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline && !port) {
-    if (launchError) throw launchError;
+    if (cleanup.closing) throw new Error("Validation stop requested during startup");
+    const state = cleanup.childState();
+    if (state.launchError) throw state.launchError;
+    if (state.rootClosed) throw new Error(`Chrome exited during startup (${state.exitCode ?? state.signal ?? state.terminal})`);
     try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
     catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
   }
   assert.ok(port, `Chrome 调试接口未启动（退出码 ${child.exitCode}）：${chromeStderr}`);
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  root = await browser.newBrowserCDPSession();
+  await cleanup.trackSetup(async () => { browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`); });
+  await cleanup.trackSetup(async () => { root = await browser.newBrowserCDPSession(); });
+  if (cleanup.closing) throw new Error("Validation stop requested during startup");
   const { id } = await root.send("Extensions.loadUnpacked", { path: path.resolve("dist") });
   const context = browser.contexts()[0];
   const manager = await context.newPage();
@@ -430,9 +473,9 @@ try {
     const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${id}/`)) ||
       await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${id}/`), timeout: 15000 });
     await worker.evaluate(() => {
-      const original = IDBObjectStore.prototype.put;
-      globalThis.restoreQuotaFixture = () => { IDBObjectStore.prototype.put = original; };
-      IDBObjectStore.prototype.put = function (...args) {
+      const original = IDBObjectStore.prototype.add;
+      globalThis.restoreQuotaFixture = () => { IDBObjectStore.prototype.add = original; };
+      IDBObjectStore.prototype.add = function (...args) {
         if (this.name === "events" && !globalThis.quotaFixtureTriggered) {
           globalThis.quotaFixtureTriggered = true;
           throw new DOMException("fixture quota exceeded", "QuotaExceededError");
@@ -740,7 +783,8 @@ try {
       db.close();
     });
     await panel.getByRole("button", { name: "导出记录包" }).click();
-    await panel.getByRole("alert").getByText(/记录引用的附件不存在/).waitFor({ timeout: 30000 });
+    // New sealed batches reject altered asset counts before walking individual references.
+    await panel.getByRole("alert").getByText(/记录与封存计数不一致，无法导出/).waitFor({ timeout: 30000 });
     const state = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
     assert.ok(state.value.sessions.some((session) => session.status === "ready"));
     await panel.evaluate(async () => {
@@ -1554,11 +1598,41 @@ try {
     else assert.ok([oldColor, newColor].some((color) => color.every((value, index) => value === actual.pixel[index])), "跨越颜色变化的截图包含非预期像素");
   }
   console.log("正式版 Chrome 录制和导出完成，未发现非预期扩展错误");
+} catch (error) {
+  scenarioFailed = true;
+  scenarioError = error;
+  throw error;
 } finally {
-  if (root) await root.send("Browser.close").catch(() => {});
-  if (browser) await browser.close().catch(() => {});
-  if (child.exitCode === null) child.kill();
-  await exited;
-  await new Promise((resolve) => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  let result;
+  try {
+    result = await cleanup.close();
+    if (scenarioFailed) {
+      attachCleanup(scenarioError, result);
+      try { scenarioError.chromeStderr = chromeStderr; } catch {}
+    }
+    if (result.status !== "confirmed") {
+      // A cleanup failure cannot quietly turn into a successful matrix exit.
+      process.exitCode = 1;
+      if (!scenarioFailed && !stopControl.stopping) {
+        const error = cleanupError(result);
+        error.chromeStderr = chromeStderr;
+        throw error;
+      }
+    }
+  } catch (error) {
+    process.exitCode = 1;
+    if (!scenarioFailed) throw error;
+    attachCleanup(scenarioError, error.cleanup ?? { status: "unconfirmed", code: "cleanup_unconfirmed" });
+  } finally {
+    child?.stderr?.removeListener("data", onStderr);
+    server?.removeListener("connection", onConnection);
+    // Both normal/failing finally and timeout-stop send the same bounded, once-only ack.
+    const ack = await stopControl.finish(result);
+    if (ack.status !== "completed" && ack.status !== "skipped") {
+      process.exitCode = 1;
+      const ipcCleanup = { ...result, status: "unconfirmed", code: "cleanup_unconfirmed", ipcAcknowledged: false };
+      if (scenarioFailed) attachCleanup(scenarioError, ipcCleanup);
+      else throw cleanupError(ipcCleanup);
+    }
+  }
 }

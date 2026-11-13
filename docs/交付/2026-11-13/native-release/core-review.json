@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-11-13",
+  "reviewedAt": "2026-11-13T10:58:43.861Z",
+  "reviewer": "delegated-core-reviewer",
+  "parentSession": "session-ed91f7d9-a8c6-4aaa-8214-b5fd24d59849",
+  "reviewType": "independent-product-development-focused-static-review",
+  "verdict": "pass",
+  "verdictQualifier": "限定所读dirty修复静态pass；不是构建/浏览器/发行验收或全量安全审计",
+  "baselineHead": "a07b15f6e72524cf696e0fa51d7533aed977d994",
+  "sourceIdentity": {
+    "kind": "dirty-non-atomic-worktree",
+    "sha256": {
+      "app/src/background.js": "8d1ba6c31954cf8444329c084ae6d11747e7a419ee32574c061719bd0dbb57c3",
+      "app/src/db.js": "493b138539c7be8494e839b04e2a108a7e719b64d55190d22c8add05afbff2f2",
+      "app/src/archive.js": "7d50266600b6af7175ae1c5eb50e2008eb11c0eb727c70db8268401c145b18b5",
+      "app/src/content.js": "71b80afa192ece18f28b348f5e49312074be4f3465e3a773f6ece3000b0855c9",
+      "app/src/delivery.js": "31d7ce0772b6333fa28bcdcaf1e06bfc00469395da1e817f9c6ed7870ca55d91",
+      "app/src/session-lifecycle.js": "5acc8f8e4893bc4f3cce15bff8740a9c0aa8e6092595412e021f413d774ced8a",
+      "app/src/session-tasks.js": "34d0a8ef12d46fd17b67ccfa9ceb6f3b22bc8cd569b5773543f58ff13d8ff323",
+      "app/src/batch-outcome.js": "5ef7ca5d39531510b6fd798ef5636cdf9cdc8322b35d70dbcc5356de37a75511",
+      "app/src/fragment-terminals.js": "ac7452090541719220c14ab7226d420af869d411f594b619eaad0b3a2ed8ad85",
+      "app/src/archive-provenance.js": "4bf49ae741e1f51dc5e964d3b38d8c8622ee9eb9006efb1b6375cb2bb592ac64"
+    }
+  },
+  "findings": [],
+  "requiredFixes": [],
+  "evidence": [
+    {
+      "id": "E1",
+      "topic": "事务写门与封存",
+      "files": [
+        {
+          "path": "app/src/db.js",
+          "lines": [
+            128,
+            221
+          ]
+        },
+        {
+          "path": "app/src/db.js",
+          "lines": [
+            260,
+            341
+          ]
+        },
+        {
+          "path": "app/src/session-lifecycle.js",
+          "lines": [
+            22,
+            33
+          ]
+        }
+      ],
+      "observation": "证据和session权威同一readwrite事务；owner、active、closed/sealed门限制新写；正常seal要求closed和finalStopEventId，expectedRevision核对后同事务统计eventCount/assetCount/lastSeq。旧终态不覆盖、不补造seal。"
+    },
+    {
+      "id": "E2",
+      "topic": "停止顺序及迟到owner",
+      "files": [
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            70,
+            94
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            452,
+            463
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            1269,
+            1437
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            1569,
+            1574
+          ]
+        },
+        {
+          "path": "app/src/session-tasks.js",
+          "lines": [
+            1,
+            40
+          ]
+        }
+      ],
+      "observation": "FLUSH/STOP_CAPTURE收尾准入结束后closeAdmission；已接受任务与writeChain收尾，再closeWrites、IDB close fence、唯一session.stop、coverage、seal。per-session任务/写链及observedOwner防止A迟到任务转挂B；超时不视为取消。"
+    },
+    {
+      "id": "E3",
+      "topic": "false/unknown与producer sticky",
+      "files": [
+        {
+          "path": "app/src/delivery.js",
+          "lines": [
+            26,
+            89
+          ]
+        },
+        {
+          "path": "app/src/delivery.js",
+          "lines": [
+            105,
+            149
+          ]
+        },
+        {
+          "path": "app/src/batch-outcome.js",
+          "lines": [
+            22,
+            38
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            128,
+            191
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            2074,
+            2093
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            2245,
+            2280
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            1323,
+            1345
+          ]
+        }
+      ],
+      "observation": "明确value:false计rejected，裸ok:false/坏确认/耗尽计unknown，多attempt拒绝不能否定旧commit；每enqueue有自身不可变结果。迟到ACK仅调诊断，captureIncomplete/needsVerification独立sticky，FLUSH及background保留中断事实，不伪造内容Failure。"
+    },
+    {
+      "id": "E4",
+      "topic": "导出同revision及分段终态",
+      "files": [
+        {
+          "path": "app/src/archive.js",
+          "lines": [
+            67,
+            130
+          ]
+        },
+        {
+          "path": "app/src/archive.js",
+          "lines": [
+            269,
+            294
+          ]
+        },
+        {
+          "path": "app/src/archive.js",
+          "lines": [
+            300,
+            334
+          ]
+        },
+        {
+          "path": "app/src/archive.js",
+          "lines": [
+            342,
+            397
+          ]
+        },
+        {
+          "path": "app/src/fragment-terminals.js",
+          "lines": [
+            8,
+            43
+          ]
+        },
+        {
+          "path": "app/src/archive-provenance.js",
+          "lines": [
+            28,
+            35
+          ]
+        }
+      ],
+      "observation": "新seal导出核对revision/count/lastSeq，终态全流预扫后再核seal，主流与最终再次对账；late part/Failure/重复End不能先派生成功字段。资源来自读取的assets，provenance区分原producer与本次exporter。不是整个ZIP字节恒等承诺。"
+    },
+    {
+      "id": "E5",
+      "topic": "reading resources与归属",
+      "files": [
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            803,
+            873
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            876,
+            1001
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            1049,
+            1087
+          ]
+        },
+        {
+          "path": "app/src/background.js",
+          "lines": [
+            2239,
+            2302
+          ]
+        }
+      ],
+      "observation": "已加载资源读Page.getResourceContent并复核frame/loader；DOM图片canvas预览复核documentId；网络正文读既有Network.getResponseBody。唯一fetch(data)用于浏览器截图data URL转Blob，不是远程补抓站点。资源保存须过原session的putAsset写门。"
+    }
+  ],
+  "candidateChecks": [
+    {
+      "id": "C1",
+      "candidate": "databaseGaps根status成功值被truthy表达式误计",
+      "verdict": "not_a_current_producer_bug",
+      "producerEvidence": [
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            1831,
+            1831
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            1848,
+            1848
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            1955,
+            1981
+          ]
+        },
+        {
+          "path": "app/src/content.js",
+          "lines": [
+            2063,
+            2071
+          ]
+        }
+      ],
+      "consumer": {
+        "path": "app/src/background.js",
+        "lines": [
+          1480,
+          1486
+        ]
+      },
+      "reason": "当前成功形状为payload.database.status='captured'且无payload.status；根status只输出unavailable/failed。无真实成功producer误计路径，构造根status:'captured'不作为产品缺陷。",
+      "minimalFix": "不要求源码修复；可读性helper如需由父决定，不抢写。"
+    }
+  ],
+  "verification": {
+    "reviewerExecutedTests": [],
+    "reviewerRanBuild": false,
+    "reviewerRanBrowser": false,
+    "parentReportedTests": {
+      "passed": 294,
+      "source": "父任务/委派指令明确告知",
+      "independentlyReexecuted": false,
+      "logsInspectedByReviewer": false
+    },
+    "readOnlyCommands": [
+      "pwd; git status --short; git diff --stat",
+      "focused git diff",
+      "git rev-parse HEAD",
+      "sha256sum focused core and helper sources"
+    ],
+    "testSourcesRead": [
+      "app/tests/seal-session.test.js",
+      "app/tests/seal-background.test.js",
+      "app/tests/archive-seal.test.js",
+      "app/tests/delivery-outcomes.test.js",
+      "app/tests/db-abort.test.js",
+      "app/tests/browser-archive.test.js"
+    ],
+    "testReadQualifier": "只静态核对已有回归的断言与接线，不把测试文件注释或测试存在当运行证据。"
+  },
+  "constraints": {
+    "preservedAllPreexistingDirty": true,
+    "sourceFilesModified": [],
+    "noDelegation": true,
+    "noAgentTeams": true,
+    "noCommitOrPush": true,
+    "noProfileCredentialOrRealArchiveRead": true,
+    "documentsOnly": [
+      "docs/交付/2026-11-13/native-release/core-review.md",
+      "docs/交付/2026-11-13/native-release/core-review.json"
+    ]
+  },
+  "limitations": [
+    "仅当前dirty核心修复交叉的产品正确性静态review；不是full security audit，也不宣称20族架构问题全部关闭。",
+    "旧无seal终态采用原计数核对，不被补造不可变revision；新seal提供扩展正常写入口下的证据集合一致性，不防外部直接篡改IDB，也不保证两次ZIP字节一致。",
+    "资源有现存时间/数量/字节预算，canvas为预览且可能跨域不可读；数据库图采样为batched_non_atomic。ready不是零缺口或全量网站还原承诺。",
+    "本代理不执行浏览器测试、构建、npm test或纯helper测试；浏览器、构建、发行包身份/校验及实际业务验收由父/另一代理负责，本文不代签。",
+    "用户已明确不建隔离环境并授权本机修复编译release；旧OS隔离前置不作为本次review阻塞理由。保留历史文档，不复用其中not-run作为当前测试事实。",
+    "保留浏览器提供的原值及开始、停止、批次选择、导出四项主要操作；未新增脱敏、删除、自动清理、微服务或范围扩张。"
+  ]
+}

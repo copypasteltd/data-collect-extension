@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -11,22 +11,21 @@ const server = http.createServer((_request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-event-ack-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-event-ack-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension);
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
+  const worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${browser.id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${browser.id}/`), timeout: 15000 });
   const [tab] = await worker.evaluate(() => chrome.tabs.query({ url: "http://127.0.0.1/*" }));
   const start = () => panel.evaluate((tab) => chrome.runtime.sendMessage({
     type: "START", tab, options: { screenshots: false, scope: "site" },
@@ -45,9 +44,9 @@ try {
   assert.equal(first.ok, true);
   await page.waitForTimeout(600);
   await worker.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
-    globalThis.restoreEventTestPut = () => { IDBObjectStore.prototype.put = original; };
-    IDBObjectStore.prototype.put = function (value, ...args) {
+    const original = IDBObjectStore.prototype.add;
+    globalThis.restoreEventTestPut = () => { IDBObjectStore.prototype.add = original; };
+    IDBObjectStore.prototype.add = function (value, ...args) {
       if (value?.kind === "interaction.click" && value.payload?.target?.selector === "#bad")
         throw new Error("模拟单条事件写入失败");
       return original.call(this, value, ...args);
@@ -61,14 +60,14 @@ try {
   await page.waitForTimeout(600);
   await worker.evaluate(() => globalThis.restoreEventTestPut());
   await worker.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
+    const original = IDBObjectStore.prototype.add;
     let duplicateId;
-    IDBObjectStore.prototype.put = function (value, ...args) {
+    IDBObjectStore.prototype.add = function (value, ...args) {
       if (value?.payload?.target?.selector === "#async-first") duplicateId = value.id;
-      if (value?.payload?.target?.selector === "#async-bad") return this.add({ ...value, id: duplicateId });
+      if (value?.payload?.target?.selector === "#async-bad") return original.call(this, { ...value, id: duplicateId });
       return original.call(this, value, ...args);
     };
-    globalThis.restoreAsyncTestPut = () => { IDBObjectStore.prototype.put = original; };
+    globalThis.restoreAsyncTestPut = () => { IDBObjectStore.prototype.add = original; };
   });
   const partial = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
@@ -80,12 +79,12 @@ try {
   assert.deepEqual(partial[0].result.value, { accepted: 2, failed: 1 });
   await worker.evaluate(() => globalThis.restoreAsyncTestPut());
   await worker.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (value, ...args) {
+    const original = IDBObjectStore.prototype.add;
+    IDBObjectStore.prototype.add = function (value, ...args) {
       if (value?.payload?.target?.selector === "#abort") this.transaction.abort();
       return original.call(this, value, ...args);
     };
-    globalThis.restoreAbortTestPut = () => { IDBObjectStore.prototype.put = original; };
+    globalThis.restoreAbortTestPut = () => { IDBObjectStore.prototype.add = original; };
   });
   const aborted = await panel.evaluate(({ tabId, sessionId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [sessionId], func: (sessionId) => chrome.runtime.sendMessage({
@@ -105,18 +104,20 @@ try {
   assert.ok(!targets.includes("#bad"));
   assert.ok(targets.includes("#async-first") && targets.includes("#async-last") && !targets.includes("#async-bad"));
   assert.ok(!targets.some((target) => target?.startsWith("#abort")), "事务回滚后不能确认任何事件");
-  assert.ok(firstEvents.some((event) => event.kind === "warning" && /未确认：1 条/.test(event.payload.error || "")));
+  assert.ok(firstEvents.some((event) => event.kind === "warning" && /失败 1 条，未确认 0 条/.test(event.payload.error || "")));
+  assert.equal(stopped.value.collectorFailedEvents, 1, "明确写入拒绝必须计为失败，而不是通信未确认");
+  assert.equal(stopped.value.unknownEvents || 0, 0, "明确写入拒绝不能被归类为未确认");
   const second = await start();
   assert.equal(second.ok, true);
   await page.waitForTimeout(400);
   await worker.evaluate(() => {
-    const original = IDBObjectStore.prototype.put;
+    const original = IDBObjectStore.prototype.add;
     globalThis.testBatchTransactions = new Set();
-    IDBObjectStore.prototype.put = function (value, ...args) {
+    IDBObjectStore.prototype.add = function (value, ...args) {
       if (value?.payload?.target?.selector?.startsWith("#bulk-")) globalThis.testBatchTransactions.add(this.transaction);
       return original.call(this, value, ...args);
     };
-    globalThis.restoreBatchTestPut = () => { IDBObjectStore.prototype.put = original; };
+    globalThis.restoreBatchTestPut = () => { IDBObjectStore.prototype.add = original; };
   });
   const responses = await panel.evaluate(({ tabId, oldId, newId }) => chrome.scripting.executeScript({
     target: { tabId }, args: [oldId, newId], func: async (oldId, newId) => {
@@ -152,9 +153,22 @@ try {
       return original.call(chrome.runtime, message, ...args);
     };
   } }), tab.id);
-  const third = await start();
+  const third = await panel.evaluate((tab) => chrome.runtime.sendMessage({
+    type: "START", tab, acknowledgeEarly: true, options: { screenshots: false, scope: "site" },
+  }), tab);
   assert.equal(third.ok, true);
-  await worker.evaluate((tabId) => chrome.tabs.sendMessage(tabId, { type: "STOP_CAPTURE" }), tab.id);
+  const collectorDeadline = Date.now() + 2000;
+  let pendingCollector = false;
+  while (Date.now() < collectorDeadline) {
+    pendingCollector = await panel.evaluate((tabId) => chrome.scripting.executeScript({
+      target: { tabId }, func: () => !!globalThis.__logicRecorderInstalled && typeof globalThis.releaseAckTestSettings === "function",
+    }).then((items) => items[0].result), tab.id);
+    if (pendingCollector) break;
+    await page.waitForTimeout(25);
+  }
+  assert.equal(pendingCollector, true, "必须在设置超时前确认测试采集器和挂起设置钩子已安装");
+  const closedCollector = await worker.evaluate((tabId) => chrome.tabs.sendMessage(tabId, { type: "STOP_CAPTURE" }), tab.id);
+  assert.equal(closedCollector.ok, true, "设置挂起时必须显式确认采集器关闭");
   await panel.evaluate((tabId) => chrome.scripting.executeScript({ target: { tabId }, func: () => {
     globalThis.restoreAckTestSend();
     globalThis.releaseAckTestSettings();
@@ -164,8 +178,8 @@ try {
   assert.equal((await panel.evaluate(() => chrome.runtime.sendMessage({ type: "STOP" }))).ok, true);
   console.log("部分事件持久化确认、失败提示和跨录制消息隔离通过");
 } finally {
-  if (context) await context.close();
+  if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

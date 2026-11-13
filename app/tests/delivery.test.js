@@ -1,8 +1,9 @@
+// Updated during static-only repair on 2026-11-13; NOT RUN.
 import { it } from "node:test";
 import assert from "node:assert/strict";
 import { createEventDelivery } from "../src/delivery.js";
 
-it("按顺序等待采集消息确认，并统计失败的事件", async () => {
+it("按顺序等待采集消息确认，并区分确定失败和未知事件", async () => {
   let release;
   const sent = [];
   const delivery = createEventDelivery(async (events) => {
@@ -12,7 +13,7 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
         release = resolve;
       });
     if (events[0] === "rejected") throw new Error("连接失败");
-    return { ok: false };
+    return { ok: true, value: false };
   }, { retryDelay: 0 });
   delivery.enqueue(["first"]);
   delivery.enqueue(["rejected", "also-lost"]);
@@ -22,17 +23,23 @@ it("按顺序等待采集消息确认，并统计失败的事件", async () => {
   release({ ok: true, value: true });
   await delivery.flush();
   assert.deepEqual(sent, ["first", "rejected", "rejected", "rejected", "unaccepted"]);
-  assert.equal(delivery.failedEvents, 3);
+  assert.equal(delivery.failedEvents, 1);
+  assert.equal(delivery.unknownEvents, 2);
 });
 
-it("对部分写入失败只统计未确认的事件，拒绝不一致的确认", async () => {
+it("对部分写入失败只统计明确失败的事件，不一致确认保留为未知", async () => {
   const delivery = createEventDelivery(async (events) => events[0] === "partial"
     ? { ok: true, value: { accepted: 2, failed: 1 } }
     : { ok: true, value: { accepted: 99, failed: 0 } });
-  await delivery.enqueue(["partial", "saved", "failed"]);
+  const partial = await delivery.enqueue(["partial", "saved", "failed"]);
+  assert.equal(partial.status, "partial");
+  assert.deepEqual([partial.accepted, partial.failed, partial.unknown], [2, 1, 0]);
   assert.equal(delivery.failedEvents, 1);
-  await delivery.enqueue(["invalid", "unknown"]);
-  assert.equal(delivery.failedEvents, 3);
+  const invalid = await delivery.enqueue(["invalid", "unknown"]);
+  assert.equal(invalid.status, "unknown");
+  assert.equal(invalid.reason, "invalid_acknowledgement");
+  assert.equal(delivery.failedEvents, 1);
+  assert.equal(delivery.unknownEvents, 2);
 });
 
 it("限制待发送事件数量及估算体积，并在队列排空后恢复接收", async () => {
@@ -70,7 +77,7 @@ it("通信异常时使用同一批次标识重试，明确拒绝时不重试", a
   assert.equal(new Set(ids).size, 1);
   assert.match(ids[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   let attempts = 0;
-  const rejected = createEventDelivery(async () => { attempts++; return { ok: false }; }, { retryDelay: 0 });
+  const rejected = createEventDelivery(async () => { attempts++; return { ok: true, value: false }; }, { retryDelay: 0 });
   await rejected.enqueue(["event"]);
   assert.equal(attempts, 1);
   assert.equal(rejected.failedEvents, 1);
@@ -121,17 +128,25 @@ it("无响应请求达到上限时停止新增请求，收到迟到结果后恢�
     if (events[0] === "later") return { ok: true, value: true };
     return new Promise((resolve) => pending.push(resolve));
   }, { timeoutMs: 10, retryDelay: 0, onUnresponsive: () => notices.push(true) });
-  await delivery.enqueue(["stalled"]);
+  const stalled = await delivery.enqueue(["stalled"]);
+  assert.equal(stalled.status, "unknown");
+  assert.equal(calls, 3);
+  assert.equal(delivery.failedEvents, 0);
+  assert.equal(delivery.unknownEvents, 1);
+  assert.equal(notices.length, 1);
+  const blocked = await delivery.enqueue(["blocked"]);
+  assert.equal(blocked.status, "rejected");
+  assert.equal(blocked.reason, "inflight_limit");
   assert.equal(calls, 3);
   assert.equal(delivery.failedEvents, 1);
-  assert.equal(notices.length, 1);
-  await delivery.enqueue(["blocked"]);
-  assert.equal(calls, 3);
-  assert.equal(delivery.failedEvents, 2);
   pending[0]({ ok: true, value: true });
   await new Promise(setImmediate);
   await delivery.enqueue(["later"]);
   assert.equal(calls, 4);
-  assert.equal(delivery.failedEvents, 2);
+  assert.equal(delivery.failedEvents, 1);
+  assert.equal(delivery.unknownEvents, 0);
+  assert.equal(stalled.status, "unknown");
+  assert.equal(delivery.lastLateOutcome.batchId, stalled.batchId);
+  assert.equal(delivery.lastLateOutcome.outcome.status, "confirmed");
   for (const resolve of pending.slice(1)) resolve({ ok: true, value: true });
 });

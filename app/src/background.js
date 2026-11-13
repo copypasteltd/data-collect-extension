@@ -1,9 +1,12 @@
-import { all, get, put, putMany, putIdempotentEvents, removeSession, interruptSession } from "./db.js";
+import { all, get, put, putMany, putIdempotentEvents, removeSession, interruptSession, closeSessionWrites, sealSession } from "./db.js";
+import { createSessionTasks } from "./session-tasks.js";
+import { createSessionLifecycle, isActiveSession } from "./session-lifecycle.js";
+import { storageWriteDiagnostic, mergeStorageDiagnostics } from "./storage-diagnostics.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
 import { withSessionLock } from "./session-lock.js";
-import { canRecoverSession } from "./session-ownership.js";
+import { recoverySessionDiagnostic } from "./session-ownership.js";
 import { indexFragmentEvidence } from "./fragments.js";
 import { responseBlob } from "./large-response.js";
 import { indexComputedStyleEvidence } from "./computed-style-coverage.js";
@@ -40,7 +43,8 @@ let screenshotPending = [];
 let screenshotChain = Promise.resolve();
 let fullPageChain = Promise.resolve();
 const fullPageRequests = new Set();
-const pending = new Set();
+const sessionTasks = createSessionTasks();
+const sessionRuntimes = new WeakMap();
 const tabActivationVersions = new Map();
 const requests = new Map();
 const childScopes = new Map();
@@ -53,10 +57,7 @@ const unknownDialogTabs = new Set();
 const dialogScopes = new Map();
 const tabConnectionQueues = new Map();
 const initialPreparations = new Map();
-let sequence = 0;
-let writeChain = Promise.resolve();
-let outstandingWrites = 0;
-let childStorageChain = Promise.resolve();
+
 let stopInFlight = false;
 let recoveryCleanup;
 const pendingInterruptions = new Map();
@@ -66,10 +67,31 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch(console.error);
 
-function track(promise) {
-  pending.add(promise);
-  promise.finally(() => pending.delete(promise)).catch(console.error);
-  return promise;
+function runtime(session) {
+  let state = sessionRuntimes.get(session);
+  if (!state) {
+    state = { lifecycle: createSessionLifecycle(), sequence: 0, writeChain: Promise.resolve(),
+      outstandingWrites: 0, childStorageChain: Promise.resolve() };
+    sessionRuntimes.set(session, state);
+  }
+  return state;
+}
+function track(promise, owner = active) {
+  return sessionTasks.track(owner, promise);
+}
+function acceptsExternal(session) {
+  return isActiveSession(session) && runtime(session).lifecycle.acceptsExternal();
+}
+function statusSummary(session) {
+  return session ? { id: session.id, status: session.status, storageError: !!session.storageError,
+    communicationUnknown: !!session.communicationUnknown || (session.unknownEvents || 0) > 0,
+    incomplete: !!session.incomplete, captureIncomplete: !!session.captureIncomplete,
+    needsVerification: !!session.needsVerification, hasNotice: !!session.notice } : null;
+}
+function putAsset(value, session = active) {
+  if (value.sessionId !== session?.id || active !== session || !isActiveSession(session) || !runtime(session).lifecycle.canWrite())
+    return Promise.reject(new Error("会话已停止接受附件"));
+  return track(put("assets", value, { ownerId: session.ownerId }), session);
 }
 function withDeadline(promise, milliseconds, label) {
   return new Promise((resolve, reject) => {
@@ -110,7 +132,7 @@ async function persistSessionState(session) {
   }
 }
 function recordDroppedEvents(session, count) {
-  if (!count) return;
+  if (!count || !isActiveSession(session) || !runtime(session).lifecycle.canWrite()) return;
   session.droppedEvents = (session.droppedEvents || 0) + count;
   session.incomplete = true;
   session.notice = "录制速度超过本机写入能力，部分记录已丢失。";
@@ -119,44 +141,45 @@ function recordDroppedEvents(session, count) {
     persistSessionState(session).catch(() => {});
   }
 }
-function markEventWriteFailure(sessionId, error) {
+function markEventWriteFailure(session, error, finalEvent = false) {
   console.error("事件写入失败", error);
-  if (active?.id === sessionId) {
-    const session = active;
+  if (active !== session || !isActiveSession(session) || session.writeState === "sealed") return;
+  const state = runtime(session);
+  // Only append's already-admitted final session.stop may report after close.
+  const closedFinal = finalEvent === true && state.lifecycle.phase === "closed" &&
+    session.status === "stopping" && !session.finalStopEventId;
+  if (state.lifecycle.canWrite() || closedFinal) {
     session.storageError = true;
+    session.storageDiagnostic = mergeStorageDiagnostics(session.storageDiagnostic,
+      storageWriteDiagnostic(error, { phase: state.lifecycle.phase, finalEvent }));
     session.notice = "本地存储写入失败，部分记录可能丢失，请停止并检查可用空间。";
     chrome.action.setBadgeText({ text: "!" }).catch(() => {});
     persistSessionState(session).catch(() => {});
   }
 }
-function append(kind, payload = {}, extra = {}) {
-  if (!active) return Promise.resolve();
-  if (outstandingWrites >= 5000 && !["warning", "session.stop"].includes(kind)) {
-    recordDroppedEvents(active, 1);
+function append(kind, payload = {}, extra = {}, owner = active, finalEvent = false) {
+  if (active !== owner || !isActiveSession(owner)) return Promise.resolve(false);
+  const state = runtime(owner);
+  if (!state.lifecycle.canWrite() && !(finalEvent && state.lifecycle.phase === "closed" && kind === "session.stop"))
+    return Promise.resolve(false);
+  if (state.outstandingWrites >= 5000 && !["warning", "session.stop"].includes(kind)) {
+    recordDroppedEvents(owner, 1);
     return Promise.resolve(false);
   }
   const event = {
-    id: uid(),
-    sessionId: active.id,
-    seq: ++sequence,
-    time: Date.now(),
-    kind,
-    payload,
-    ...extra,
+    id: uid(), time: Date.now(), kind, payload, ...extra,
+    sessionId: owner.id, seq: ++state.sequence,
   };
-  outstandingWrites++;
-  const task = writeChain.then(() => put("events", event));
-  const handled = task
-    .then(() => true)
-    .catch((error) => {
-      markEventWriteFailure(event.sessionId, error);
-      return false;
-    });
-  handled.finally(() => {
-    outstandingWrites--;
+  state.outstandingWrites++;
+  const admittedFinalEvent = finalEvent === true && event.kind === "session.stop";
+  const task = state.writeChain.then(() => put("events", event, { ownerId: owner.ownerId, finalEvent }));
+  const handled = task.then(() => true, (error) => {
+    markEventWriteFailure(owner, error, admittedFinalEvent);
+    return false;
   });
-  writeChain = handled.then(() => undefined);
-  return track(handled);
+  handled.then(() => { state.outstandingWrites--; });
+  state.writeChain = handled.then(() => undefined);
+  return track(handled, owner);
 }
 function appendRealtime(kind, payload, raw, encoding, extra) {
   const session = active;
@@ -171,22 +194,23 @@ function appendRealtime(kind, payload, raw, encoding, extra) {
     try {
       const blob = new Blob([JSON.stringify(raw)], { type: "application/json" });
       const assetId = uid();
-      await put("assets", { id: assetId, sessionId: session.id, type: "resource", mime: "application/json", blob });
+      await putAsset({ id: assetId, sessionId: session.id, type: "resource", mime: "application/json", blob }, session);
       result = { captureId, requestId: payload.requestId, status: "captured_asset", assetId, size: blob.size,
         representation: "json-string-utf8", encoding, originalLength: raw.length };
     } catch (error) {
-      markEventWriteFailure(session.id, error);
+      markEventWriteFailure(session, error);
       result = { captureId, requestId: payload.requestId, status: "unavailable", reason: String(error) };
     }
     if (active === session) await append("network.realtimePayload", result, extra);
   })());
 }
 function appendPageBatch(items, sender, session, batchId) {
-  const capacity = Math.max(0, 5000 - outstandingWrites);
+  const state = runtime(session);
+  const capacity = Math.max(0, 5000 - state.outstandingWrites);
   const selected = batchId ? items : items.slice(0, capacity);
   if (!batchId) recordDroppedEvents(session, items.length - selected.length);
   const events = selected.map((item, index) => ({
-    id: batchId ? `${batchId}_${index}` : uid(), sessionId: session.id, seq: ++sequence, time: item.time,
+    id: batchId ? `${batchId}_${index}` : uid(), sessionId: session.id, seq: ++state.sequence, time: item.time,
     kind: item.kind,
     payload: { ...item.payload, url: cleanUrl(item.payload?.url || sender.url) },
     tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId,
@@ -194,27 +218,27 @@ function appendPageBatch(items, sender, session, batchId) {
   }));
   if (!events.length) return Promise.resolve({ events, results: [] });
   const reserved = Math.min(events.length, capacity);
-  outstandingWrites += reserved;
-  const handled = writeChain.then(() => batchId
-    ? putIdempotentEvents(events, reserved)
-    : putMany("events", events).then((values) => values.map((saved) => saved ? "created" : "failed")))
+  state.outstandingWrites += reserved;
+  const handled = state.writeChain.then(() => batchId
+    ? putIdempotentEvents(events, reserved, { ownerId: session.ownerId })
+    : putMany("events", events, { ownerId: session.ownerId }).then((values) => values.map((saved) => saved ? "created" : "failed")))
   .then((results) => {
     if (active === session) recordDroppedEvents(session, results.filter((result) => result === "capacity").length);
     if (results.some((result) => result === "failed" || result === "conflict"))
-      markEventWriteFailure(session.id, new Error("部分事件写入失败或标识冲突"));
+      markEventWriteFailure(session, new Error("部分事件写入失败或标识冲突"));
     return results;
   }).catch((error) => {
-    markEventWriteFailure(session.id, error);
+    markEventWriteFailure(session, error);
     return events.map(() => "failed");
   });
-  handled.finally(() => { outstandingWrites -= reserved; });
-  writeChain = handled.then(() => undefined);
-  return track(handled).then((results) => ({ events, results }));
+  handled.then(() => { state.outstandingWrites -= reserved; });
+  state.writeChain = handled.then(() => undefined);
+  return track(handled, session).then((results) => ({ events, results }));
 }
-async function warning(message, details = {}) {
-  if (!active) return;
-  active.notice = message;
-  await append("warning", { message, ...details });
+async function warning(message, details = {}, owner = active) {
+  if (active !== owner || !isActiveSession(owner) || !runtime(owner).lifecycle.canWrite()) return;
+  owner.notice = message;
+  await append("warning", { message, ...details }, {}, owner);
 }
 function allowedUrl(raw) {
   try {
@@ -235,17 +259,18 @@ function isHttpUrl(raw) {
   }
 }
 function persistChildTargets() {
-  const owner = active?.id;
-  if (!owner || !["preparing", "recording"].includes(active.status)) return;
-  const task = childStorageChain.then(async () => {
+  const session = active, owner = session?.id;
+  if (!owner || !["preparing", "recording"].includes(session.status)) return;
+  const state = runtime(session);
+  const task = state.childStorageChain.then(async () => {
     if (active?.id !== owner || !["preparing", "recording"].includes(active.status)) return;
     await chrome.storage.session.set({ recorderFrames: { owner, entries: [...childTargets] } });
   });
-  childStorageChain = task.catch(async (error) => {
+  state.childStorageChain = task.catch(async (error) => {
     if (active?.id === owner && ["preparing", "recording"].includes(active.status))
       await warning("框架恢复信息保存失败，后台重启后可能缺失网络记录", { error: String(error) });
   });
-  track(childStorageChain);
+  track(state.childStorageChain, session);
 }
 async function removeSessionState(session) {
   await chrome.storage.session.remove(["active", "recorderFrames"]);
@@ -338,20 +363,20 @@ async function init() {
       },
     };
     const stored = await withDeadline(get("sessions", active.id), 5000, "录制状态读取");
-    if (stored && ["ready", "interrupted"].includes(stored.status)) {
+    if (stored && !isActiveSession(stored)) {
       await clearActiveResources(active);
       return;
     }
     if (
       !stored ||
       stored.status !== "recording" ||
-      active.status !== "recording"
+      active.status !== "recording" || stored.writeState === "closed" || stored.ownerId !== active.ownerId
     ) {
       await interrupt(active, "录制准备或结束时后台中断，已保存可用的部分记录");
       return;
     }
     const events = await withDeadline(all("events", active.id), 15000, "录制事件恢复");
-    sequence = events.reduce((n, e) => Math.max(n, e.seq || 0), 0);
+    runtime(active).sequence = events.reduce((n, e) => Math.max(n, e.seq || 0), stored.lastSeq || 0);
     const storedFrames = state.recorderFrames?.owner === active.id && Array.isArray(state.recorderFrames.entries)
       ? state.recorderFrames.entries : [];
     if (storedFrames.length > 1000)
@@ -408,9 +433,7 @@ async function init() {
   } else {
     for (const session of await withDeadline(all("sessions"), 10000, "录制批次恢复")) {
       if (["preparing", "recording", "stopping"].includes(session.status)) {
-        session.status = "interrupted";
-        session.interruptedAt = Date.now();
-        await put("sessions", session);
+        await interruptSession(session, "后台恢复时未找到可核对的活动 owner，已保留可用记录");
       }
     }
   }
@@ -429,7 +452,15 @@ void ensureReady().catch(console.error);
 const afterReady =
   (handler) =>
   (...args) => {
-    track(ensureReady().then(() => handler(...args)));
+    // The readiness barrier can itself produce writes during recovery. Do not
+    // register a task that waits for that barrier in the same owner drain.
+    const observedOwner = active;
+    void ensureReady().then(() => {
+      const owner = observedOwner;
+      if (active !== owner || !acceptsExternal(owner)) return;
+      const task = handler(...args);
+      if (task && typeof task.then === "function") track(task, owner);
+    }).catch(console.error);
   };
 
 async function start(tab, options, onCreated) {
@@ -449,6 +480,9 @@ async function start(tab, options, onCreated) {
   if (active) throw new Error("已有录制任务进行中");
   const session = {
     id: uid(),
+    ownerId: uid(),
+    producerVersion: chrome.runtime.getManifest().version,
+    revision: 0, lastSeq: 0, writeState: "open",
     title: tab.title || url.hostname,
     origin,
     tabId: tab.id,
@@ -474,7 +508,7 @@ async function start(tab, options, onCreated) {
   onCreated(session);
   childTargets.clear();
   currentOrigin = origin;
-  sequence = 0;
+  runtime(session);
   const initial = (async () => {
     await chrome.storage.session.remove("recorderFrames");
     if (active && active !== session) persistChildTargets();
@@ -505,7 +539,7 @@ async function start(tab, options, onCreated) {
   try { await initial; }
   finally { initialPreparations.delete(session.id); }
   try {
-    await withDeadline(register(origin, options.scope, session), 5000, "页面采集器注册");
+    await withDeadline(track(register(origin, options.scope, session), session), 5000, "页面采集器注册");
   } catch (error) {
     requirePreparing(session);
     session.incomplete = true;
@@ -514,7 +548,7 @@ async function start(tab, options, onCreated) {
   requirePreparing(session);
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
     requirePreparing(session);
-    try { await withDeadline(attachTab(target.id), 5000, "网络调试连接"); }
+    try { await withDeadline(track(attachTab(target.id), session), 5000, "网络调试连接"); }
     catch (error) {
       requirePreparing(session);
       session.incomplete = true;
@@ -525,7 +559,7 @@ async function start(tab, options, onCreated) {
   const resourceDeadline = Date.now() + 6000;
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
     requirePreparing(session);
-    await captureInitialResources(target, resourceDeadline);
+    await captureInitialResources(target, resourceDeadline, session);
     requirePreparing(session);
   });
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
@@ -588,7 +622,7 @@ async function start(tab, options, onCreated) {
   });
   await forEachConcurrent(Object.values(session.tabs), 4, async (target) => {
     requirePreparing(session);
-    try { await withDeadline(snapshotCookies(target.url), 5000, "Cookie 初始状态"); }
+    try { await withDeadline(snapshotCookies(target.url, session), 5000, "Cookie 初始状态"); }
     catch (error) {
       requirePreparing(session);
       session.incomplete = true;
@@ -619,9 +653,8 @@ async function start(tab, options, onCreated) {
   return session;
 }
 
-async function snapshotCookies(raw) {
-  const session = active;
-  if (!session || !allowedUrl(raw)) return;
+async function snapshotCookies(raw, session = active) {
+  if (active !== session || !isActiveSession(session) || !runtime(session).lifecycle.canWrite() || !allowedUrl(raw)) return;
   const parsed = new URL(raw),
     site = parsed.origin;
   session.cookieOrigins ||= [];
@@ -658,16 +691,16 @@ async function snapshotCookies(raw) {
   }
 }
 
-async function snapshotFrameCookies(tabId, frame) {
-  const session = active;
-  if (!session || !allowedUrl(frame.url)) return;
+async function snapshotFrameCookies(tabId, frame, session = active) {
+  if (active !== session || !isActiveSession(session) || !runtime(session).lifecycle.canWrite() || !allowedUrl(frame.url)) return;
   const documentId = frame.documentId || null;
   const key = JSON.stringify([tabId, frame.frameId, documentId, frame.url]);
   session.cookieFrames ||= [];
   if (session.cookieFrames.includes(key)) return;
   session.cookieFrames.push(key);
   try {
-    await snapshotCookies(frame.url);
+    await snapshotCookies(frame.url, session);
+    if (active !== session || !isActiveSession(session) || !runtime(session).lifecycle.canWrite()) return;
     if (typeof chrome.cookies.getPartitionKey !== "function")
       throw new Error("浏览器版本不支持按框架获取 Cookie 分区");
     const details = { tabId, frameId: frame.frameId, ...(documentId ? { documentId } : {}) };
@@ -769,11 +802,13 @@ async function enableChildTargets(debugSession) {
 
 async function captureLoadedResources(target, deadline, session) {
   const summary = { total: 0, captured: 0, failed: 0, omitted: 0, status: "captured" };
-  const current = () => active === session && ["preparing", "recording"].includes(session.status);
+  const current = () => active === session && ["preparing", "recording"].includes(session.status) && runtime(session).lifecycle.canWrite();
   try {
+    if (!current()) return;
     if (!target.debuggerAttached) throw new Error("调试连接不可用");
     const tree = await withDeadline(chrome.debugger.sendCommand({ tabId: target.id }, "Page.getResourceTree"),
       Math.max(1, Math.min(1500, deadline - Date.now())), "已加载资源目录读取");
+    if (!current()) return;
     const pending = [tree.frameTree], resources = [];
     while (pending.length) {
       const frame = pending.pop();
@@ -818,8 +853,8 @@ async function captureLoadedResources(target, deadline, session) {
           : new TextEncoder().encode(result.content);
         if (bytes.length > 10000000 || totalBytes + bytes.length > 10000000) throw new Error("已加载资源超过采集字节预算");
         const assetId = uid();
-        await put("assets", { id: assetId, sessionId: session.id, type: "resource", mime: item.mimeType || "application/octet-stream",
-          blob: new Blob([bytes], { type: item.mimeType || "application/octet-stream" }) });
+        await putAsset({ id: assetId, sessionId: session.id, type: "resource", mime: item.mimeType || "application/octet-stream",
+          blob: new Blob([bytes], { type: item.mimeType || "application/octet-stream" }) }, session);
         if (!current()) return;
         const saved = await append("resource.loaded", { ...meta, status: "captured", assetId, size: bytes.length,
           representation: result.base64Encoded ? "browser-provided-bytes" : "browser-decoded-text-utf8" }, { tabId: target.id });
@@ -838,9 +873,9 @@ async function captureLoadedResources(target, deadline, session) {
   if (current()) await append("resource.loadedSummary", summary, { tabId: target.id });
 }
 
-async function captureInitialResources(target, deadline) {
-  const session = active;
-  if (!session) return;
+async function captureInitialResources(target, deadline, session = active) {
+  const currentOwner = () => active === session && isActiveSession(session) && runtime(session).lifecycle.canWrite();
+  if (!currentOwner()) return;
   const summary = { total: 0, captured: 0, omitted: 0, status: "captured" };
   try {
     if (Date.now() >= deadline) throw new Error("初始资源采集时间已用完");
@@ -849,8 +884,10 @@ async function captureInitialResources(target, deadline) {
       Math.max(1, Math.min(1500, deadline - Date.now())),
       "初始页面检查",
     );
+    if (!currentOwner()) return;
     if (!frames?.length) throw new Error("无法取得初始页面");
-    for (const frame of frames) if (allowedUrl(frame.url)) track(snapshotFrameCookies(target.id, frame));
+    for (const frame of frames) if (allowedUrl(frame.url))
+      track(snapshotFrameCookies(target.id, frame, session), session);
     if (active === session) await append("frame.tree", {
       tabId: target.id,
       frames: frames.map((frame) => ({ frameId: frame.frameId, parentFrameId: frame.parentFrameId,
@@ -860,8 +897,10 @@ async function captureInitialResources(target, deadline) {
         documentLifecycle: frame.documentLifecycle || null, errorOccurred: !!frame.errorOccurred })),
     }, { tabId: target.id });
     await captureLoadedResources(target, deadline, session);
+    if (!currentOwner()) return;
     let totalBytes = 0, complete = true;
     for (const frame of frames || []) {
+      if (!currentOwner()) return;
       if (!allowedUrl(frame.url)) continue;
       if (Date.now() >= deadline || summary.captured >= 50 || totalBytes >= 10000000) {
         complete = false;
@@ -915,6 +954,7 @@ async function captureInitialResources(target, deadline) {
           Math.max(1, Math.min(1500, deadline - Date.now())),
           "初始图片读取",
         );
+        if (!currentOwner()) return;
         const result = execution?.result;
         summary.total += result?.total || 0;
         if (result?.truncated) complete = false;
@@ -935,7 +975,7 @@ async function captureInitialResources(target, deadline) {
           const id = uid(), url = new URL(cleanUrl(item.url));
           url.hash = "";
           try {
-            await put("assets", { id, sessionId: session.id, type: "resource", mime: "image/png", blob: new Blob([bytes], { type: "image/png" }) });
+            await putAsset({ id, sessionId: session.id, type: "resource", mime: "image/png", blob: new Blob([bytes], { type: "image/png" }) }, session);
           } catch {
             session.storageError = true;
             complete = false;
@@ -961,13 +1001,13 @@ async function captureInitialResources(target, deadline) {
     await append("resource.initialSummary", summary, { tabId: target.id });
 }
 
-function capture() {
-  const task = screenshotChain.then(captureOne);
+function capture(owner = active) {
+  const task = screenshotChain.then(() => captureOne(owner));
   screenshotChain = task.catch(() => {});
   return task;
 }
-async function captureOne() {
-  if (!active || !screenshotPending.length) return;
+async function captureOne(owner) {
+  if (active !== owner || !isActiveSession(owner) || !runtime(owner).lifecycle.canWrite() || !screenshotPending.length) return;
   const first = screenshotPending[0];
   const sameContext = (item) =>
     item.tabId === first.tabId &&
@@ -1003,6 +1043,7 @@ async function captureOne() {
       (first.url && cleanUrl(sourceFrame.url) !== first.url);
     const info = await chrome.tabs.sendMessage(tabId, { type: "VIEWPORT_INFO" }, { frameId: 0 });
     if (!info?.viewport) throw new Error("无法读取页面视口");
+    if (active !== owner || !isActiveSession(owner) || !runtime(owner).lifecycle.canWrite()) return;
     screenshotLast = Date.now();
     const captureStartedAt = screenshotLast;
     let data;
@@ -1060,13 +1101,13 @@ async function captureOne() {
     }
     const id = uid();
     if (active?.id !== sessionId) return;
-    await put("assets", {
+    await putAsset({
       id,
       sessionId,
       type: "screenshot",
       mime: "image/png",
       blob,
-    });
+    }, owner);
     if (active?.id === sessionId)
       await append(
         "screenshot",
@@ -1092,22 +1133,24 @@ async function captureOne() {
         { tabId },
       );
   }
-  if (screenshotPending.length && active?.status !== "stopping")
+  if (active === owner && screenshotPending.length && acceptsExternal(owner) && owner.status !== "stopping")
     scheduleScreenshot();
 }
 function scheduleScreenshot() {
-  if (screenshotTimer) return;
+  const owner = active;
+  if (!isActiveSession(owner) || !runtime(owner).lifecycle.canWrite() || screenshotTimer) return;
   const target = active?.tabs[screenshotPending[0]?.tabId];
   const interval = target?.debuggerAttached ? 200 : 600;
   screenshotTimer = setTimeout(
     () => {
       screenshotTimer = null;
-      track(capture());
+      track(capture(owner), owner);
     },
     Math.max(80, interval - (Date.now() - screenshotLast)),
   );
 }
 function requestScreenshot(eventId, tabId, frameId, documentId, url) {
+  if (!isActiveSession(active) || !runtime(active).lifecycle.canWrite()) return;
   screenshotPending.push({ eventId, tabId, frameId, documentId, url });
   scheduleScreenshot();
 }
@@ -1140,7 +1183,7 @@ async function captureFullPageTiles({ tabId, frameId, documentId, session, info,
       if (Math.abs(pixelSize.width - clip.width * dpr) > 4 || Math.abs(pixelSize.height - clip.height * dpr) > 4)
         throw new Error("分片像素尺寸与页面范围不一致");
       const assetId = uid();
-      await put("assets", { id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob });
+      await putAsset({ id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob }, session);
       if (active !== session) return;
       const saved = await append("screenshot.fullPageTile", { ...info, captureId, index, total: plan.total, clip, pixelSize,
         dpr, status: "captured", assetId, mime: "image/png", captureStartedAt: startedAt, capturedAt: Date.now() },
@@ -1155,6 +1198,7 @@ async function captureFullPageTiles({ tabId, frameId, documentId, session, info,
     limitation: "分片分别采集，仅包含各自采集时已渲染内容；嵌套滚动容器仅记录当前可见区域，不主动滚动或加载未渲染区域" }, { tabId, frameId, documentId });
 }
 function requestFullPageScreenshot(event, session) {
+  if (active !== session || !isActiveSession(session) || !runtime(session).lifecycle.canWrite()) return;
   const { tabId, frameId, documentId } = event;
   if (frameId !== 0 || !event.payload?.snapshotId) return;
   const capturePhase = event.payload.reason === "stop" ? "final" : "initial";
@@ -1208,7 +1252,7 @@ function requestFullPageScreenshot(event, session) {
         throw new Error("整页截图尺寸与页面范围不一致");
       const assetId = uid();
       if (active !== session) return;
-      await put("assets", { id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob });
+      await putAsset({ id: assetId, sessionId: session.id, type: "screenshot", mime: "image/png", blob }, session);
       if (active === session) await append("screenshot.fullPage", { ...info, status: "captured", assetId,
         mime: "image/png", contentSize: { width: size.width, height: size.height }, pixelSize, dpr,
         captureStartedAt: startedAt, capturedAt: finishedAt,
@@ -1220,16 +1264,17 @@ function requestFullPageScreenshot(event, session) {
     }
   });
   fullPageChain = task.catch(() => {});
-  track(task);
+  track(task, session);
 }
 async function stop(onStopping) {
   await ensureReady();
   if (!active) throw new Error("没有正在录制的任务");
-  const session = active;
+  const session = active, state = runtime(session);
   if (!["preparing", "recording"].includes(session.status))
     throw new Error("录制任务正在准备或停止，请稍候");
   const stoppedDuringPreparation = session.status === "preparing";
   session.status = "stopping";
+  state.lifecycle.beginStop();
   onStopping(session);
   session.stopRequestedAt = Date.now();
   if (stoppedDuringPreparation) {
@@ -1275,12 +1320,23 @@ async function stop(onStopping) {
           12000,
           "页面状态收尾",
         );
-        if (!result?.ok)
-          throw new Error(
-            `页面采集消息未确认：${result?.failedEvents || 0} 条`,
-          );
+        const failed = Number.isSafeInteger(result?.failedEvents) ? result.failedEvents : 0;
+        const unknown = Number.isSafeInteger(result?.unknownEvents) ? result.unknownEvents : 0;
+        if (result?.captureIncomplete || result?.needsVerification) {
+          session.captureIncomplete ||= !!result.captureIncomplete;
+          session.needsVerification = true;
+          session.incomplete = true;
+        }
+        if (failed > 0) session.collectorFailedEvents = (session.collectorFailedEvents || 0) + failed;
+        if (unknown > 0) {
+          session.unknownEvents = (session.unknownEvents || 0) + unknown;
+          session.communicationUnknown = true;
+        }
+        if (!result?.ok || failed > 0 || unknown > 0)
+          throw new Error(`页面采集收尾：失败 ${failed} 条，未确认 ${unknown} 条`);
       } catch (error) {
         session.incomplete = true;
+        session.communicationUnknown = true;
         void warning("结束时无法取得页面最终状态", {
           tabId: frame.tabId,
           frameId: frame.frameId,
@@ -1304,12 +1360,12 @@ async function stop(onStopping) {
     }
   }
   try {
-    await withDeadline(Promise.allSettled([...pending]), 8000, "数据收尾");
+    await withDeadline(sessionTasks.drain(session), 8000, "数据收尾");
   } catch {
     session.incomplete = true;
     void warning("数据收尾超时，部分记录可能缺失");
   }
-  await withDeadline(writeChain, 10000, "记录写入收尾");
+  await withDeadline(state.writeChain, 10000, "记录写入收尾");
   await Promise.all(activeFrames.map(async (frame) => {
     try {
       await withDeadline(
@@ -1326,6 +1382,10 @@ async function stop(onStopping) {
       void warning("页面采集器未能正常关闭", frame);
     }
   }));
+  // FLUSH/STOP_CAPTURE is the only stopping admission window. From here
+  // external callbacks and new EVENTS are rejected; already accepted work may
+  // finish under this original session until the write fence below.
+  state.lifecycle.closeAdmission();
   if (session.droppedEvents)
     void warning("本地写入队列过载，部分记录未保存", {
       droppedEvents: session.droppedEvents,
@@ -1344,12 +1404,12 @@ async function stop(onStopping) {
   }));
   networkSealed = true;
   try {
-    await withDeadline(Promise.allSettled([...pending]), 2000, "网络收尾");
+    await withDeadline(sessionTasks.drain(session), 2000, "网络收尾");
   } catch {
     session.incomplete = true;
     void warning("网络收尾超时，部分响应内容可能缺失");
   }
-  await withDeadline(writeChain, 10000, "网络记录写入收尾");
+  await withDeadline(state.writeChain, 10000, "网络记录写入收尾");
   const finalRequests = [];
   for (const item of requests.values()) {
     if (item.finalized) continue;
@@ -1369,7 +1429,12 @@ async function stop(onStopping) {
       void warning("页面采集器注册未能清理");
     }
   }
-  await append("session.stop", { note: "停止时仍在进行的请求可能不完整" });
+  state.lifecycle.closeWrites();
+  await withDeadline(state.writeChain, 10000, "已接受记录写入收尾");
+  await closeSessionWrites(session.id, session.ownerId);
+  if (!await append("session.stop", { note: "停止时仍在进行的请求可能不完整" }, {}, session, true))
+    throw new Error("停止记录未能保存，批次需要中断封存");
+  const closed = await withDeadline(get("sessions", session.id), 5000, "封存水位读取");
   const markCoverageUnavailable = (error) => {
     session.incomplete = true;
     session.notice = "录制已停止，但记录完整性检查失败，已保存内容仍可导出。";
@@ -1503,7 +1568,10 @@ async function stop(onStopping) {
   }
   const status = session.storageError || session.incomplete ? "interrupted" : "ready";
   const endedAt = Date.now();
-  await put("sessions", { ...session, status, endedAt });
+  const sealed = await sealSession({ ...session, status, endedAt }, { expectedRevision: closed.revision });
+  Object.assign(session, sealed);
+  state.lifecycle.seal();
+  sessionTasks.release(session);
   currentOrigin = null;
   requests.clear();
   childScopes.clear();
@@ -1519,10 +1587,8 @@ async function stop(onStopping) {
   fullPageRequests.clear();
   await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch(() => {});
   await withDeadline(chrome.action.setTitle({ title: "打开逻辑记录" }), 2000, "录制标题清理").catch(() => {});
-  await withDeadline(childStorageChain, 2000, "框架恢复信息收尾").catch(() => {});
+  await withDeadline(state.childStorageChain, 2000, "框架恢复信息收尾").catch(() => {});
   await withDeadline(removeSessionState(session), 2000, "录制状态清理");
-  session.status = status;
-  session.endedAt = endedAt;
   active = null;
   return session;
 }
@@ -1555,23 +1621,26 @@ function interruptionFailure(saveError, failures) {
 }
 async function interrupt(session, reason) {
   if (!session || active?.id !== session.id) return;
+  runtime(session).lifecycle.closeAdmission();
+  runtime(session).lifecycle.closeWrites();
   session.status = "interrupted";
   session.interruptedAt = Date.now();
-  session.notice = reason;
   let saveError;
-  try { await saveInterruption(session, reason); } catch (error) { saveError = error; }
+  try { Object.assign(session, await saveInterruption(session, reason)); } catch (error) { saveError = error; }
   const failures = [];
   await clearActiveResources(session, (stage, error) => {
     failures.push(stage);
     console.warn(`${stage}失败`, error);
   });
-  writeChain = Promise.resolve();
-  pending.clear();
+  sessionTasks.release(session);
   const failure = interruptionFailure(saveError, failures);
   if (failure) throw failure;
 }
 
 async function clearActiveResources(session, onFailure = (stage, error) => console.warn(`${stage}失败`, error)) {
+  runtime(session).lifecycle.closeAdmission();
+  runtime(session).lifecycle.closeWrites();
+  sessionTasks.release(session);
   if (screenshotTimer) clearTimeout(screenshotTimer);
   screenshotTimer = null;
   screenshotPending = [];
@@ -1616,7 +1685,7 @@ async function clearActiveResources(session, onFailure = (stage, error) => conso
   screenshotChain = Promise.resolve();
   fullPageChain = Promise.resolve();
   fullPageRequests.clear();
-  await withDeadline(childStorageChain, 2000, "框架恢复信息清理").catch((error) => onFailure("框架恢复信息清理", error));
+  await withDeadline(runtime(session).childStorageChain, 2000, "框架恢复信息清理").catch((error) => onFailure("框架恢复信息清理", error));
   await withDeadline(removeSessionState(session), 2000, "录制状态清理").catch((error) => onFailure("录制状态清理", error));
   if (active === session) active = null;
   await withDeadline(chrome.action.setBadgeText({ text: "" }), 2000, "录制标记清理").catch((error) => onFailure("录制标记清理", error));
@@ -1626,7 +1695,7 @@ async function clearActiveResources(session, onFailure = (stage, error) => conso
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
     if (message.type === "GET_STATUS" && active)
-      return { active: { id: active.id, status: active.status } };
+      return { active: statusSummary(active) };
     if (message.type === "STOP") {
       if (stopInFlight) throw new Error("录制任务正在停止，请稍候");
       stopInFlight = true;
@@ -1640,12 +1709,15 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
               session = await withDeadline(get("sessions", message.sessionId), 5000, "录制批次读取");
               if (!session || !["preparing", "recording", "stopping"].includes(session.status)) throw error;
               const sessions = await withDeadline(all("sessions"), 5000, "录制批次核对");
-              if (!canRecoverSession(session, sessions))
-                throw new Error("无法确认当前录制批次，请等待后台状态恢复后重试");
+              const diagnostic = recoverySessionDiagnostic(session, sessions);
+              if (diagnostic)
+                throw new Error(`无法确认当前录制批次（${diagnostic}），请等待后台状态恢复后重试`);
               active = session;
             }
             if (!session || (message.sessionId && message.sessionId !== session.id)) throw error;
             if (!["preparing", "recording", "stopping"].includes(session.status)) throw error;
+            runtime(session).lifecycle.closeAdmission();
+            runtime(session).lifecycle.closeWrites();
             session.status = "stopping";
             let saved, saveError;
             try {
@@ -1656,8 +1728,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
               cleanupFailures.push(stage);
               console.warn(`${stage}失败`, reason);
             });
-            writeChain = Promise.resolve();
-            pending.clear();
+            sessionTasks.release(session);
             const failure = interruptionFailure(saveError, cleanupFailures);
             if (failure) throw failure;
             return saved;
@@ -1680,7 +1751,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     }
     await ensureReady();
     if (message.type === "GET_STATUS")
-      return { active: active ? { id: active.id, status: active.status } : null };
+      return { active: statusSummary(active) };
     if (message.type === "GET_STATE")
       return {
         active,
@@ -1694,20 +1765,22 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         const acknowledged = new Promise((resolve, reject) => { resolveStart = resolve; rejectStart = reject; });
         const preparation = start(message.tab, message.options || {}, (session) => {
           created = session;
+          track(preparation, session);
           resolveStart({ id: session.id });
         }).catch(async (error) => {
           if (created && active === created && ["preparing", "recording"].includes(created.status))
             await interrupt(created, "录制准备失败，已保存可用的部分记录");
           if (!created) rejectStart(error);
         });
-        track(preparation);
         return acknowledged;
       }
       let created;
       try {
-        return await start(message.tab, message.options || {}, (session) => {
+        const preparation = start(message.tab, message.options || {}, (session) => {
           created = session;
+          track(preparation, session);
         });
+        return await preparation;
       } catch (error) {
         if (created && active === created && ["preparing", "recording"].includes(created.status))
           await interrupt(created, "录制准备失败，已保存可用的部分记录");
@@ -1726,12 +1799,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     }
     if (["COLLECTOR_OVERFLOW", "COLLECTOR_UNRESPONSIVE"].includes(message.type)) {
       if (!active || message.sessionId !== active.id || !active.tabs[sender.tab?.id] ||
-          !allowedUrl(sender.url) || !["preparing", "recording", "stopping"].includes(active.status)) return false;
+          !allowedUrl(sender.url) || !acceptsExternal(active)) return false;
       const session = active;
       const overflow = message.type === "COLLECTOR_OVERFLOW";
       const key = overflow ? "collectorQueueOverflow" : "collectorUnresponsive";
       if (!session[key]) {
         session[key] = true;
+        if (!overflow) session.communicationUnknown = true;
         session.incomplete = true;
         chrome.action.setBadgeText({ text: "!" }).catch(() => {});
         await warning(overflow ? "页面事件发送队列已满，部分事件未保存" : "页面事件通信未确认，部分记录可能缺失", { tabId: sender.tab.id, frameId: sender.frameId });
@@ -1744,7 +1818,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         !active ||
         message.sessionId !== active.id ||
         !active.tabs[sender.tab?.id] ||
-        !["preparing", "recording", "stopping"].includes(active.status)
+        !acceptsExternal(active)
       )
         return false;
       const origin = (() => {
@@ -1758,21 +1832,24 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       if (!Array.isArray(message.events) || message.events.length > 100 ||
           (message.batchId != null && (typeof message.batchId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.batchId)))) return false;
       const session = active;
-      const { events, results } = await appendPageBatch(message.events, sender, session, message.batchId);
-      const accepted = results.filter((result) => result === "created" || result === "existing").length;
-      if (active === session && session.options.screenshots)
-        for (let index = 0; index < events.length; index++) {
-          if (results[index] === "created" && message.events[index].screenshot)
-            requestScreenshot(events[index].id, sender.tab.id, sender.frameId, sender.documentId, events[index].payload.url);
-          if (results[index] === "created" && events[index].kind === "page.snapshot")
-            requestFullPageScreenshot(events[index], session);
+      const acceptedTask = (async () => {
+        const { events, results } = await appendPageBatch(message.events, sender, session, message.batchId);
+        const accepted = results.filter((result) => result === "created" || result === "existing").length;
+        if (active === session && runtime(session).lifecycle.canWrite() && session.options.screenshots)
+          for (let index = 0; index < events.length; index++) {
+            if (results[index] === "created" && message.events[index].screenshot)
+              requestScreenshot(events[index].id, sender.tab.id, sender.frameId, sender.documentId, events[index].payload.url);
+            if (results[index] === "created" && events[index].kind === "page.snapshot")
+              requestFullPageScreenshot(events[index], session);
+          }
+        if (active === session && runtime(session).lifecycle.canWrite() && session.options.screenshots && !session.retryScreenshotGap &&
+            results.some((result, index) => result === "existing" && message.events[index].screenshot)) {
+          session.retryScreenshotGap = true;
+          track(warning("重试前已保存的操作可能缺少截图，请检查截图记录"));
         }
-      if (active === session && session.options.screenshots && !session.retryScreenshotGap &&
-          results.some((result, index) => result === "existing" && message.events[index].screenshot)) {
-        session.retryScreenshotGap = true;
-        track(warning("重试前已保存的操作可能缺少截图，请检查截图记录"));
-      }
-      return { accepted, failed: message.events.length - accepted };
+        return { accepted, failed: message.events.length - accepted };
+      })();
+      return await track(acceptedTask, session);
     }
     return null;
   })()
@@ -1786,6 +1863,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 chrome.debugger.onEvent.addListener(
   afterReady((source, method, params) => {
     if (!active || !active.tabs[source.tabId]) return;
+    const session = active;
     if (method === "Target.detachedFromTarget") {
       childScopes.delete(params.sessionId);
       childDocuments.delete(params.sessionId);
@@ -1811,11 +1889,13 @@ chrome.debugger.onEvent.addListener(
           });
           await chrome.debugger.sendCommand(child, "Page.enable");
           await enableChildTargets(child);
+          if (active?.id !== sessionId || !isActiveSession(active) || !runtime(active).lifecycle.canWrite()) return;
           const before = childDocuments.get(params.sessionId);
           try {
             const tree = await withDeadline(chrome.debugger.sendCommand(child, "Page.getFrameTree"), 1500, "框架实例检查");
             const frame = tree?.frameTree?.frame;
-            if (before && childDocuments.get(params.sessionId) === before && frame?.id === before.frameId) {
+            if (active?.id === sessionId && isActiveSession(active) && runtime(active).lifecycle.canWrite() &&
+                before && childDocuments.get(params.sessionId) === before && frame?.id === before.frameId) {
               childDocuments.set(params.sessionId, { frameId: frame.id, loaderId: frame.loaderId, url: frame.url });
               setChildScope(params.sessionId, source.tabId, allowedUrl(frame.url));
             }
@@ -2046,7 +2126,7 @@ chrome.debugger.onEvent.addListener(
               const captured = responseBlob({ body: bytes, base64Encoded: true }, "application/octet-stream");
               const id = uid();
               if (active?.id !== sessionId) return;
-              await put("assets", { id, sessionId, type: "resource", mime: "application/octet-stream", blob: captured.blob });
+              await putAsset({ id, sessionId, type: "resource", mime: "application/octet-stream", blob: captured.blob }, session);
               entries.push({ index, metadata, status: "captured", assetId: id, size: captured.blob.size });
             } catch (error) { entries.push({ index, metadata, status: "unavailable", reason: String(error) }); }
           }
@@ -2076,7 +2156,7 @@ chrome.debugger.onEvent.addListener(
                 const captured = responseBlob({ body: result.postData, base64Encoded: result.base64Encoded }, ct.split(";")[0]);
                 const id = uid();
                 if (active?.id !== sessionId) return;
-                await put("assets", { id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob });
+                await putAsset({ id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob }, session);
                 body = { value: null, status: "captured_asset", assetId: id, size: captured.blob.size,
                   representation: captured.representation, encoding: captured.encoding,
                   ...(/^multipart\/form-data/i.test(ct) ? { fileContent: "browser_may_omit" } : {}) };
@@ -2169,7 +2249,7 @@ chrome.debugger.onEvent.addListener(
             const assetMime = fontType || captured.blob.type || "application/octet-stream";
             assetId = uid();
             if (active?.id !== sessionId || item.finalized) return;
-            await put("assets", { id: assetId, sessionId, type: "resource", mime: assetMime, blob: captured.blob });
+            await putAsset({ id: assetId, sessionId, type: "resource", mime: assetMime, blob: captured.blob }, session);
             body = { value: null, status: "captured_asset", assetId, size: captured.blob.size,
               representation: captured.representation, encoding: captured.encoding };
           } catch (error) {
@@ -2209,7 +2289,7 @@ chrome.debugger.onEvent.addListener(
             const captured = responseBlob(responseResult, mime);
             const id = uid();
             if (active?.id !== sessionId || item.finalized) return;
-            await put("assets", { id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob });
+            await putAsset({ id, sessionId, type: "resource", mime: captured.blob.type || "application/octet-stream", blob: captured.blob }, session);
             assetId = id;
             body = { value: null, status: "captured_asset", assetId: id, size: captured.blob.size,
               representation: captured.representation, encoding: captured.encoding };
@@ -2410,7 +2490,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
       details.frameId !== 0
     )
       return;
-    const target = active.tabs[details.tabId];
+    const session = active, target = session.tabs[details.tabId];
     target.inScope = allowedUrl(details.url);
     track(persistSessionState(active));
     if (!target.inScope) {
@@ -2431,7 +2511,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener(
         chrome.tabs
           .sendMessage(details.tabId, { type: "SNAPSHOT" }, { frameId: 0 })
           .catch(() =>
-            warning("路由变化时无法取得页面状态", { tabId: details.tabId }),
+            warning("路由变化时无法取得页面状态", { tabId: details.tabId }, session),
           ),
       );
   }),
@@ -2595,9 +2675,7 @@ chrome.runtime.onStartup.addListener(() => {
           ["preparing", "recording", "stopping"].includes(session.status) &&
           session.id !== active?.id
         ) {
-          session.status = "interrupted";
-          session.interruptedAt = Date.now();
-          await put("sessions", session);
+          await interruptSession(session, "浏览器启动时发现无活动 owner 的未结束批次，已保留可用记录");
         }
       }
     })(),

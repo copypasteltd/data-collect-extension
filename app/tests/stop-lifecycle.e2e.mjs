@@ -1,9 +1,8 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { unzipSync, strFromU8 } from "fflate";
 
 const server = http.createServer((request, response) => {
@@ -18,35 +17,16 @@ const server = http.createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const profile = await fs.mkdtemp(path.resolve("test-stop-lifecycle-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-stop-lifecycle-extension-"));
-let context, browser, root, child, exited;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json");
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
   manifest.host_permissions = ["http://*/*", "https://*/*"];
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
-  child = spawn(process.env.CHROME_BIN || chromium.executablePath(), [
-    `--user-data-dir=${profile}`, "--headless=new", "--remote-debugging-port=0",
-    "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
-    "--disable-background-networking", "--no-proxy-server", "--window-size=1000,700", "about:blank",
-  ], { windowsHide: true, stdio: "ignore" });
-  let launchError;
-  exited = new Promise((resolve) => {
-    child.once("exit", resolve);
-    child.once("error", (error) => { launchError = error; resolve(); });
-  });
-  let port;
-  const launchDeadline = Date.now() + 15000;
-  while (Date.now() < launchDeadline && !port) {
-    if (launchError) throw launchError;
-    try { port = Number((await fs.readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]); }
-    catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
-  }
-  assert.ok(port, "Chrome 调试接口未启动");
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  root = await browser.newBrowserCDPSession();
-  const { id } = await root.send("Extensions.loadUnpacked", { path: extension });
-  context = browser.contexts()[0];
+  browser = await launchExtension(profile, extension, ["--window-size=1000,700"]);
+  const id = browser.id;
+  context = browser.context;
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/first`);
   let panel = await context.newPage();
@@ -281,9 +261,21 @@ try {
   await panel.getByRole("button", { name: "正在结束…" }).waitFor();
   assert.equal(await panel.getByRole("button", { name: "正在结束…" }).isDisabled(), true);
   const duringCleanup = await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
-  assert.equal(duringCleanup.value.active?.status, "stopping", "状态清理期间不能提前开放下一批录制");
+  const cleanupSession = duringCleanup.value.sessions[0];
+  assert.equal(duringCleanup.value.active?.id, cleanupSession.id, "状态清理期间必须保留当前批次的操作锁");
+  assert.equal(duringCleanup.value.active.status, "ready", "证据封存完成后保留终态，不回退为停止中");
+  assert.equal(duringCleanup.value.active.writeState, "sealed");
+  assert.ok(duringCleanup.value.active.seal, "状态清理之前证据必须已经封存");
+  assert.deepEqual(duringCleanup.value.active.seal, cleanupSession.seal);
+  const blockedStart = await panel.evaluate((tab) => chrome.runtime.sendMessage({
+    type: "START", tab, options: { screenshots: false, scope: "browser" },
+  }), { id: cleanupSession.tabId, url: page.url() });
+  assert.equal(blockedStart.ok, false, "状态清理期间不能通过直接消息开启下一批录制");
+  assert.match(blockedStart.error, /已有录制任务进行中/);
+  assert.equal(await panel.getByRole("button", { name: "正在结束…" }).isDisabled(), true);
   await worker.evaluate(() => globalThis.releaseStateCleanup());
   await panel.getByRole("button", { name: "开始录制" }).waitFor({ timeout: 15000 });
+  assert.equal((await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }))).value.active, null);
   console.log("关闭并重开侧边栏不会打断停止收尾");
 
   await worker.evaluate(() => {
@@ -440,11 +432,8 @@ try {
   console.log("录制状态写入未完成时可停止，迟到写入不会覆盖新批次");
   console.log("准备期间可停止并导出，迟到注入不影响下一批录制");
 } finally {
-  if (root) await root.send("Browser.close").catch(() => {});
-  if (browser) await browser.close().catch(() => {});
-  if (child && child.exitCode === null) child.kill();
-  if (exited) await exited;
+  if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

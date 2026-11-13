@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import path from "node:path";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
@@ -6,7 +6,7 @@ import { unzipSync, strFromU8 } from "fflate";
 
 const profile = await fs.mkdtemp(path.resolve("test-recovery-stop-profile-"));
 const extension = await fs.mkdtemp(path.resolve("test-recovery-stop-extension-"));
-let context;
+let context, browser;
 try {
   await fs.cp(path.resolve("dist"), extension, { recursive: true });
   const background = path.join(extension, "background.js");
@@ -20,13 +20,12 @@ try {
       }
       return originalGet.apply(this, args);
     };\n` + source);
-  context = await chromium.launchPersistentContext(profile, {
-    executablePath: process.env.CHROME_BIN || chromium.executablePath(), headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-  });
-  let worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker", { timeout: 15000 });
+  browser = await launchExtension(profile, extension);
+  context = browser.context;
   const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${new URL(worker.url()).host}/sidepanel.html`);
+  await panel.goto(`chrome-extension://${browser.id}/sidepanel.html`);
+  let worker = context.serviceWorkers().find((item) => item.url().startsWith(`chrome-extension://${browser.id}/`)) ||
+    await context.waitForEvent("serviceworker", { predicate: (item) => item.url().startsWith(`chrome-extension://${browser.id}/`), timeout: 15000 });
   await panel.evaluate(() => chrome.runtime.sendMessage({ type: "GET_STATE" }));
   const cdp = await context.newCDPSession(panel);
   await cdp.send("ServiceWorker.enable");
@@ -129,7 +128,7 @@ try {
   assert.equal(afterCombined.value.sessions.find((session) => session.id === "review-combined").status, "interrupted");
   console.log("归档和清理同时失败时同时报告，写入恢复后保留批次");
 } finally {
-  if (context) await context.close();
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  if (browser) await browser.close();
+  await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

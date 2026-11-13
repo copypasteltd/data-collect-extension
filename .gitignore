@@ -11,3 +11,5 @@
 .env.*
 !.env.example
 *.zip
+__pycache__/
+*.pyc

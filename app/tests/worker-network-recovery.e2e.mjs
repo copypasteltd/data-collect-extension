@@ -1,4 +1,4 @@
-import { launchExtension } from "./chrome-harness.mjs";
+import { launchExtension, removeTestProfile } from "./chrome-harness.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -146,6 +146,6 @@ try {
   if (postResponse && !postResponse.writableEnded) postResponse.end();
   if (browser) await browser.close();
   await new Promise((resolve) => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  await removeTestProfile(profile, () => fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
   await fs.rm(extension, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
 }

@@ -31,6 +31,8 @@ h1 { margin: 16px 0 18px; font-size: 21px; }
 .export:hover:not(:disabled) { background: #e8f1ed; }
 .error { display: flex; gap: 9px; margin-top: 16px; padding: 11px 12px; border-radius: 5px; color: #8e3c31; background: #fbece8; font-size: 12px; line-height: 1.5; }
 .error svg { flex: none; }
+.disclosure { margin: 10px 0 0; color: #4f625c; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.notice { margin: 12px 0 0; padding: 10px 12px; border: 1px solid #b5cabf; border-radius: 5px; color: #304f44; background: #edf4ef; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .batches { margin-top: 32px; }
 h2 { margin: 0 0 10px; font-size: 14px; }
 .batch-list { max-height: 360px; overflow-y: auto; border-top: 1px solid #dfe8e4; }
