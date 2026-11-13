@@ -14,6 +14,8 @@ export function canExportRecording(active, selectedId, controlOperation, exportO
 
 export function recordingNotice(active) {
   if (!active) return "";
+  if (active.budget?.policyStopped) return "已达到本批采集预算，正在停止。已保存内容会保留，超额部分未采集。";
+  if (active.budget?.warning) return "本批已保存内容接近48 MiB，请尽快结束当前步骤并停止录制。";
   if (active.storageError) return "本地保存出现异常，请停止录制。已确认保存的内容会保留。";
   if (active.communicationUnknown) return "部分采集确认尚不确定，请停止后核验；未确认不等于确定丢失。";
   if (active.captureIncomplete || active.needsVerification || active.incomplete || active.hasNotice)
@@ -23,6 +25,7 @@ export function recordingNotice(active) {
 
 export function batchStatusLabel(session) {
   if (session.status === "interrupted") return "录制中断";
+  if (session.budget?.policyStopped) return "已按容量停止，部分记录可导出";
   const coverage = session.coverage;
   const hasKnownGaps = coverage && (coverage.status === "unavailable" ||
     Object.entries(coverage).some(([key, value]) =>

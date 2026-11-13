@@ -1,0 +1,354 @@
+{
+  "schemaVersion": 1,
+  "reviewRound": 1,
+  "reviewMode": "bounded-independent-source-review",
+  "generatedAt": "2026-11-13T19:08:24.050Z",
+  "status": "scoped_pass_source_only",
+  "sourceRef": {
+    "commit": "3bfa7ae45c9350d3766e6dbb85a5b7547eb48682",
+    "dirty": true
+  },
+  "scope": [
+    "app/src/flow-budget.js",
+    "app/src/flow-store.js",
+    "app/src/flow-background.js",
+    "app/src/flow-content.js",
+    "app/src/flow-archive.js",
+    "app/src/sidepanel.jsx",
+    "app/src/panel-state.js",
+    "app/vite.config.js",
+    "app/public/manifest.json"
+  ],
+  "directDependenciesRead": [
+    "app/src/archive-task.js",
+    "app/src/archive-compression.js",
+    "app/src/downloads.js"
+  ],
+  "excluded": [
+    "Legacy recorder broad audit or old 50-target acceptance",
+    "Real Chrome profiles and user raw data",
+    "Production edits, build, push, release, installation or real recording",
+    "Parallel rerun of legacy tests, performance or native acceptance owned by parent"
+  ],
+  "execution": {
+    "targetCodeExecuted": false,
+    "chromeValidated": false,
+    "nativeAcceptanceClaimed": false,
+    "reason": "Source-only review; no OS-enforced audit execution sandbox provisioned, and parent owns native acceptance."
+  },
+  "sourceHashes": {
+    "app/src/flow-budget.js": "fa991068e31c767074acaf0d0f298f15d12275c933a9b2964182eea17e6c8c55",
+    "app/src/flow-store.js": "67ec115130c97dd5536e416aaa8f59b29022377f401aff9801137298fb561e9b",
+    "app/src/flow-background.js": "62a8de47ca75def5e94173cb1fd1b607dcbf82ac306757522dd7f6dd01d36460",
+    "app/src/flow-content.js": "31e3588db0e95589d23c39d67c6521e3f64e20e3518b8d8d223d837b605ce580",
+    "app/src/flow-archive.js": "24266a18d15e0714b1cbbedfed9f4ff2fb11b3198885b76dec3087470140db73",
+    "app/src/sidepanel.jsx": "62d685904f9de0a08b9cfff8a983c457ae197af9aa6105103245f5e2e3a93499",
+    "app/src/panel-state.js": "727004465559a92f6f64a6de0f08953df7a247f8dadf8503e665d73a65094db2",
+    "app/vite.config.js": "e113023c789b52993544e0afbae4c4b71de1ea52304765de24d8f32a21b90e25",
+    "app/public/manifest.json": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08",
+    "app/src/archive-task.js": "02d60be55d8f6e2b8087fff575e172e65d803db00a7d5429f68f406be86e523b",
+    "app/src/archive-compression.js": "052f91063d77eac41434b0b7d2e03fab503efb4f595fd810530a8dcfc0a7b689"
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "high",
+      "status": "resolved_source_only",
+      "title": "Unattributed WebSocket was persisted using root permission",
+      "trigger": "Authorized root embeds unauthorized/unattributed frame; that frame opens WebSocket with private query URL.",
+      "evidence": [
+        "Original WebSocketCreated checked root permission and persisted p.url without allowed frame mapping.",
+        "Fixed lines 382-386 require mapped frame.allowed, HTTP(S), permission and unchanged frame object; unknown source becomes bounded gap."
+      ],
+      "fixHash": "62a8de47ca75def5e94173cb1fd1b607dcbf82ac306757522dd7f6dd01d36460",
+      "validation": "Fix source inspected only. No reviewer Chrome validation.",
+      "resolved": true,
+      "closure": {
+        "reviewRound": 1,
+        "closedAt": "2026-11-13T19:13:30.713Z",
+        "method": "read_minimal_fix_and_targeted_assertions_only",
+        "evidence": [
+          "Final background lines400-404 still require allowed HTTP(S) frame, current permission and unchanged frame object before persisting URL.",
+          "Target assertions background tests257-276 reject unattributed/denied/revoked frame URLs and query strings; allow mapped root."
+        ],
+        "locations": [
+          "app/src/flow-background.js:397-408",
+          "app/tests/flow-background.test.js:257-276"
+        ],
+        "sourceFixHashes": {
+          "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82"
+        },
+        "reviewerExecutedTests": false,
+        "chromeValidated": false
+      }
+    },
+    {
+      "id": "R2",
+      "severity": "high",
+      "status": "resolved_source_only",
+      "title": "Same-document reinjection resets batch IDs and silently deduplicates new observations",
+      "trigger": "Persist root batches; iframe navigation or tab complete triggers allFrames injection; same root document/token collector resets; edit root again.",
+      "locations": [
+        "app/src/flow-background.js:151",
+        "app/src/flow-background.js:230-238",
+        "app/src/flow-background.js:414-415",
+        "app/src/flow-content.js:3-10",
+        "app/src/flow-content.js:32-35",
+        "app/src/flow-content.js:70-71",
+        "app/src/flow-store.js:343-352"
+      ],
+      "evidence": [
+        "Batch ID was ownerToken plus reset batchNo.",
+        "Durable key is tabId:frameId:documentId:batchId:index; new values can return accepted duplicate.",
+        "dispose also clears pending/queued observations without flush."
+      ],
+      "requiredFix": "Keep same-owner same-document collector/queue; distinct nonce for replacement; inject only required document/frame; prove root old/new values survive iframe navigation.",
+      "validation": "Source confirmed; parent accepted and implementing minimum repair.",
+      "resolved": true,
+      "closure": {
+        "reviewRound": 1,
+        "closedAt": "2026-11-13T19:13:30.713Z",
+        "method": "read_minimal_fix_and_targeted_assertions_only",
+        "evidence": [
+          "Content lines4-16 share bootstrap; same active ownership/document returns without disposal, retaining in-flight ACK and pending queue.",
+          "Each collector has crypto nonce line29; batchId line85 includes nonce, so legitimate replacement cannot reuse durable keys.",
+          "Background lines146-163 inject only allowed frame/document not previously injected; unchanged root is not reset by iframe navigation/tab complete.",
+          "Target content tests225-261 hold ACK over reinjection, retain both original changes/beforeValue, unique IDs, one listener/bootstrap; closed same-token restart gets fresh nonce.",
+          "Background tests176-192 assert each document once, no allFrames/denied injection, root values before/after iframe navigation retained."
+        ],
+        "locations": [
+          "app/src/flow-content.js:3-29",
+          "app/src/flow-content.js:46-51",
+          "app/src/flow-content.js:84-85",
+          "app/src/flow-background.js:140-181",
+          "app/tests/flow-content.test.js:225-261",
+          "app/tests/flow-background.test.js:176-192"
+        ],
+        "sourceFixHashes": {
+          "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82",
+          "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb"
+        },
+        "reviewerExecutedTests": false,
+        "chromeValidated": false
+      }
+    },
+    {
+      "id": "R3",
+      "severity": "medium",
+      "status": "resolved_source_only",
+      "title": "Short-lived business dialog/validation text disappears before delayed checkpoint",
+      "trigger": "Show role=alert after click just after snapshot; remove within 200ms; no invalid event carries alert text.",
+      "locations": [
+        "app/src/flow-content.js:158-177",
+        "app/src/flow-content.js:298-305",
+        "app/src/flow-content.js:322-328"
+      ],
+      "evidence": [
+        "Observer schedules later snapshot without retaining state/text.",
+        "Minimum500ms capture spacing means short alert is absent in both snapshots and no omission marked."
+      ],
+      "requiredFix": "Retain bounded critical transition evidence, or leave non-omission release gate unpassed; not full mutation log.",
+      "validation": "Concrete source timing trace only, not native failure; parent accepted minimum immediate state evidence repair.",
+      "resolved": true,
+      "closure": {
+        "reviewRound": 1,
+        "closedAt": "2026-11-13T19:13:30.713Z",
+        "method": "read_minimal_fix_and_targeted_assertions_only",
+        "evidence": [
+          "Content lines153-185 immediately emits recorder.notice transient_state text and lightweight state, with first-use original long text as top-level dom content.",
+          "Observer lines205-225 records added/removed relevant state without waiting delayed full checkpoint.",
+          "Per callback at most8 states/8192bytes; text walk at most128nodes/depth8 and oversize emits explicit transient-text-scan-limit policy.",
+          "Target content tests264-292 assert added/removed short-lived alert original text despite absent final snapshot, long original text content ref,8KiB/state cap and giant text policy."
+        ],
+        "locations": [
+          "app/src/flow-content.js:153-185",
+          "app/src/flow-content.js:205-225",
+          "app/tests/flow-content.test.js:264-292"
+        ],
+        "sourceFixHashes": {
+          "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb"
+        },
+        "reviewerExecutedTests": false,
+        "chromeValidated": false
+      }
+    }
+  ],
+  "coverage": [
+    {
+      "area": "64MiB/reserve/category/dedup",
+      "result": "inspected_no_additional_finding",
+      "evidence": "Atomic event JSONL exact charge plus unique content; category first use charged separately; normal63/final64MiB/meta3/4MiB."
+    },
+    {
+      "area": "Known2MiB before read",
+      "result": "inspected_no_additional_finding",
+      "evidence": "Store sizes before Blob; background known headers/encoded before CDP plus reserve; unknown post-decode bounded, not physically streaming."
+    },
+    {
+      "area": "Ownership/seal/captureKey/token",
+      "result": "R2_open_otherwise_inspected",
+      "evidence": "Readwrite owner comparison; unique last stop/count/watermark; projections remove private fields. Recovery uses independent new DB and control awaits ready."
+    },
+    {
+      "area": "Root+child/frame permissions",
+      "result": "R1_source_fixed_R2_open",
+      "evidence": "Exact root, persisted trusted gesture/opener/one child gate; pending blank isolated; no native assertion."
+    },
+    {
+      "area": "Content and intermediate states",
+      "result": "R2_R3_open",
+      "evidence": "Bounded DOM/forms/CSSOM/resources; no computed/cache/cookie scans. Transient state gap identified."
+    },
+    {
+      "area": "Stop policy/failure/busy",
+      "result": "inspected_no_additional_finding",
+      "evidence": "Policy versus write/transport failure explicit; flush/detach/drain/gate/seal; UI finally; no timing acceptance claimed."
+    },
+    {
+      "area": "Purearchive/immutable refs/overhead",
+      "result": "inspected_no_additional_finding",
+      "evidence": "Exact raw logical budget; SHA/ref/bytes recheck; seal watermark before/after; max(5%,1MiB) overhead; no derive."
+    }
+  ],
+  "notAcceptanceEvidence": [
+    "Old50target/legacy373 results",
+    "Parent65target/native reports not independently run here",
+    "Source hashes (not installed Chrome bytes)",
+    "Source fix closure (not native acceptance)"
+  ],
+  "initialReview": {
+    "status": "needs_revision",
+    "generatedAt": "2026-11-13T19:08:24.050Z",
+    "findings": [
+      {
+        "id": "R1",
+        "severity": "high",
+        "status": "fixed_source_only",
+        "title": "Unattributed WebSocket was persisted using root permission",
+        "trigger": "Authorized root embeds unauthorized/unattributed frame; that frame opens WebSocket with private query URL.",
+        "evidence": [
+          "Original WebSocketCreated checked root permission and persisted p.url without allowed frame mapping.",
+          "Fixed lines 382-386 require mapped frame.allowed, HTTP(S), permission and unchanged frame object; unknown source becomes bounded gap."
+        ],
+        "fixHash": "62a8de47ca75def5e94173cb1fd1b607dcbf82ac306757522dd7f6dd01d36460",
+        "validation": "Fix source inspected only. No reviewer Chrome validation."
+      },
+      {
+        "id": "R2",
+        "severity": "high",
+        "status": "open",
+        "title": "Same-document reinjection resets batch IDs and silently deduplicates new observations",
+        "trigger": "Persist root batches; iframe navigation or tab complete triggers allFrames injection; same root document/token collector resets; edit root again.",
+        "locations": [
+          "app/src/flow-background.js:151",
+          "app/src/flow-background.js:230-238",
+          "app/src/flow-background.js:414-415",
+          "app/src/flow-content.js:3-10",
+          "app/src/flow-content.js:32-35",
+          "app/src/flow-content.js:70-71",
+          "app/src/flow-store.js:343-352"
+        ],
+        "evidence": [
+          "Batch ID was ownerToken plus reset batchNo.",
+          "Durable key is tabId:frameId:documentId:batchId:index; new values can return accepted duplicate.",
+          "dispose also clears pending/queued observations without flush."
+        ],
+        "requiredFix": "Keep same-owner same-document collector/queue; distinct nonce for replacement; inject only required document/frame; prove root old/new values survive iframe navigation.",
+        "validation": "Source confirmed; parent accepted and implementing minimum repair."
+      },
+      {
+        "id": "R3",
+        "severity": "medium",
+        "status": "open",
+        "title": "Short-lived business dialog/validation text disappears before delayed checkpoint",
+        "trigger": "Show role=alert after click just after snapshot; remove within 200ms; no invalid event carries alert text.",
+        "locations": [
+          "app/src/flow-content.js:158-177",
+          "app/src/flow-content.js:298-305",
+          "app/src/flow-content.js:322-328"
+        ],
+        "evidence": [
+          "Observer schedules later snapshot without retaining state/text.",
+          "Minimum500ms capture spacing means short alert is absent in both snapshots and no omission marked."
+        ],
+        "requiredFix": "Retain bounded critical transition evidence, or leave non-omission release gate unpassed; not full mutation log.",
+        "validation": "Concrete source timing trace only, not native failure; parent accepted minimum immediate state evidence repair."
+      }
+    ],
+    "coverage": [
+      {
+        "area": "64MiB/reserve/category/dedup",
+        "result": "inspected_no_additional_finding",
+        "evidence": "Atomic event JSONL exact charge plus unique content; category first use charged separately; normal63/final64MiB/meta3/4MiB."
+      },
+      {
+        "area": "Known2MiB before read",
+        "result": "inspected_no_additional_finding",
+        "evidence": "Store sizes before Blob; background known headers/encoded before CDP plus reserve; unknown post-decode bounded, not physically streaming."
+      },
+      {
+        "area": "Ownership/seal/captureKey/token",
+        "result": "R2_open_otherwise_inspected",
+        "evidence": "Readwrite owner comparison; unique last stop/count/watermark; projections remove private fields. Recovery uses independent new DB and control awaits ready."
+      },
+      {
+        "area": "Root+child/frame permissions",
+        "result": "R1_source_fixed_R2_open",
+        "evidence": "Exact root, persisted trusted gesture/opener/one child gate; pending blank isolated; no native assertion."
+      },
+      {
+        "area": "Content and intermediate states",
+        "result": "R2_R3_open",
+        "evidence": "Bounded DOM/forms/CSSOM/resources; no computed/cache/cookie scans. Transient state gap identified."
+      },
+      {
+        "area": "Stop policy/failure/busy",
+        "result": "inspected_no_additional_finding",
+        "evidence": "Policy versus write/transport failure explicit; flush/detach/drain/gate/seal; UI finally; no timing acceptance claimed."
+      },
+      {
+        "area": "Purearchive/immutable refs/overhead",
+        "result": "inspected_no_additional_finding",
+        "evidence": "Exact raw logical budget; SHA/ref/bytes recheck; seal watermark before/after; max(5%,1MiB) overhead; no derive."
+      }
+    ]
+  },
+  "closureAt": "2026-11-13T19:13:30.713Z",
+  "finalSourceHashes": {
+    "app/src/flow-budget.js": "fa991068e31c767074acaf0d0f298f15d12275c933a9b2964182eea17e6c8c55",
+    "app/src/flow-store.js": "67ec115130c97dd5536e416aaa8f59b29022377f401aff9801137298fb561e9b",
+    "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82",
+    "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb",
+    "app/src/flow-archive.js": "24266a18d15e0714b1cbbedfed9f4ff2fb11b3198885b76dec3087470140db73",
+    "app/src/sidepanel.jsx": "62d685904f9de0a08b9cfff8a983c457ae197af9aa6105103245f5e2e3a93499",
+    "app/src/panel-state.js": "727004465559a92f6f64a6de0f08953df7a247f8dadf8503e665d73a65094db2",
+    "app/vite.config.js": "e113023c789b52993544e0afbae4c4b71de1ea52304765de24d8f32a21b90e25",
+    "app/public/manifest.json": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08",
+    "app/src/archive-task.js": "02d60be55d8f6e2b8087fff575e172e65d803db00a7d5429f68f406be86e523b",
+    "app/src/archive-compression.js": "052f91063d77eac41434b0b7d2e03fab503efb4f595fd810530a8dcfc0a7b689",
+    "app/tests/flow-background.test.js": "9730d8d39a6d6a2c9b87a5913bc588a1f372c80507ffcac29df1dd1c5c42ead8",
+    "app/tests/flow-content.test.js": "eecf3037953162e8a0d437e68654ceef4267e322d293c8a424c33269297f9795"
+  },
+  "closureLedger": {
+    "reviewRound": 1,
+    "scope": "Only R1-R3 repair closure; no additional hunting or widened review",
+    "verdict": "scoped_pass_source_only",
+    "openFindingCount": 0,
+    "sourceFixHashes": {
+      "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82",
+      "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb",
+      "app/tests/flow-background.test.js": "9730d8d39a6d6a2c9b87a5913bc588a1f372c80507ffcac29df1dd1c5c42ead8",
+      "app/tests/flow-content.test.js": "eecf3037953162e8a0d437e68654ceef4267e322d293c8a424c33269297f9795"
+    },
+    "parentReportedTests": {
+      "content": 15,
+      "background": 24,
+      "reviewerIndependentRun": false
+    },
+    "limitations": [
+      "Closes original concrete source triggers only; not a claim all possible DOM business states are complete.",
+      "Tests were read, not executed by reviewer; parent run results remain parent evidence.",
+      "No native Chrome validation,20round performance,60second volume acceptance,installed bundle verification or release approval implied."
+    ]
+  }
+}

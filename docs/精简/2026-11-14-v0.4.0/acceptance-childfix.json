@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "mode": "acceptance",
+  "generatedAt": "2026-11-13T19:00:27.586Z",
+  "status": "fail",
+  "nativePermissionTest": false,
+  "profile": "fresh-owned-synthetic-only",
+  "hostPregrant": "temporary extension-copy manifest http/https",
+  "durationPerRoundMs": 5000,
+  "roundsRequested": 1,
+  "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-acceptance-QEhlgB",
+  "rows": [],
+  "deferred": [
+    "budget edge/unit gates owned by parent",
+    "blind reconstruction owned by consumer",
+    "optional-host native permission prompt not tested"
+  ],
+  "candidate": {
+    "candidateHash": "1dd13558df9c616889d69449c9f67175f6523d80188f5c7ce3158049c9448ccd",
+    "files": [
+      {
+        "path": "assets/flow-store-CxZ7M775.js",
+        "size": 20276,
+        "sha256": "612da782a464f648430b4ba503006316a5ca75681c4a5c08c120e9a96b23a741"
+      },
+      {
+        "path": "assets/sidepanel-5xw1ZrYY.js",
+        "size": 180327,
+        "sha256": "19d028990eeaff74a455c247693088ea8d1be27e61de97e885a6d8f0e24b8a85"
+      },
+      {
+        "path": "assets/sidepanel-RQU0TV3r.css",
+        "size": 2468,
+        "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+      },
+      {
+        "path": "background.js",
+        "size": 28190,
+        "sha256": "71cd6087a934e1f6f3ec0bfcbb1341a58ef8a652c9bc742a8a3f5e1bd08cc8b3"
+      },
+      {
+        "path": "content.js",
+        "size": 13919,
+        "sha256": "55aacef84786591c503bc8ea13ee8c80fd1d7f61c104a22b716a2c8f7c21295e"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 935,
+        "sha256": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "f28449ce905a84cd1e4090f4e55601105dc9a0f93221ce7b4b8262a8642a551a"
+      }
+    ],
+    "package": {
+      "version": "0.4.0",
+      "sha256": "4a34ce10d7dc921eba1cefc2bc41c44869359c457bcc002ad5e673903c14e960"
+    }
+  },
+  "loadedManifestSha256": "2c64edee316f26e4c2abc23302852527df9eebd47742b82fa0a3492514ce05c0",
+  "firstFailure": {
+    "message": "worker.evaluate: TypeError: Cannot read properties of undefined (reading 'sendCommand')\n    at eval (eval at evaluate (:370:30), <anonymous>:1:79)\n    at UtilityScript.evaluate (<anonymous>:372:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+    "stack": "worker.evaluate: TypeError: Cannot read properties of undefined (reading 'sendCommand')\n    at eval (eval at evaluate (:370:30), <anonymous>:1:79)\n    at UtilityScript.evaluate (<anonymous>:372:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at runAcceptance (E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\tests\\flow-acceptance.e2e.mjs:191:18)\n    at async file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:245:95"
+  },
+  "cleanup": "confirmed-owned-browser-closed",
+  "finishedAt": "2026-11-13T19:00:29.699Z"
+}

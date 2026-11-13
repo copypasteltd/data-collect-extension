@@ -1,5 +1,32 @@
 # 逻辑记录包：格式和证据
 
+## v0.4.0 轻量业务格式 v3
+
+先按 `stderr`或标准输出的校验结果区分“可读”与“未通过”，不要用旧版解析 schema 假装理解 v3。格式版本不是产品版本；读取器继续离线支持 v1/v2，不访问或迁移旧 Chrome 数据库。
+
+- v3 清单为 `manifest.json`：`format: "logic-recorder"`、`version: 3`、`profile: "business-flow-v1"`、`session`、`eventCount`、`contentCount`、`eventChunks`、`contents`、`capturePolicy`、`budget` 和 `derivations: "none"`；`session.ownerToken` 不允许导出。`capturePolicy` 与 `budget` 是记录的策略和预算事实，不是读取器重新证明采集范围、业务成功或完整性的认证。
+- 事件由 `eventChunks` 顺序指定，从 `timeline/events-00001.jsonl` 起连续编号。每行一个原始 JSON 事件；事件 ID 唯一，`sessionId` 必须匹配清单，`seq` 是正安全整数且按接纳顺序递增。计数、大小和序号不把 bool 当整数，也不接受浮点数冒充整数。时间允许有限非负毫秒数；未知页面归属保持未知。
+- 每个 `contents` 项是 `{contentId,path,size,sha256,mime,category}`；`contentId = session.id + ":" + sha256`，路径只能是 `contents/<64位小写SHA-256>.bin`。相同会话的相同字节只存一份；空内容也是可校验的零字节文件，不代表未采集。MIME 为非空安全字符串；类别为 body/dom/resource/screenshot/meta，清单中仅保存首次内容的类别。MIME/类别是记录元信息，不能从扩展名或 hash 推断业务含义。
+- 原始内容直接取自 `event.payload[field] = {contentId,sha256,size,mime,category,status:"captured"}` 的引用；`field` 为任意 payload 顶层字段名。读取器只识别这个明确的 schema/status 组合；不会递归把嵌套业务 JSON 或只有 `contentId` 的普通对象认成内容引用。每个 captured 引用必须指向清单内 ID，且字节大小和 SHA-256 与清单一致；去重后不同观察的 MIME/类别可以不同，原事件均保留。
+- `integrity.json` 覆盖除自身外所有 ZIP 条目，包括清单、全部事件分块及内容。读取器检查计数、事件分块、内容路径及 ID 唯一性、完整性覆盖、真实展开大小及哈希、全部显式引用；无效/重复输入失败且删除本次未完成索引，不覆盖已有输出。路径穿越、加密条目、重复路径、配置的单文件/总展开大小等既有保护继续适用。校验通过只证明包内一致，不证明来源可信或业务已验收。
+- `contents/*.bin` 保存采集到的原值字节，不是派生字典。JSON、HTML、CSS、请求/响应、输入值或截图都必须回查对应事件、时间、文档身份及 MIME；浏览器解码后再编码的文本不是原始 HTTP 字节，DOM 表示也不是服务器原源码。不要执行其中 HTML/脚本、加载外网资源、提交表单或重放真实 API。
+- 轻量记录只描述实际取得的业务流程证据。Cookie、全站 Storage/IndexedDB/Cache、全计算样式、全页截图等按策略 `not_collected`（或策略明确的同义状态）处理，不当作失败后自动补采，也不声称已备份全站数据。预算停止、不可读或未访问分支都是缺口。`derivations:"none"` 不提供字段/主题字典、接口恢复、可执行回放或未观察分支；不得套用下列旧版派生字段说明补造数据。
+
+### v3 SQLite 轻索引
+
+原有 `events.event_json`、`files` 和 `metadata` 保留。新增 `contents(content_id,path,size,sha256,mime,category)` 与 `content_refs(event_id,field,content_id,mime,category)`，后者只记录显式顶层引用，不解析正文、不推断主题或操作与请求的因果。正文原字节仍在 ZIP，不另复制到数据库。CLI 的 `verification`、`events`、`files`、`contentCount` 为校验及统计结果；`files` 是 integrity 覆盖的条目数（不含 integrity 自身），不是采集覆盖率。
+
+```python
+for row in db.execute(
+    "SELECT r.event_id,r.field,c.path,c.size,c.sha256 FROM content_refs AS r "
+    "JOIN contents AS c ON c.content_id=r.content_id WHERE r.event_id=?",
+    ("<recorded-event-id>",),
+):
+    pass  # 按需读取精确 ZIP 路径；重新核对 size/hash 后才使用，不执行其内容。
+```
+
+以下 v0.3.x、资源目录、分片、计算样式和派生索引说明仅适用于包含对应字段的历史 v1/v2 包，不是 v3 采集能力声明。
+
 ## v0.3.0 读取契约
 
 v0.3.0修复分段终态、派生来源与封存一致性；读取器支持记录格式v1/v2，完整发布验证结果随release另附。全部原始事件应保留；下述更严格校验不允许通过删掉Failure或重复片来“修好”原包。

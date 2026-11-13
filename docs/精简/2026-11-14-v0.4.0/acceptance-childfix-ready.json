@@ -1,0 +1,368 @@
+{
+  "schema": 1,
+  "mode": "acceptance",
+  "generatedAt": "2026-11-13T19:01:23.058Z",
+  "status": "pass",
+  "nativePermissionTest": false,
+  "profile": "fresh-owned-synthetic-only",
+  "hostPregrant": "temporary extension-copy manifest http/https",
+  "durationPerRoundMs": 5000,
+  "roundsRequested": 1,
+  "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-acceptance-i030YS",
+  "rows": [
+    {
+      "round": 1,
+      "status": "pass",
+      "steps": [
+        "initial query + identical response",
+        "contact + emoji note before/after",
+        "required validation",
+        "modal + dropdown open",
+        "PUT save",
+        "POST debit 201: 100000 to 87200",
+        "POST excessive debit 409: unchanged",
+        "authorized frame lookup",
+        "trusted attributed child + lookup",
+        "return root GET recheck"
+      ],
+      "gates": [
+        {
+          "name": "1 raw v3 content refs and pure archive",
+          "status": "pass"
+        },
+        {
+          "name": "2 bounded scope root child and authorized frame only",
+          "status": "pass"
+        },
+        {
+          "name": "3 true key DOM and stable form before after values",
+          "status": "pass"
+        },
+        {
+          "name": "4 validation modal dropdown and viewport PNG",
+          "status": "pass"
+        },
+        {
+          "name": "5 server oracle and exact observed business HTTP",
+          "status": "pass"
+        },
+        {
+          "name": "6 CSS and repeated bodies dedup without conflating changes",
+          "status": "pass"
+        },
+        {
+          "name": "7 no heavy storage cookie computed theme or script uploads",
+          "status": "pass"
+        },
+        {
+          "name": "8 single final stop sealed exact bytes and bounded ZIP",
+          "status": "pass"
+        }
+      ],
+      "startedAt": "2026-11-13T19:01:28.975Z",
+      "businessDurationMs": 5011,
+      "traps": [
+        {
+          "frameId": 0,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        },
+        {
+          "frameId": 25,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        },
+        {
+          "frameId": 0,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        }
+      ],
+      "cdpMethods": [
+        "Network.enable",
+        "Page.enable",
+        "Page.getFrameTree",
+        "Page.captureScreenshot",
+        "Network.getResponseBody"
+      ],
+      "stopMs": 1124,
+      "exportMs": 1049,
+      "oracle": {
+        "contact": "13900001234",
+        "note": "预约💆‍♀️ — synthetic note 🧾",
+        "balance": 87200,
+        "writes": 2,
+        "attempts": 3,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13800000000",
+              "note": "",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13800000000",
+              "note": "",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "PUT",
+            "path": "/api/member",
+            "body": {
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "operator": "synthetic-operator"
+            },
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/debit",
+            "body": {
+              "amount": 12800
+            },
+            "status": 201,
+            "response": {
+              "debit": 12800,
+              "balance": 87200
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/debit",
+            "body": {
+              "amount": 9000000
+            },
+            "status": 409,
+            "response": {
+              "error": "INSUFFICIENT_BALANCE",
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/frame",
+            "body": {},
+            "status": 200,
+            "response": {
+              "authorizedFrame": true,
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 87200
+            }
+          }
+        ]
+      },
+      "archiveSha256": "2a97443d4aa8fe18df9efdfb822302924f7c2db6f8fffbba4211c508474ae139",
+      "archivePath": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-acceptance-i030YS\\round-1.zip",
+      "rawSummary": {
+        "scope": {
+          "rootTabId": 342464505,
+          "tabIds": [
+            342464505,
+            342464507
+          ]
+        },
+        "stopOutcome": {
+          "status": "ready",
+          "reason": "policy_gaps",
+          "stoppedAt": 1794596495282,
+          "policyStopped": false
+        },
+        "coverage": {
+          "version": 1,
+          "policyGaps": 1,
+          "reasons": {
+            "child_gesture_unconfirmed": 1
+          },
+          "physicalCdpStreamLimit": false
+        },
+        "kinds": {
+          "session.start": 1,
+          "page.snapshot": 17,
+          "screenshot": 8,
+          "page.stylesheet": 3,
+          "session.notice": 2,
+          "ui.click": 12,
+          "network.request": 8,
+          "network.response": 8,
+          "ui.change": 6,
+          "ui.scroll": 1,
+          "recorder.notice": 1,
+          "ui.submit": 1,
+          "scope.child": 1,
+          "session.stop": 1
+        },
+        "notices": [
+          {
+            "seq": 8,
+            "payload": {
+              "reason": "child_gesture_unconfirmed"
+            }
+          },
+          {
+            "seq": 22,
+            "payload": {
+              "url": "http://127.0.0.1:9977/root?round=1",
+              "target": {
+                "tag": "input",
+                "selector": "#operator",
+                "id": "operator",
+                "name": "",
+                "type": "",
+                "textPreview": "",
+                "role": ""
+              },
+              "reason": "validation",
+              "value": "",
+              "beforeValue": "",
+              "beforeChecked": false,
+              "checked": false,
+              "disabled": false
+            }
+          },
+          {
+            "seq": 69,
+            "payload": {
+              "reason": "policy_gaps"
+            }
+          }
+        ]
+      },
+      "eventCount": 70,
+      "contentCount": 35,
+      "expandedBytes": 458615,
+      "logicalBytes": 432923,
+      "zipBytes": 276668,
+      "sessionId": "34df4ee3-5f45-47b0-9985-dd5ca140ac98"
+    }
+  ],
+  "deferred": [
+    "budget edge/unit gates owned by parent",
+    "blind reconstruction owned by consumer",
+    "optional-host native permission prompt not tested"
+  ],
+  "candidate": {
+    "candidateHash": "9786c4b6d8df43d67fdad13dd7e4afd77163722ad7e357987369aa5a1dc6e624",
+    "files": [
+      {
+        "path": "assets/flow-store-COGUSsh1.js",
+        "size": 20809,
+        "sha256": "b34109ef084525d50217331cd0179680fa0bca8b19db584812747966726a4f6a"
+      },
+      {
+        "path": "assets/sidepanel-B8CbgvIW.js",
+        "size": 180327,
+        "sha256": "c9a0ba9ee8d3f61aef6eeae22e7039e2508a788ba19e42a98bad134f9a1a05b0"
+      },
+      {
+        "path": "assets/sidepanel-RQU0TV3r.css",
+        "size": 2468,
+        "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+      },
+      {
+        "path": "background.js",
+        "size": 28279,
+        "sha256": "193510a3cee3c8fe2e13d08908054799d6e10d77123b7fe73099f7f1f19070fe"
+      },
+      {
+        "path": "content.js",
+        "size": 13919,
+        "sha256": "55aacef84786591c503bc8ea13ee8c80fd1d7f61c104a22b716a2c8f7c21295e"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 935,
+        "sha256": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "94575058970cfd0985bae89865d70d09f5034f66086103f623c9fc4ae0057a38"
+      }
+    ],
+    "package": {
+      "version": "0.4.0",
+      "sha256": "4a34ce10d7dc921eba1cefc2bc41c44869359c457bcc002ad5e673903c14e960"
+    }
+  },
+  "loadedManifestSha256": "2c64edee316f26e4c2abc23302852527df9eebd47742b82fa0a3492514ce05c0",
+  "worker": {
+    "url": "chrome-extension://mhmkgemlpilpgfioeonepolomfejaelf/background.js",
+    "id": "mhmkgemlpilpgfioeonepolomfejaelf",
+    "debuggerApi": "function"
+  },
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "unrelatedTabsAtStart": 20,
+  "metrics": {
+    "stopP95Ms": 1124,
+    "exportP95Ms": 1049,
+    "workload": "1 x 5000ms, same 10 business interaction groups; not 20 x 60s"
+  },
+  "cleanup": "confirmed-owned-browser-closed",
+  "finishedAt": "2026-11-13T19:01:36.908Z"
+}

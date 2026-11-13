@@ -26,8 +26,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: resolve("sidepanel.html"),
-        background: resolve("src/background.js"),
-        content: resolve("src/content.js"),
+        background: resolve("src/flow-background.js"),
+        content: resolve("src/flow-content.js"),
       },
       output: {
         entryFileNames: (chunk) =>

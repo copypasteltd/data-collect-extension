@@ -1,0 +1,254 @@
+{
+  "schema": 1,
+  "mode": "acceptance",
+  "generatedAt": "2026-11-13T18:54:51.852Z",
+  "status": "fail",
+  "nativePermissionTest": false,
+  "profile": "fresh-owned-synthetic-only",
+  "hostPregrant": "temporary extension-copy manifest http/https",
+  "durationPerRoundMs": 5000,
+  "roundsRequested": 1,
+  "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-acceptance-V1jxwZ",
+  "rows": [
+    {
+      "round": 1,
+      "status": "fail",
+      "steps": [
+        "initial query + identical response",
+        "contact + emoji note before/after",
+        "required validation",
+        "modal + dropdown open",
+        "PUT save",
+        "POST debit 201: 100000 to 87200",
+        "POST excessive debit 409: unchanged",
+        "authorized frame lookup",
+        "trusted attributed child + lookup",
+        "return root GET recheck"
+      ],
+      "gates": [
+        {
+          "name": "1 raw v3 content refs and pure archive",
+          "status": "pass"
+        }
+      ],
+      "startedAt": "2026-11-13T18:54:57.589Z",
+      "businessDurationMs": 5015,
+      "traps": [
+        {
+          "frameId": 0,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        },
+        {
+          "frameId": 25,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        },
+        {
+          "frameId": 0,
+          "caches": 0,
+          "computedStyle": 0,
+          "indexedDB": 0
+        }
+      ],
+      "cdpMethods": [
+        "Network.enable",
+        "Page.enable",
+        "Page.getFrameTree",
+        "Page.captureScreenshot",
+        "Network.getResponseBody"
+      ],
+      "stopMs": 1121,
+      "exportMs": 1070,
+      "oracle": {
+        "contact": "13900001234",
+        "note": "预约💆‍♀️ — synthetic note 🧾",
+        "balance": 87200,
+        "writes": 2,
+        "attempts": 3,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13800000000",
+              "note": "",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13800000000",
+              "note": "",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "PUT",
+            "path": "/api/member",
+            "body": {
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "operator": "synthetic-operator"
+            },
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 100000
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/debit",
+            "body": {
+              "amount": 12800
+            },
+            "status": 201,
+            "response": {
+              "debit": 12800,
+              "balance": 87200
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/debit",
+            "body": {
+              "amount": 9000000
+            },
+            "status": 409,
+            "response": {
+              "error": "INSUFFICIENT_BALANCE",
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/frame",
+            "body": {},
+            "status": 200,
+            "response": {
+              "authorizedFrame": true,
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 87200
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/member",
+            "body": {},
+            "status": 200,
+            "response": {
+              "id": "synthetic-001",
+              "contact": "13900001234",
+              "note": "预约💆‍♀️ — synthetic note 🧾",
+              "balance": 87200
+            }
+          }
+        ]
+      },
+      "archiveSha256": "553f6bd1a7473f99ab87c9c5ecb1fdac72e836bf514b70dfccbd3771fcebfc7d",
+      "archivePath": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-acceptance-V1jxwZ\\round-1.zip"
+    }
+  ],
+  "deferred": [
+    "budget edge/unit gates owned by parent",
+    "blind reconstruction owned by consumer",
+    "optional-host native permission prompt not tested"
+  ],
+  "candidate": {
+    "candidateHash": "52b3929cbba1054fcba967154b655e60dfa2a659c386e76c23ca92cd296882ba",
+    "files": [
+      {
+        "path": "assets/flow-store-B5IYPbXd.js",
+        "size": 19829,
+        "sha256": "81ceefc24469deda5546d5220dec7b1f803abd67b651dc638e27d8cb3b4a2fc6"
+      },
+      {
+        "path": "assets/sidepanel-MsnlKmwV.js",
+        "size": 180327,
+        "sha256": "dd6dbfaad325de9254c54dd2bbbced2b5766c4b94dbedb4c200893c78e00de47"
+      },
+      {
+        "path": "assets/sidepanel-RQU0TV3r.css",
+        "size": 2468,
+        "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+      },
+      {
+        "path": "background.js",
+        "size": 27619,
+        "sha256": "175fbc01478fdceaf4a9a76cb6d5bd6384aba87b4f6473bfbc2904f16b9d1735"
+      },
+      {
+        "path": "content.js",
+        "size": 13919,
+        "sha256": "55aacef84786591c503bc8ea13ee8c80fd1d7f61c104a22b716a2c8f7c21295e"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 935,
+        "sha256": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "76c3d95bac3b846a496a501b630f02fe8bd0967740e3dcf46ce24bd8418e7b87"
+      }
+    ],
+    "package": {
+      "version": "0.4.0",
+      "sha256": "4a34ce10d7dc921eba1cefc2bc41c44869359c457bcc002ad5e673903c14e960"
+    }
+  },
+  "loadedManifestSha256": "2c64edee316f26e4c2abc23302852527df9eebd47742b82fa0a3492514ce05c0",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "unrelatedTabsAtStart": 20,
+  "firstFailure": {
+    "message": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    1659475657,\n-   1659475659\n  ]\n",
+    "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    1659475657,\n-   1659475659\n  ]\n\n    at file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:105:12\n    at gate (file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:96:32)\n    at verifyArchive (file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:104:3)\n    at runAcceptance (file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:199:7)\n    at async file:///E:/dev/copypaste/%E7%BE%8E%E5%AE%B9ERP/%E9%80%BB%E8%BE%91%E8%AE%B0%E5%BD%95%E6%8F%92%E4%BB%B6/app/tests/flow-acceptance.e2e.mjs:232:95"
+  },
+  "cleanup": "confirmed-owned-browser-closed",
+  "finishedAt": "2026-11-13T18:55:05.382Z"
+}

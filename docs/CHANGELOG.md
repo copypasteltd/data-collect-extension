@@ -3,6 +3,16 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.4.0 - 2026-11-14（轻量业务记录 / Lightweight business flow）
+
+- 按用户批准的[减量方案](<2026-11-14-需求减量评估.md>)重定八项义务；绑定根业务标签、必要授权框架及一个可信归因子页，不扫描全profile。 / Replace browser-wide capture with an explicit bounded workflow.
+- 新flow入口与独立flow-v1数据库，不读取/迁移/删除旧库；取消全计算样式、继承变量/伪元素普查、Cookie/Storage/全IDB/Cache镜像、全页PNG及实时流正文。 / Keep legacy storage untouched and remove heavy default channels.
+- 单批64MiB、48MiB提醒、普通63MiB及1MiB收尾；类别子预算/2MiB正文、内容hash去重、原事件+内容+容量单事务，持久幂等与封存。 / Enforce byte budgets and durable evidence references before export.
+- v3只打包已保存事件、内容与轻清单/hash；Python支持v1/v2/v3引用校验，主题/字段分析离线按需。 / Primary export no longer creates derived analysis data.
+- 验收关闭空白子页/未来手势误归属、同文档重复注入静默丢值、200ms提示漏采及未知frame WS来源问题；失败历史保留。 / Close observed scope, reinjection and transient-state defects.
+- 445项JS（72新flow）、12+16项Python、真实IDB容量、60秒样本及20轮短业务通过；P95 Stop2436ms/Export2703ms，60秒ZIP562491B。独立只包重建13项UI通过，非原站源码/像素级恢复；详见[实际验证](<精简/2026-11-14-v0.4.0/REPORT.md>)。 / Actual fixed-workload results are bounded evidence, not universal guarantees.
+- 备份后同路径更新当前程序，Chrome刷新/开启状态单列，不卸载、不清旧数据。此次未自动公开新GitHub Release，旧v0.3.0字节/标签不变。 / Local release and owner-requested file update only.
+
 ## 0.3.1 - 2026-11-13（停止／导出修复 / Stop and export hotfix）
 
 - 复现正常大页面Stop的9秒producer截止被误标通信未知/录制中断，分开stopOutcome与采集缺口；真正存储/传输/清理失败仍保守中断，旧批次不重贴状态。 / Separate lifecycle completion from acknowledged producer gaps without clearing real failures.

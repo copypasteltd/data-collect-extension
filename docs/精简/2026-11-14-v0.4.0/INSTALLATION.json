@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "status": "files-updated-awaiting-chrome-reload",
+  "target": "C:\\Users\\carzy\\Downloads\\logic-recorder-chrome-v0.3.0",
+  "backup": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\release\\install-backups\\logic-recorder-v0.3.1-before-v0.4.0-L1QK8y",
+  "originalVersion": "0.3.1",
+  "fileVersion": "0.4.0",
+  "patchSha256": "ba4a38cbd70cd2f8146eefb24b60150dc2e6701f2b11dc96f57c5b425f715e26",
+  "startedAt": "2026-11-13T19:30:23.209Z",
+  "originalFiles": [
+    {
+      "path": "assets/fragments-BJho5A_q.js",
+      "size": 30414,
+      "sha256": "c5a8cba516e8a4059fc0ab936ed0d17e084cb596a1ea8a58a5d15c02b6540e17"
+    },
+    {
+      "path": "assets/sidepanel-RQU0TV3r.css",
+      "size": 2468,
+      "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+    },
+    {
+      "path": "assets/sidepanel-z-XinFbq.js",
+      "size": 207916,
+      "sha256": "5bd65339615e3d6b28aebe774404e690359da830d01564ae5c7c69db681bee94"
+    },
+    {
+      "path": "background.js",
+      "size": 88289,
+      "sha256": "39185b4db3ecb7cbd0f8aaa27f0ec1f766f16500542a79767a0b49261e183ead"
+    },
+    {
+      "path": "content.js",
+      "size": 67972,
+      "sha256": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44"
+    },
+    {
+      "path": "icons/icon-128.png",
+      "size": 1488,
+      "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+    },
+    {
+      "path": "icons/icon-16.png",
+      "size": 305,
+      "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+    },
+    {
+      "path": "icons/icon-32.png",
+      "size": 500,
+      "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+    },
+    {
+      "path": "icons/icon-48.png",
+      "size": 654,
+      "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+    },
+    {
+      "path": "manifest.json",
+      "size": 959,
+      "sha256": "79a75aa1fa4ff2d3f2d38521ccf2140625a15804fa4329c41006622e8eacaed0"
+    },
+    {
+      "path": "sidepanel.html",
+      "size": 774,
+      "sha256": "ca9a12f827be51654dfda3ebb361e0aa7550aba44a095e2d0fd307e8f6385262"
+    },
+    {
+      "path": "assets/fragments-BNYRFXTO.js",
+      "size": 29668,
+      "sha256": "d1490063f014dd8cd5aa378f3adba4270b5896f36f9f838a92e31beed49a8958"
+    },
+    {
+      "path": "assets/sidepanel-BqDTISq8.js",
+      "size": 202144,
+      "sha256": "e161484b1436043e1319408e3cf2d0f4966c2be83dc40740fc1506c33a3c2cf9"
+    }
+  ],
+  "changedFiles": [
+    "assets/flow-store-COGUSsh1.js",
+    "assets/sidepanel-B8CbgvIW.js",
+    "background.js",
+    "content.js",
+    "sidepanel.html",
+    "manifest.json"
+  ],
+  "chromeReloadPerformed": false,
+  "chromeRestartPerformed": false,
+  "chromeUserDataAccessed": false,
+  "retainedOldAssets": [
+    "assets/fragments-BJho5A_q.js",
+    "assets/sidepanel-z-XinFbq.js",
+    "assets/fragments-BNYRFXTO.js",
+    "assets/sidepanel-BqDTISq8.js"
+  ],
+  "finishedAt": "2026-11-13T19:30:23.631Z",
+  "patchFilesVerified": 11,
+  "oldDatabaseOpened": false,
+  "oldDataMigrated": false
+}

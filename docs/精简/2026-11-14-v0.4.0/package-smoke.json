@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "version": "0.4.0",
+  "startedAt": "2026-11-13T19:28:40.058Z",
+  "status": "passed",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.22.1",
+    "mode": "native-host; no OS isolation environment"
+  },
+  "scope": "Exact packaged extension loaded without modifying its manifest; optional packaged Python CLI reads only a local synthetic recording",
+  "checks": [
+    "release files/checksums/entry sizes and hashes match current dist and skill source",
+    "exact unmodified extension ZIP extracts and loads in actual Chrome with JS/CSS/icons and expected idle controls",
+    "extracted packaged Python indexer verifies synthetic ERP recording integrity and event count"
+  ],
+  "artifacts": [
+    {
+      "path": "logic-recorder-chrome-v0.4.0.zip",
+      "size": 94163,
+      "sha256": "ba4a38cbd70cd2f8146eefb24b60150dc2e6701f2b11dc96f57c5b425f715e26",
+      "entriesVerified": 11
+    },
+    {
+      "path": "extension-logic-clone-v0.4.0.zip",
+      "size": 26915,
+      "sha256": "d405b8f4c2f3a63b15276c67d08de36deca29650906e7228c092f4a809e2154c",
+      "entriesVerified": 7
+    }
+  ],
+  "limitations": [
+    "No native permission-dialog acceptance/denial test",
+    "No macOS or minimum Chrome125 execution",
+    "Hashes are consistency evidence, not publisher signatures"
+  ],
+  "browser": {
+    "extensionVersion": "0.4.0",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "pageErrors": 0
+  },
+  "consumer": {
+    "verification": "passed",
+    "version": 3,
+    "events": 96,
+    "files": 54,
+    "contentCount": 52,
+    "event_types": {
+      "network.request": 9,
+      "network.response": 9,
+      "page.navigation": 1,
+      "page.snapshot": 24,
+      "page.stylesheet": 4,
+      "recorder.notice": 5,
+      "scope.child": 1,
+      "screenshot": 18,
+      "session.start": 1,
+      "session.stop": 1,
+      "ui.change": 7,
+      "ui.click": 14,
+      "ui.scroll": 1,
+      "ui.submit": 1
+    },
+    "recordingSha256": "9556192481b808f65de0d4ef103ff297c7985e7b8cf6e40af663451ef03e2220",
+    "indexCreated": true
+  },
+  "chromeCleanup": "confirmed",
+  "profileCleanup": "removed",
+  "finishedAt": "2026-11-13T19:28:42.742Z"
+}

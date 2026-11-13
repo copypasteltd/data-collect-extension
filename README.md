@@ -1,106 +1,102 @@
 # 逻辑记录 | Logic Recorder
 
-在 Chrome 中记录获授权的网页操作、页面状态及网络证据，按批次导出本机 ZIP。当前修复版本：**v0.3.1**（本地修复包；v0.3.0 GitHub Release 保持不变）。
+**v0.4.0 轻量业务记录版**：记录指定业务流程的关键操作、页面状态和接口样本，按批次本地导出。不是全浏览器备份工具，也不自动生成巨型主题/字段分析包。
 
-[English](<README.en.md>) · [安装与更新](<docs/插件安装与使用说明.md>) · [本版交付与验证](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [更新说明](<docs/CHANGELOG.md>)
+[English](<README.en.md>) · [安装与使用](<docs/精简/2026-11-14-v0.4.0/INSTALL.md>) · [实际验收](<docs/精简/2026-11-14-v0.4.0/REPORT.md>) · [需求合同](<docs/精简/2026-11-14-v0.4.0/CONTRACT.md>) · [更新说明](<docs/CHANGELOG.md>)
 
-## v0.3.1 停止／导出修复
+## 本版交付
 
-修复大页面正常停止被误判为录制中断，以及导出阶段无进展等待/同步压缩卡顿。保留真实缺口和真正存储/通信中断，旧批次不重写。
+- **[完整v0.4.0交付包](<app/release/logic-recorder-release-v0.4.0.zip>)**：扩展、解析技能、安装/更新说明、真实验证与校验值。
+- [仅Chrome扩展](<app/release/v0.4.0/logic-recorder-chrome-v0.4.0.zip>)：解压后加载，录制不需要Node.js/Python。
+- [独立解析工具](<app/release/v0.4.0/extension-logic-clone-v0.4.0.zip>)：Python3.9+标准库。
+- [校验清单](<app/release/v0.4.0/SHA256SUMS.txt>)。本次是本地release和同路径程序更新，不自动发布新GitHub Release；[旧v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)保持历史字节和标签，不代表本版。
 
-[修复安装包](<app/release/v0.3.1/logic-recorder-chrome-v0.3.1.zip>) · [更新与旧记录恢复](<docs/修复/2026-11-13-stop-export/UPDATE-RECOVERY.md>) · [真实验证报告](<docs/修复/2026-11-13-stop-export/REPORT.md>)
+## 从“尽量全采”收口为八项核心义务
 
-**更新请覆盖原加载目录后刷新，不卸载扩展、不清浏览器数据。** 新导出显示真实阶段/数量/用时；超时保留本地批次可重试。本次没有自动发布新GitHub Release。
+1. 开始时绑定一个根业务标签；必要授权框架及一个有可信操作/opener/时间证据的业务子页共享范围。切到其他标签不会自动采它。
+2. 关键点击/提交、字段稳定值和可知前值、勾选/选择/关键键、滚动终点。
+3. 一个规范结构DOM表示，初始/业务关键状态及必要组件结构；弹窗、下拉、短命校验提示有轻量原文状态。
+4. 必要CSS、已展示视觉资源按SHA256一次保存，重复观察用引用。
+5. 关键视口PNG，不默认整页分片、视频或Canvas另存像素。
+6. 业务XHR/Fetch请求响应样本，保不同业务结果，相同内容复用；不主动重放业务请求。
+7. 范围/页面/事件/内容身份、时间、hash、预算和采集缺口可追溯。
+8. 只打包已落盘数据与轻清单；不在主导出自动展开主题/字段字典/接口规范。
 
-## 已发布的v0.3.0
+**不再默认采集**：全profile、全元素计算样式/伪元素属性、Cookie全域快照、Storage轮询、IndexedDB全库、Cache镜像、所有静态JS/媒体/上传文件字节、所有WebSocket/SSE消息正文。必要框架权限不足或无法归因的新页明确缺口；不是假装它们不存在。
 
-已正式发布：[GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)。10个附件已从公开链接重新下载并核对SHA-256，与此前本地交付字节一致。
+## 容量是接纳规则，不是最后提示
 
-**推荐下载：[完整release交付包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-release-v0.3.0.zip>)**，内含扩展、解析工具、安装/更新说明、真实验证记录和校验清单。
+| 项目 | 上限 |
+| --- | ---: |
+| 单批内容+原始事件元数据 | 64MiB；48MiB提醒，普通接纳63MiB，1MiB收尾保留 |
+| 正文集合 / 单个正文 | 24MiB / 2MiB |
+| DOM / 必要资源 / 视口截图 / 元数据 | 16 / 8 / 12 / 4MiB |
 
-- [Chrome 扩展安装包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-chrome-v0.3.0.zip>)：解压后加载，不需 Node.js/Python。
-- [独立解析技能](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/extension-logic-clone-v0.3.0.zip>)：ZIP 校验、SQLite 索引、分段重组与样式解码，Python 3.9+ 标准库。
-- [SHA-256 校验清单](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/SHA256SUMS.txt>) · [本版验收报告](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
+内容hash在同批复用；跨类别引用仍分别受子预算约束。达到预算受控停止，不干预用户业务、不删除记录，状态明确“按容量停止/部分可导出”。64MiB不是Chrome内存峰值硬保证；未知长度CDP正文物理流式限界的不足会记录，不伪称全量。
 
-本版保留四项主要操作：**开始、停止、选择批次、导出**。修复批次确认、分段终态、跨来源字段汇总、会话封存、迟到任务归属和停止/导出控制；增加原值/范围披露、核验状态及版本来源。结果以本版实际报告为准，不沿用旧构建的通过数。
+## 实际样本
 
-用户要求直接在当前 Windows 原生环境编译测试，本次未建设或切换 OS 隔离环境。测试仅使用本地合成页面和测试专用浏览器数据目录，不访问真实业务系统或用户既有 profile。此前评估和阻塞记录为历史过程，**不再作为本次发布前置**。
+当前Windows原生Chrome157固定合成场景：20无关页、5000个CSS变量/动画、根页+授权框架+可信业务子页，查询/资料修改/校验/下拉/保存/扣款成功和拒绝、iframe导航后继续输入、200ms提示均验。
 
-## 安装
+- 60秒业务样本：ZIP **562491B**，停止 **1837ms**，导出 **2366ms**。
+- 20轮同业务短循环：全部通过，Stop P95 **2436ms** / Export P95 **2703ms**，ZIP最大 **329596B**。20短轮不是20次60秒。
+- 完整JavaScript回归445项通过（含72项新flow合同回归）；Python旧12项+v3新16项通过；实际64MiB预算/封存及独立接收者重建另见[报告](<docs/精简/2026-11-14-v0.4.0/REPORT.md>)。
 
-1. 下载并解压扩展 ZIP 到固定目录。不要把 ZIP 文件本身选作扩展目录。
-2. 打开 `chrome://extensions`，启用“开发者模式”，点击“加载已解压的扩展程序”。
-3. 选择直接包含 `manifest.json` 的目录。
-4. 点击或固定“逻辑记录”扩展图标，打开侧边栏。
+这些是固定样本结果，不保证任意站点/时长都同样大小；不把旧50重型采集场景通过当新版范围验收。
 
-Manifest 声明 Chrome 125+；本版实际验证环境与版本见验收报告。未实测的最低版本、macOS 或其他设备不等于已经验证。更新前停止并导出需保留的批次；优先覆盖原解压目录后在扩展管理页点击刷新，不卸载再装以免清除数据。
+## 安装与更新
 
-## 使用
+在chrome://extensions启用开发者模式，加载扩展ZIP解压后直接含manifest.json的目录。更新当前安装时先停止，备份程序文件，再覆盖**原加载路径**并刷新原扩展；不要先卸载、不要清Chrome数据或加载成另一份。目录名可以仍含旧版本号。
 
-1. 仅打开有权录制的 HTTP(S) 业务网页。建议使用专用业务 Chrome profile；**一个单独窗口不能隔离同 profile 的其他窗口**。
-2. 点击“开始录制”，按 Chrome 原生提示授予网站访问权限。默认包含所有已授权普通网页：录制时已开、其他窗口及之后新开的页面。
-3. 正常执行业务操作。完成后点击“停止录制”；准备期间也可停止。**关闭侧边栏不会停止后台录制。**
-4. 等待批次出现，选择后点击“导出记录包”。录制中不新开历史导出；导出忙状态不占用停止控制。可切换批次分别导出。
+v0.4.0新批次使用独立数据库logic-recorder-flow-v1；旧logic-recorder库不打开、不迁移、不删除，旧批次不在新列表中显示。用户明确本次不考虑旧数据，不代表自动清理旧数据。
 
-“已停止，可导出”仅表示生命周期结束与可尝试导出，**不表示所有内容完整**。“需核验/录制中断”应结合记录包的缺口和状态检查；中断批次仍可导出已保存部分。下载确认超时会显示错误并保留本地批次，可检查浏览器下载后重试，不把未知下载状态说成成功。
+开始前切到业务页，原生授权只请求当前来源；已有安装原先授予的权限可能仍保留，内部scope仍只纳根流程。关闭侧栏不会停止录制。ready/导出hash通过不等采集完整，应检查partial/coverage/policy状态。
 
-批次和导出包留在本机；扩展不主动上传记录。当前不自动到期、不自动删除已导出批次，不提供内容查看、导入或回放。卸载扩展可能清除本地数据；导出文件和外部索引的保留/分享由持有人负责。
+## 当前界面
 
-## 当前修复版界面（v0.3.1）
-
-| 准备录制 | 选择批次 |
+| 准备 | 批次选择 |
 | :---: | :---: |
-| ![v0.3.0 准备录制](<docs/media/v0.3.1-01-ready.png>) | ![v0.3.0 多批次选择](<docs/media/v0.3.1-03-history.png>) |
+| ![v0.4.0准备](<docs/media/v0.4.0-01-ready.png>) | ![v0.4.0批次](<docs/media/v0.4.0-03-history.png>) |
 
-截图来自真实扩展和本地合成页面。自动化使用临时扩展副本预授网站权限，**不等于原生权限弹窗接受/拒绝已自动验证**；原图/演示说明见[素材说明](<docs/DEMO.md>)。
+真实己有测试Chrome与合成页面，权限预授不证明原生授权弹窗通过，侧栏HTML测试标签不等原生drawer外观验收。[素材说明](<docs/DEMO.md>)。
 
-## 数据与证据边界
-
-**记录可能包含密码、认证头、Cookie、令牌、输入、文件内容、个人资料、业务数据和未遮挡截图。ZIP 不加密。** 取得文件或索引的人可以读取原值；只录制获准页面，控制本机、备份和分享权限。
-
-记录包含已观察的 DOM/表单/Mutation/Shadow/样式/画布/截图、请求响应、Cookie/存储/IDB/Cache 及可读取资源，按各自时间和表示保存。
+## 包与解析
 
 ```text
-manifest.json                 批次、封存水位、来源版本和能力限制
-integrity.json                各文件大小与SHA-256
-timeline/events-*.jsonl        原始事件（大数据可能分段）
-screenshots/                  截图
-resources/                    已保存附件与资源索引
-indexes/                      事件、页面和直接关系索引
-data-dictionary/              字段观察与来源分组汇总
-styles/                       主题/颜色观察
+manifest.json                  v3业务范围/预算/封存/缺口/内容列表
+integrity.json                 每文件size/SHA256（除自身）
+timeline/events-NNNNN.jsonl     原始观察事件及轻内容引用
+contents/<SHA256>.bin           去重后的原始HTML/CSS/PNG/正文等字节
 ```
 
-- 长 DOM/输入/文件/浏览器数据可能用引用和分段，必须核对全部片及唯一结束确认；同组 Failure 或 End 后额外片不能当完整内容。
-- 原始 DOM 是序列化结果，不是服务器源码或 HTTP 原字节；派生快照与原始通道不互相替代。
-- 截图可能共用、缺失或非原子整页分片；Canvas PNG 不保证等同屏幕合成画面。
-- IDB/Cache 起止采样是短事务/尽力读取，不是全局一致快照，未观察到的中间变化不能恢复。Cookie 为域环境证据，不是每个操作的确定因果。
-- 时间接近不等因果；缺失/未确认/未观察不是不存在。hash仅证明与随包清单一致，不证明来源真实性。
-- 浏览器限制、调试器断开、受限框架、大规模/高频工作负载和页面关闭仍可能有缺口。不能保证任意时长/大小、未访问分支、服务端逻辑或完整可部署网站。
-
-完整读取和容量规则见[归档格式](<app/skills/extension-logic-clone/references/archive-format.md>)。
-
-## 解析工具
-
-可将技能 ZIP 的 `extension-logic-clone` 文件夹复制到当前用户 Codex 技能目录，已有目标先备份检查；录制端不需要安装。也可直接调用：
+独立技能目录中执行：
 
 ```powershell
-python ./app/skills/extension-logic-clone/scripts/index_archive.py recording.zip --output new-index.sqlite3
+python scripts/index_archive.py recording.zip --output new-index.sqlite3
 ```
 
-索引路径必须不存在，索引包含完整原值。按需要使用 `reconstruct_payload.py` 和 `decode_computed_style.py`；具体命令和可信读取边界见[技能说明](<docs/技能使用说明.md>)。
+输出必须不存在。SQLite保存原始events、files、contents和content_refs，不自动派生主题字典；[格式](<app/skills/extension-logic-clone/references/archive-format.md>)。v1/v2文件读取器兼容不等新扩展迁移旧数据库。
 
-## 开发与验证
+## 数据风险与限制
+
+已采样本可能含密码、认证头、个人/业务资料和未遮挡截图。ZIP/SQLite未加密；不主动上传但本机/备份/人工分享由持有人保护。hash是字节一致性，不是可信来源或数字签名。
+
+只覆盖观察到的业务路径；不恢复原网站源码、服务端内部逻辑、登录态、全库、未访问分支或绝对像素画面。权限不足/超额/不可读取必须标记。原生权限弹窗、最低Chrome125真机/macOS/真实客户ERP未自动验证。测试原生Windows、不用Docker/WSL、不关闭用户浏览器。
+
+## 开发
 
 ```powershell
 cd app
 npm ci
 npm run build
 npm test
+npm run test:flow
 npm run test:skill
+npm run test:flow-skill
 $env:CHROME_BIN='C:/Program Files/Google/Chrome/Application/chrome.exe'
-npm run test:e2e
-npm run test:capture-matrix
+npm run test:flow-native-store
+npm run test:flow-acceptance
+npm run test:flow-performance
 ```
 
-实际命令、环境、成功与限制均见[release验证报告](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)。不使用Docker/WSL；只清理测试自己创建的资源，不关闭用户浏览器。历史查看器测试不属于当前四操作UI验收。
+生产入口为flow-background/flow-content和flow-archive。旧重型源码保留历史，不进入新构建；历史查看器/旧全量E2E不属于新版发布门。

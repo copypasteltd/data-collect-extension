@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AlertTriangle, Circle, Download, Square } from "lucide-react";
-import { createArchive } from "./archive.js";
+import { createArchive } from "./flow-archive.js";
 import { exportProgressPhase, exportProgressDetail } from "./export-progress.js";
 import { downloadBlob } from "./downloads.js";
 import { canStartRecording, canStopRecording, canExportRecording, recordingNotice, batchStatusLabel, exportPhaseLabel } from "./panel-state.js";
@@ -117,12 +117,13 @@ function App() {
     setError("");
     setBusy("starting");
     try {
-      const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
-      if (!granted) throw new Error("未授予网页访问权限");
       const [current] = await withTimeout(chrome.tabs.query({ active: true, currentWindow: true }), 8000);
       if (!current?.url || !["http:", "https:"].includes(new URL(current.url).protocol))
         throw new Error("请先切换到需要录制的网页");
-      await call("START", { tab: current, options: { screenshots: true, canvasSnapshots: true, scope: "browser" }, acknowledgeEarly: true });
+      const origin = new URL(current.url).origin + "/*";
+      const granted = await chrome.permissions.request({ origins: [origin] });
+      if (!granted) throw new Error("未授予当前业务页面的访问权限");
+      await call("START", { tab: current, options: { screenshots: true, scope: "business-flow" }, acknowledgeEarly: true });
       await refresh().catch(() => {});
     } catch (reason) {
       if (operation.current === currentOperation) {
@@ -229,8 +230,9 @@ function App() {
             <Circle size={16} fill="currentColor" />{busy === "starting" ? "正在准备…" : "开始录制"}
           </button>
         )}
-        <p className="disclosure">默认记录本 Chrome 配置中所有已授权的普通网页，包含其他窗口和新标签；请使用仅含获准页面的专用配置。</p>
-        <p className="disclosure">记录保留原值和未遮挡截图，可能包含密码、Cookie 及业务资料；ZIP 未加密。关闭侧边栏不会停止录制。</p>
+        <p className="disclosure">只记录开始时的业务标签、必要框架及可明确归属的一个流程子页；切换到其它已开页面不会扩大范围。</p>
+        <p className="disclosure">保留已采集的输入、接口样本和未遮挡截图，可能含认证头及业务原值；ZIP 未加密。关闭侧边栏不会停止录制。</p>
+        {active?.budget && <p className="disclosure" role="status">已保存 {(active.budget.usedBytes / 1048576).toFixed(1)} / 64 MiB{active.budget.warning ? " · 接近容量上限" : ""}</p>}
       </section>
       {activeNotice && <div className="notice" role="status">{activeNotice}</div>}
       {visibleError && <div className="error" role="alert"><AlertTriangle size={16} /><span>{visibleError}</span></div>}
@@ -254,7 +256,7 @@ function App() {
         {exporting && <p className="disclosure" role="status" aria-live="polite">{exportProgressDetail(exportProgress, exportElapsed)}。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。</p>}
         {active && <p className="disclosure">请先停止当前录制，再导出记录包。</p>}
         {exportNotice && <p className="notice" role="status">{exportNotice}</p>}
-        <p className="disclosure">导出会保留本地批次，当前不会自动到期删除；分享与后续副本的保存范围需另行控制。</p>
+        <p className="disclosure">单批容量上限 64 MiB，48 MiB 提醒；达到预算会停止采集并保留可导出部分。新版本不迁移或显示旧版批次，也不会删除旧数据。</p>
       </section>
     </main>
   );

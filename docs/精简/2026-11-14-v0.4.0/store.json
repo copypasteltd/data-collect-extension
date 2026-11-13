@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-14",
+  "scope": {
+    "implementation": [
+      "app/src/flow-store.js",
+      "app/src/flow-budget.js"
+    ],
+    "tests": [
+      "app/tests/flow-store.test.js",
+      "app/tests/flow-budget.test.js"
+    ],
+    "docs": [
+      "docs/精简/2026-11-14-v0.4.0/store.md",
+      "docs/精简/2026-11-14-v0.4.0/store.json"
+    ]
+  },
+  "environment": {
+    "os": "Windows native",
+    "node": "v24.22.1",
+    "dependencyInstalled": false,
+    "osIsolation": false,
+    "realProfileAccess": false
+  },
+  "database": {
+    "name": "logic-recorder-flow-v1",
+    "version": 1,
+    "legacyOpened": false,
+    "legacyMigrated": false,
+    "legacyDeleted": false
+  },
+  "commands": [
+    {
+      "command": "node --check src/flow-store.js && node --check src/flow-budget.js",
+      "cwd": "app",
+      "exitCode": 0
+    },
+    {
+      "command": "node --test tests/flow-budget.test.js tests/flow-store.test.js",
+      "cwd": "app",
+      "exitCode": 0,
+      "tests": 30,
+      "passed": 30,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 815.113
+    }
+  ],
+  "properties": {
+    "budgetSeeds": 512,
+    "transitionsPerSeed": 160,
+    "totalTransitions": 81920,
+    "oracle": "independent BigInt accounting",
+    "utf8Seeds": 512,
+    "utf8Oracle": "TextEncoder"
+  },
+  "transactionModel": {
+    "type": "executable in-memory IDB transaction VM",
+    "requestExecution": true,
+    "transactionSnapshots": true,
+    "rollbackOnRequestFailure": true,
+    "rollbackAfterRequestSuccessAbort": true,
+    "uniqueIndexes": true,
+    "serializedIndependentConnections": true,
+    "concurrentAppends": 72,
+    "connectionModules": 2
+  },
+  "coverage": [
+    "canonical-create-only-capturePolicy-producerVersion",
+    "raw-UTF8-binary-Blob-hash",
+    "session-local-hash-dedup",
+    "cross-category-first-use-charge",
+    "exact-JSONL-byte-budget",
+    "durable-private-captureKey",
+    "owner-token-guard",
+    "gate-open-closing-sealed",
+    "terminal-raw-immutability",
+    "protected-session-patch",
+    "known-body-pre-read-reject",
+    "metadata-before-hash",
+    "total-and-category-budget-refusal",
+    "exact63MiB-accepted-policyStop",
+    "reserved-final-stop",
+    "seal-expectedSeq-counts-stop-unique",
+    "bounded-policy-reason-count",
+    "read-onabort-timeout-cancel",
+    "read-lazy-Blob-64MiB-batch"
+  ],
+  "limitations": [
+    "Not native Chrome acceptance; parent runs native store integration separately.",
+    "Does not assert browser quota/disk durability/physical memory hard cap.",
+    "Does not open real profiles, user recording databases, or legacy database."
+  ],
+  "status": "scoped-unit-pass"
+}

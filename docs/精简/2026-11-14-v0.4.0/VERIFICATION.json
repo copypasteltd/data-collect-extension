@@ -1,0 +1,638 @@
+{
+  "schemaVersion": 1,
+  "version": "0.4.0",
+  "profile": "business-flow-v1",
+  "status": "lightweight-native-validation-passed",
+  "generatedAt": "2026-11-13T19:27:56.618Z",
+  "approval": "User approved requirement reduction and requested a new local release plus same-path installation update; no old-data migration or new public GitHub Release.",
+  "environment": {
+    "platform": "Windows native x64",
+    "chrome": "157.0.8103.40",
+    "node": "24.22.1",
+    "npm": "10.9.2",
+    "isolationEnvironmentBuilt": false,
+    "syntheticDataOnly": true,
+    "nativeOptionalPermissionPromptTested": false
+  },
+  "candidate": {
+    "candidateHash": "3636e8658f9cb1f18c2534650b585af44ae485603339d2a5953511cf1399532f",
+    "files": [
+      {
+        "path": "assets/flow-store-COGUSsh1.js",
+        "size": 20809,
+        "sha256": "b34109ef084525d50217331cd0179680fa0bca8b19db584812747966726a4f6a"
+      },
+      {
+        "path": "assets/sidepanel-B8CbgvIW.js",
+        "size": 180327,
+        "sha256": "c9a0ba9ee8d3f61aef6eeae22e7039e2508a788ba19e42a98bad134f9a1a05b0"
+      },
+      {
+        "path": "assets/sidepanel-RQU0TV3r.css",
+        "size": 2468,
+        "sha256": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3"
+      },
+      {
+        "path": "background.js",
+        "size": 29227,
+        "sha256": "b446691f640d9f7000b09c71f345951295c96fb55eab3f8cd9e047eaf840b450"
+      },
+      {
+        "path": "content.js",
+        "size": 15762,
+        "sha256": "b872b0212e0ff0f4b710781b5078aa862abb7a9f3c79a2609bcb5d407b075d30"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 935,
+        "sha256": "e6f4b5b4696123ffc35430a8a7fc605d9a478471fab9b3a1db2a99f03ff20b08"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "94575058970cfd0985bae89865d70d09f5034f66086103f623c9fc4ae0057a38"
+      }
+    ],
+    "package": {
+      "version": "0.4.0",
+      "sha256": "aa10e9558640b0f3fcc45aae67c537b574117250a6424d423e3b34e02957fd40"
+    }
+  },
+  "gates": {
+    "build": {
+      "passed": true,
+      "command": "npm run build"
+    },
+    "javascript": {
+      "passed": true,
+      "tests": 445,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "newFlowContracts": 72
+    },
+    "python": {
+      "passed": true,
+      "legacyTests": 12,
+      "v3Tests": 16,
+      "actualArchive": {
+        "version": 3,
+        "events": 96,
+        "files": 54,
+        "contentCount": 52
+      }
+    },
+    "nativeStore": {
+      "passed": true,
+      "checks": [
+        "session-local SHA256 dedup and cross-category charging",
+        "durable captureKey retry and owner rejection",
+        "2MiB+1 body policy rejects without partial content",
+        "12 unique2MiB bodies accepted; next blocked at24MiB category",
+        "48MiB warning persists",
+        "normal intake stopped at66040346B; final stop accepted at66040497B below64MiB",
+        "immutable last stop/seal; no old database opened"
+      ]
+    },
+    "business60Seconds": {
+      "passed": true,
+      "observedDurationMs": 60012,
+      "stopMs": 1837,
+      "exportMs": 2366,
+      "zipBytes": 562491,
+      "expandedBytes": 795058,
+      "logicalBytes": 759222,
+      "eventCount": 96,
+      "contentCount": 52,
+      "gates": [
+        {
+          "name": "1 raw v3 content refs and pure archive",
+          "status": "pass"
+        },
+        {
+          "name": "2 bounded scope root child and authorized frame only",
+          "status": "pass"
+        },
+        {
+          "name": "3 true key DOM and stable form before after values",
+          "status": "pass"
+        },
+        {
+          "name": "4 validation modal dropdown and viewport PNG",
+          "status": "pass"
+        },
+        {
+          "name": "5 server oracle and exact observed business HTTP",
+          "status": "pass"
+        },
+        {
+          "name": "6 CSS and repeated bodies dedup without conflating changes",
+          "status": "pass"
+        },
+        {
+          "name": "7 no heavy storage cookie computed theme or script uploads",
+          "status": "pass"
+        },
+        {
+          "name": "8 single final stop sealed exact bytes and bounded ZIP",
+          "status": "pass"
+        }
+      ]
+    },
+    "twentyRoundPerformance": {
+      "passed": true,
+      "rounds": 20,
+      "workload": "20 x 5000ms, same 10 business interaction groups; not 20 x 60s",
+      "stopP95Ms": 2436,
+      "exportP95Ms": 2703,
+      "maxZipBytes": 329596,
+      "rows": [
+        {
+          "round": 1,
+          "status": "pass",
+          "stopMs": 992,
+          "exportMs": 2592,
+          "zipBytes": 300192,
+          "logicalBytes": 472682,
+          "eventCount": 82,
+          "contentCount": 38
+        },
+        {
+          "round": 2,
+          "status": "pass",
+          "stopMs": 2436,
+          "exportMs": 2780,
+          "zipBytes": 299993,
+          "logicalBytes": 472494,
+          "eventCount": 82,
+          "contentCount": 38
+        },
+        {
+          "round": 3,
+          "status": "pass",
+          "stopMs": 1090,
+          "exportMs": 2517,
+          "zipBytes": 261467,
+          "logicalBytes": 433002,
+          "eventCount": 81,
+          "contentCount": 36
+        },
+        {
+          "round": 4,
+          "status": "pass",
+          "stopMs": 1509,
+          "exportMs": 2016,
+          "zipBytes": 265766,
+          "logicalBytes": 442536,
+          "eventCount": 82,
+          "contentCount": 38
+        },
+        {
+          "round": 5,
+          "status": "pass",
+          "stopMs": 2382,
+          "exportMs": 1506,
+          "zipBytes": 283950,
+          "logicalBytes": 456389,
+          "eventCount": 82,
+          "contentCount": 37
+        },
+        {
+          "round": 6,
+          "status": "pass",
+          "stopMs": 1375,
+          "exportMs": 1225,
+          "zipBytes": 252231,
+          "logicalBytes": 423037,
+          "eventCount": 79,
+          "contentCount": 35
+        },
+        {
+          "round": 7,
+          "status": "pass",
+          "stopMs": 1128,
+          "exportMs": 1115,
+          "zipBytes": 278894,
+          "logicalBytes": 449895,
+          "eventCount": 80,
+          "contentCount": 36
+        },
+        {
+          "round": 8,
+          "status": "pass",
+          "stopMs": 809,
+          "exportMs": 1153,
+          "zipBytes": 264509,
+          "logicalBytes": 436788,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 9,
+          "status": "pass",
+          "stopMs": 911,
+          "exportMs": 1110,
+          "zipBytes": 249325,
+          "logicalBytes": 420331,
+          "eventCount": 80,
+          "contentCount": 36
+        },
+        {
+          "round": 10,
+          "status": "pass",
+          "stopMs": 1714,
+          "exportMs": 2703,
+          "zipBytes": 324042,
+          "logicalBytes": 500518,
+          "eventCount": 84,
+          "contentCount": 39
+        },
+        {
+          "round": 11,
+          "status": "pass",
+          "stopMs": 2385,
+          "exportMs": 2004,
+          "zipBytes": 298393,
+          "logicalBytes": 469706,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 12,
+          "status": "pass",
+          "stopMs": 795,
+          "exportMs": 953,
+          "zipBytes": 262326,
+          "logicalBytes": 433433,
+          "eventCount": 80,
+          "contentCount": 36
+        },
+        {
+          "round": 13,
+          "status": "pass",
+          "stopMs": 2001,
+          "exportMs": 1276,
+          "zipBytes": 279526,
+          "logicalBytes": 451868,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 14,
+          "status": "pass",
+          "stopMs": 2286,
+          "exportMs": 2198,
+          "zipBytes": 329596,
+          "logicalBytes": 502417,
+          "eventCount": 83,
+          "contentCount": 39
+        },
+        {
+          "round": 15,
+          "status": "pass",
+          "stopMs": 684,
+          "exportMs": 1094,
+          "zipBytes": 282234,
+          "logicalBytes": 453359,
+          "eventCount": 80,
+          "contentCount": 36
+        },
+        {
+          "round": 16,
+          "status": "pass",
+          "stopMs": 1895,
+          "exportMs": 2022,
+          "zipBytes": 270183,
+          "logicalBytes": 442587,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 17,
+          "status": "pass",
+          "stopMs": 1296,
+          "exportMs": 2075,
+          "zipBytes": 269400,
+          "logicalBytes": 440520,
+          "eventCount": 80,
+          "contentCount": 36
+        },
+        {
+          "round": 18,
+          "status": "pass",
+          "stopMs": 1497,
+          "exportMs": 1092,
+          "zipBytes": 247276,
+          "logicalBytes": 419595,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 19,
+          "status": "pass",
+          "stopMs": 2034,
+          "exportMs": 1019,
+          "zipBytes": 258049,
+          "logicalBytes": 430452,
+          "eventCount": 81,
+          "contentCount": 37
+        },
+        {
+          "round": 20,
+          "status": "pass",
+          "stopMs": 2766,
+          "exportMs": 1581,
+          "zipBytes": 296697,
+          "logicalBytes": 467562,
+          "eventCount": 80,
+          "contentCount": 37
+        }
+      ]
+    },
+    "scopeAndPolicy": {
+      "passed": true,
+      "unrelatedExistingTabs": 20,
+      "cssVariables": 5000,
+      "animationPresent": true,
+      "rootAndAttributedChildOnly": true,
+      "noOpenerAndFutureGestureExcluded": true,
+      "requiredFrames": true,
+      "repeatedContentsDeduplicated": true,
+      "fullDatabaseAndCacheSentinelsAbsent": true,
+      "noComputedThemeDerivations": true,
+      "iframeNavigationPreservesNewRootValue": true,
+      "transientAlert200msPreserved": true
+    },
+    "review": {
+      "status": "scoped_pass_source_only",
+      "findings": [
+        {
+          "id": "R1",
+          "severity": "high",
+          "status": "resolved_source_only",
+          "title": "Unattributed WebSocket was persisted using root permission",
+          "trigger": "Authorized root embeds unauthorized/unattributed frame; that frame opens WebSocket with private query URL.",
+          "evidence": [
+            "Original WebSocketCreated checked root permission and persisted p.url without allowed frame mapping.",
+            "Fixed lines 382-386 require mapped frame.allowed, HTTP(S), permission and unchanged frame object; unknown source becomes bounded gap."
+          ],
+          "fixHash": "62a8de47ca75def5e94173cb1fd1b607dcbf82ac306757522dd7f6dd01d36460",
+          "validation": "Fix source inspected only. No reviewer Chrome validation.",
+          "resolved": true,
+          "closure": {
+            "reviewRound": 1,
+            "closedAt": "2026-11-13T19:13:30.713Z",
+            "method": "read_minimal_fix_and_targeted_assertions_only",
+            "evidence": [
+              "Final background lines400-404 still require allowed HTTP(S) frame, current permission and unchanged frame object before persisting URL.",
+              "Target assertions background tests257-276 reject unattributed/denied/revoked frame URLs and query strings; allow mapped root."
+            ],
+            "locations": [
+              "app/src/flow-background.js:397-408",
+              "app/tests/flow-background.test.js:257-276"
+            ],
+            "sourceFixHashes": {
+              "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82"
+            },
+            "reviewerExecutedTests": false,
+            "chromeValidated": false
+          }
+        },
+        {
+          "id": "R2",
+          "severity": "high",
+          "status": "resolved_source_only",
+          "title": "Same-document reinjection resets batch IDs and silently deduplicates new observations",
+          "trigger": "Persist root batches; iframe navigation or tab complete triggers allFrames injection; same root document/token collector resets; edit root again.",
+          "locations": [
+            "app/src/flow-background.js:151",
+            "app/src/flow-background.js:230-238",
+            "app/src/flow-background.js:414-415",
+            "app/src/flow-content.js:3-10",
+            "app/src/flow-content.js:32-35",
+            "app/src/flow-content.js:70-71",
+            "app/src/flow-store.js:343-352"
+          ],
+          "evidence": [
+            "Batch ID was ownerToken plus reset batchNo.",
+            "Durable key is tabId:frameId:documentId:batchId:index; new values can return accepted duplicate.",
+            "dispose also clears pending/queued observations without flush."
+          ],
+          "requiredFix": "Keep same-owner same-document collector/queue; distinct nonce for replacement; inject only required document/frame; prove root old/new values survive iframe navigation.",
+          "validation": "Source confirmed; parent accepted and implementing minimum repair.",
+          "resolved": true,
+          "closure": {
+            "reviewRound": 1,
+            "closedAt": "2026-11-13T19:13:30.713Z",
+            "method": "read_minimal_fix_and_targeted_assertions_only",
+            "evidence": [
+              "Content lines4-16 share bootstrap; same active ownership/document returns without disposal, retaining in-flight ACK and pending queue.",
+              "Each collector has crypto nonce line29; batchId line85 includes nonce, so legitimate replacement cannot reuse durable keys.",
+              "Background lines146-163 inject only allowed frame/document not previously injected; unchanged root is not reset by iframe navigation/tab complete.",
+              "Target content tests225-261 hold ACK over reinjection, retain both original changes/beforeValue, unique IDs, one listener/bootstrap; closed same-token restart gets fresh nonce.",
+              "Background tests176-192 assert each document once, no allFrames/denied injection, root values before/after iframe navigation retained."
+            ],
+            "locations": [
+              "app/src/flow-content.js:3-29",
+              "app/src/flow-content.js:46-51",
+              "app/src/flow-content.js:84-85",
+              "app/src/flow-background.js:140-181",
+              "app/tests/flow-content.test.js:225-261",
+              "app/tests/flow-background.test.js:176-192"
+            ],
+            "sourceFixHashes": {
+              "app/src/flow-background.js": "93fbf1b31cca41157127e7ce20f609af2a5453344e115ee65c07b41017d66b82",
+              "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb"
+            },
+            "reviewerExecutedTests": false,
+            "chromeValidated": false
+          }
+        },
+        {
+          "id": "R3",
+          "severity": "medium",
+          "status": "resolved_source_only",
+          "title": "Short-lived business dialog/validation text disappears before delayed checkpoint",
+          "trigger": "Show role=alert after click just after snapshot; remove within 200ms; no invalid event carries alert text.",
+          "locations": [
+            "app/src/flow-content.js:158-177",
+            "app/src/flow-content.js:298-305",
+            "app/src/flow-content.js:322-328"
+          ],
+          "evidence": [
+            "Observer schedules later snapshot without retaining state/text.",
+            "Minimum500ms capture spacing means short alert is absent in both snapshots and no omission marked."
+          ],
+          "requiredFix": "Retain bounded critical transition evidence, or leave non-omission release gate unpassed; not full mutation log.",
+          "validation": "Concrete source timing trace only, not native failure; parent accepted minimum immediate state evidence repair.",
+          "resolved": true,
+          "closure": {
+            "reviewRound": 1,
+            "closedAt": "2026-11-13T19:13:30.713Z",
+            "method": "read_minimal_fix_and_targeted_assertions_only",
+            "evidence": [
+              "Content lines153-185 immediately emits recorder.notice transient_state text and lightweight state, with first-use original long text as top-level dom content.",
+              "Observer lines205-225 records added/removed relevant state without waiting delayed full checkpoint.",
+              "Per callback at most8 states/8192bytes; text walk at most128nodes/depth8 and oversize emits explicit transient-text-scan-limit policy.",
+              "Target content tests264-292 assert added/removed short-lived alert original text despite absent final snapshot, long original text content ref,8KiB/state cap and giant text policy."
+            ],
+            "locations": [
+              "app/src/flow-content.js:153-185",
+              "app/src/flow-content.js:205-225",
+              "app/tests/flow-content.test.js:264-292"
+            ],
+            "sourceFixHashes": {
+              "app/src/flow-content.js": "6893e6570fee914e563459820b63a9add86318f909653c3235b3b7ceb058bcdb"
+            },
+            "reviewerExecutedTests": false,
+            "chromeValidated": false
+          }
+        }
+      ],
+      "independentSourceOnly": true
+    },
+    "packageOnlyReconstruction": {
+      "passed": true,
+      "checks": 13,
+      "sourceAndFinalCompatibility": {
+        "old": {
+          "path": "app/test-flow-acceptance-i030YS/round-1.zip",
+          "sha256": "2a97443d4aa8fe18df9efdfb822302924f7c2db6f8fffbba4211c508474ae139",
+          "events": 70,
+          "verifiedContents": 35,
+          "policyGaps": {
+            "child_gesture_unconfirmed": 1
+          }
+        },
+        "final": {
+          "path": "app/test-flow-acceptance-8NQJdR/round-1.zip",
+          "sha256": "18e661b50107c39c209dc1a1d5e6d318e51aa1f2cc4e6e7f6cedb1a6d0bdcc9e",
+          "events": 80,
+          "verifiedContents": 36,
+          "verifiedRefs": 41,
+          "policyGaps": 0,
+          "scope": "read-only compatibility, no second UI reconstruction"
+        }
+      },
+      "limitations": [
+        "Original JS/backend/auth and complete API contract",
+        "Disabled=true, missing Contact, create-member and unvisited branches",
+        "Pixel complete rendering, timing, fonts/canvas/full computed styles",
+        "Final-only transient/navigation/second input UI not reconstructed"
+      ],
+      "cleanup": {
+        "browserClosed": true,
+        "serversKilledAndCollected": [
+          "bash-ba05b39588204108",
+          "bash-a39edf297b4b401d"
+        ],
+        "testJobsCollected": [
+          "bash-ac91a75aec5243d1",
+          "bash-83d1431ba8724611"
+        ],
+        "port": 11141,
+        "connectExAfterKill": 10061,
+        "activeOwnedJobs": 0,
+        "userBrowserTouched": false
+      }
+    },
+    "exactReleaseSmoke": {
+      "receipt": "package-smoke.json",
+      "timing": "Runs after this fixed verification report is bound into the generated code ZIP manifest; separate receipt avoids circular hashes"
+    }
+  },
+  "oldData": {
+    "databaseNotOpened": true,
+    "migrated": false,
+    "deleted": false,
+    "oldBatchListingInNewVersion": false
+  },
+  "limits": {
+    "totalBytes": 67108864,
+    "warningBytes": 50331648,
+    "normalBytes": 66060288,
+    "reserveBytes": 1048576,
+    "singleBodyBytes": 2097152,
+    "categoryBytes": {
+      "body": 25165824,
+      "dom": 16777216,
+      "resource": 8388608,
+      "screenshot": 12582912,
+      "meta": 4194304
+    }
+  },
+  "limitations": [
+    "Saved-byte cap is not a hard process-memory or physically streamed CDP limit",
+    "No arbitrary real-site size/duration, complete source/server logic, login restoration or pixel-identical reconstruction guarantee",
+    "Native optional-permission dialog, macOS and physical minimumChrome125 not automatically tested",
+    "Twenty short cycles are not twenty60-second recordings",
+    "Independent receiver UI used an earlier focused bundle; final bundle was verified for evidence compatibility, not a second full UI reconstruction",
+    "Known policy gaps remain explicit; integrity pass and ready do not mean full capture"
+  ],
+  "historicalFailures": [
+    "Native opener child initially missed blank-to-HTTP lifecycle; fixed by bounded candidate plus document admission",
+    "Future gesture could claim a previously-created unrelated child; fixed eventTime<=createdTime",
+    "Repeated allFrames injection could reset batchNo/queue and silently dedup new events; fixed same-owner collector reuse/generation nonce and per-document injection",
+    "Unknown or unauthorized frame WebSocket URL could enter metadata; fixed explicit frame authorization",
+    "Short-lived alert could disappear before a snapshot; fixed immediate bounded text evidence",
+    "A mock test raced real WebCrypto and a native test raced controller recovery; fixtures now wait actual predicates",
+    "Initial acceptance worker observer/helper failures were retained separately; final20+60s reports are passing immutable-candidate runs"
+  ],
+  "evidenceFiles": [
+    {
+      "path": "app/test-flow-build-release.log",
+      "bytes": 582,
+      "sha256": "e3b1f936c5c55c52b59801dfacce81583bc99b9b57697e3d6e24874980b9c576"
+    },
+    {
+      "path": "app/test-flow-unit-release.log",
+      "bytes": 43780,
+      "sha256": "24fa2c50beb11fbe898f3ab5d1dad580adf3e943ae012ced6bc4b1b3f3a14082"
+    },
+    {
+      "path": "app/test-flow-native-store-release.log",
+      "bytes": 333,
+      "sha256": "46c74e7687d84dfabb890e5dc678db291e0390ec2414356a73ccb5e48d29553d"
+    },
+    {
+      "path": "docs/精简/2026-11-14-v0.4.0/acceptance-final.json",
+      "bytes": 13667,
+      "sha256": "8ad4d697940d693320bf542796649d41a50abe1356d3ae5427e6efcb7ba12fef"
+    },
+    {
+      "path": "docs/精简/2026-11-14-v0.4.0/performance-final.json",
+      "bytes": 210561,
+      "sha256": "ce0be8926c41feb0253aa499217921dfb0ae7ff51b6b1e25d800569b869ca965"
+    },
+    {
+      "path": "docs/精简/2026-11-14-v0.4.0/review.json",
+      "bytes": 18598,
+      "sha256": "6d2556d18d8bb731b89741c3d9c94b3fbff814c040fccff181756bb2f1b67e0d"
+    },
+    {
+      "path": "docs/精简/2026-11-14-v0.4.0/reconstruction.json",
+      "bytes": 9720,
+      "sha256": "4e5aec5158e0c146dbe6069c8c6d417d3e3492841932b077706c3352c1ff6048"
+    }
+  ]
+}

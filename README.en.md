@@ -1,91 +1,80 @@
 # Logic Recorder
 
-Record authorized browser workflows and observable page/network evidence in Chrome, then export a selected batch locally. Current patch: **v0.3.1** (local hotfix; published v0.3.0 artifacts remain unchanged).
+**v0.4.0 lightweight business-flow recorder.** Capture an explicitly selected workflow's key actions, page states and API samples, then export locally. Not a browser-wide backup or an automatic theme/schema analysis engine.
 
-[中文](<README.md>) · [Installation](<docs/插件安装与使用说明.md>) · [Release verification](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [Changelog](<docs/CHANGELOG.md>)
+[中文](<README.md>) · [Install/use](<docs/精简/2026-11-14-v0.4.0/INSTALL.md>) · [Actual verification](<docs/精简/2026-11-14-v0.4.0/REPORT.md>) · [Contract](<docs/精简/2026-11-14-v0.4.0/CONTRACT.md>)
 
-## v0.3.1 Stop/export hotfix
+## Deliverables
 
-Fix normal Stop being mislabeled interrupted when only a producer deadline left known gaps, and make archive work/read waits cooperative, bounded and progress-visible. Genuine storage/transport failures remain interrupted; existing batches are not relabeled or rewritten.
+- [Complete local v0.4.0 release](<app/release/logic-recorder-release-v0.4.0.zip>)
+- [Chrome extension](<app/release/v0.4.0/logic-recorder-chrome-v0.4.0.zip>) — no Node/Python required to record.
+- [Standalone analysis skill](<app/release/v0.4.0/extension-logic-clone-v0.4.0.zip>) — Python3.9+ standard library.
+- [Checksums](<app/release/v0.4.0/SHA256SUMS.txt>)
 
-[Patch extension ZIP](<app/release/v0.3.1/logic-recorder-chrome-v0.3.1.zip>) · [Update and recovery](<docs/修复/2026-11-13-stop-export/UPDATE-RECOVERY.md>) · [Actual verification](<docs/修复/2026-11-13-stop-export/REPORT.md>)
+This turn produces a local release and updates the current installation path; it does not automatically publish a new public GitHub Release. Published [v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>) remains historical and byte-identical.
 
-**Replace files in the existing installation path and reload after stopping; do not uninstall or clear browser data.** No new public GitHub Release is created automatically.
+## Reduced contract
 
-## Published v0.3.0
+The four operations remain **Start, Stop, select a batch, Export**. A batch binds one root business tab, authorized required frames and at most one attributed opener child. Activation changes, unrelated existing tabs, unknown openers or later gestures cannot expand scope. Navigation into an ungranted origin is a recorded gap.
 
-Published: [GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>). All ten assets were downloaded from their public URLs and matched the previously verified local SHA-256 values.
+Retained: stable input/known before-values, meaningful actions, canonical structural DOM, form properties, important states including brief validation alerts, necessary CSS/resources, viewport PNG and business XHR/Fetch request/response samples. Identical bytes are stored once by session-local SHA256 while observations retain references.
 
-**Recommended: [complete release bundle](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-release-v0.3.0.zip>)**, including both archives, installation/release notes, actual verification and checksums.
+Removed from the default product: browser-wide capture, full computed-style/pseudo-element enumeration, theme/field derivation, Cookie snapshots, Storage polling, full IndexedDB/Cache mirroring, full-page tiles, separate Canvas pixels, all JS/media/upload-file bytes and WS/SSE message payloads. This deliberately gives up full-site/offline-database/precise replay guarantees rather than hiding data loss.
 
-- [Chrome extension ZIP](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-chrome-v0.3.0.zip>) — extract and load unpacked; Node.js/Python are not required to record.
-- [Analysis skill ZIP](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/extension-logic-clone-v0.3.0.zip>) — integrity validation, SQLite indexing, fragment reconstruction and style decoding; Python 3.9+ standard library.
-- [SHA-256 checksums](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/SHA256SUMS.txt>) · [Actual verification report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
+## Enforced budgets
 
-Four primary operations remain: **Start, Stop, select a batch, Export**. This version repairs per-batch acknowledgement, fragment terminal handling, source-scoped dictionaries, immutable sealing, late-task ownership and Stop/export control; it adds clear operational warnings and provenance. Historical results are not counted as passing this build.
+One batch accepts at most64MiB logical saved content/metadata, warns at48MiB, ends normal intake by63MiB and reserves1MiB for finalization. Categories share the cap: body24MiB, DOM16MiB, necessary resources8MiB, screenshots12MiB, metadata4MiB. Single bodies are capped at2MiB. Cross-category reuse still charges each relevant category. Policy stop retains the saved partial batch; it does not delete or circularly overwrite data. These are saved-byte limits, not hard Chrome memory bounds.
 
-At the user's request, development verification runs directly on the current Windows installation without building an OS isolation environment. Only synthetic local sites and test-owned browser data directories are used, not real business data or the user's existing profile. Earlier blocked/isolation documents are historical and are not prerequisites of this release.
+Export only packages persisted events, content and compact manifests/hashes. No per-element theme/field expansion occurs during primary export. Unknown-length CDP reads have explicitly disclosed physical streaming limitations; rejected content is never marked captured.
 
-## Install and update
+## Actual reference workload
 
-1. Extract the extension ZIP to a stable directory.
-2. Open `chrome://extensions`, enable Developer mode, and choose **Load unpacked**.
-3. Select the directory directly containing `manifest.json`.
-4. Pin/click Logic Recorder to open its side panel.
+Windows native Chrome157, synthetic workflow with20 unrelated tabs,5000 CSS variables/animation, authorized frame/attributed child, form before/after, required validation, modal/select, PUT save, POST debit201 and rejected409, frame navigation followed by new root input, and a200ms alert.
 
-The manifest declares Chrome 125+. See the release report for the browser/OS actually tested; the minimum version and other platforms are not implicitly verified. Before updating, stop recording and export needed batches. Replace files in the existing extension directory and reload it; uninstalling may remove local data.
+- One60s business workload: ZIP **562491B**, Stop **1837ms**, Export **2366ms**.
+- Twenty short identical business cycles: all pass; P95 Stop **2436ms**, Export **2703ms**; max ZIP **329596B**. This is not20×60s.
+-445 JavaScript regressions (72 new flow contracts),12 legacy +16 v3 Python tests; native storage/budget and independent package-only reconstruction evidence in the [report](<docs/精简/2026-11-14-v0.4.0/REPORT.md>).
 
-## Use
+These are fixed-fixture results, not universal size/performance promises. Old heavy50-scenario matrices are not counted as new scope acceptance.
 
-1. Open only HTTP(S) sites you are authorized to record. A dedicated business profile is recommended; a separate window does not isolate other windows in the same profile.
-2. Click **开始录制**, and grant Chrome's native site-access request. The default scope includes all authorized ordinary pages, including other windows and pages opened later.
-3. Work normally, then click **停止录制**. Stop also works during preparation. Closing the side panel does not stop recording.
-4. Wait for the batch, select it, and click **导出记录包**. No new historical export starts during recording; export state does not own Stop.
+## Install/update/use
 
-“Stopped, exportable” is not a guarantee of complete evidence. “Verification needed” or “interrupted” requires checking gaps in the archive. Saved portions remain exportable. A download confirmation timeout is reported as an error/unknown outcome, not success; the local batch remains available for retry.
+Extract the extension, open chrome://extensions, enable Developer mode, and load the directory directly containing manifest.json. For an existing installation, stop first, back up program files, replace files **in the same loaded directory**, then reload that same extension. Do not uninstall, clear browser data or install a second path. A directory bearing an old version name need not be renamed.
 
-Recordings stay local and are not uploaded by the extension. There is no automatic expiry/deletion, in-extension content viewer, import or replay. Exported files and external indexes remain the holder's responsibility.
-
-## Current patched interface (v0.3.1)
+New batches use the independent logic-recorder-flow-v1 database. The legacy database is not opened, migrated or deleted; old batches do not appear in the new list. Current-origin permission requests replace asking for all sites; previously granted permissions may remain, but internal scope stays restricted. Closing the panel does not stop recording.
 
 | Ready | Batch selection |
 | :---: | :---: |
-| ![v0.3.0 ready](<docs/media/v0.3.1-01-ready.png>) | ![v0.3.0 batch selection](<docs/media/v0.3.1-03-history.png>) |
+| ![v0.4.0 ready](<docs/media/v0.4.0-01-ready.png>) | ![v0.4.0 batches](<docs/media/v0.4.0-03-history.png>) |
 
-These are real extension screenshots using synthetic local data. Automation pre-grants host access in a temporary extension copy; it does not prove native permission-dialog acceptance/denial. See [media notes](<docs/DEMO.md>).
+Real extension UI with synthetic data; pre-granted automation is not proof of native permission-dialog behavior.
 
-## Data handling and limitations
+## Format and risks
 
-**Archives may contain passwords, authorization headers, cookies, tokens, input, file contents, personal/business data and unmasked screenshots. ZIP files are not encrypted.** Record only authorized pages and control local/backup/sharing access. Indexes also retain raw values.
-
-Archives contain a manifest, integrity hashes, raw event chunks, screenshots/resources, event/page/relationship indexes, source-scoped field observations and theme data.
-
-- Large payloads may use fragments. Verify all parts and a unique confirmed End; matching Failure or data after End invalidates completeness.
-- Serialized DOM is not server source or original HTTP bytes. Raw and derived views differ.
-- Screenshots can be shared/missing; tiled full-page images are not atomic. Canvas PNGs are not guaranteed to match the composited screen.
-- IDB/Cache start/end sampling is best effort, not a global transaction or a complete history. Cookie evidence is domain-scoped, not proof of action causality.
-- Nearby times do not prove causality; missing/unknown/unobserved does not mean absent. Hashes establish consistency with the included list, not authenticity.
-- Browser restrictions, navigation, debugger detachment and resource pressure can leave gaps. Arbitrary duration/size, unvisited branches, server logic or a deployable whole-site clone are not guaranteed.
-
-See the [archive reference](<app/skills/extension-logic-clone/references/archive-format.md>) and [analysis guide](<docs/技能使用说明.md>).
-
-## Analysis and development
-
-Extract the skill's `extension-logic-clone` folder into the user's Codex skills directory, inspecting existing files before updating. Or invoke the standard-library indexer directly with a new output path:
+V3/business-flow-v1 archives contain manifest.json, integrity.json, timeline/events-NNNNN.jsonl and contents/<SHA256>.bin. Payload top-level content references identify exact bytes. The standalone indexer verifies integrity, events and references and stores raw events/files/contents/content_refs in a new SQLite file:
 
 ```powershell
-python ./app/skills/extension-logic-clone/scripts/index_archive.py recording.zip --output new-index.sqlite3
+python scripts/index_archive.py recording.zip --output new-index.sqlite3
 ```
+
+[Format reference](<app/skills/extension-logic-clone/references/archive-format.md>). Legacy v1/v2 file-reader support is not legacy browser-database migration.
+
+Samples may include passwords, authorization headers, personal/business data and unmasked screenshots. ZIP/SQLite are not encrypted. The extension does not upload them; protect local files, backups and sharing. Hashes establish consistency, not authenticity. No source/server-code, login restoration, complete database, unvisited branches or pixel-identical website reconstruction is guaranteed. Read policy/gap states; ready/integrity pass is not full capture. Native permission dialogs, physical Chrome125/macOS and real customer ERPs are not automatically certified.
+
+## Development
 
 ```powershell
 cd app
 npm ci
 npm run build
 npm test
+npm run test:flow
 npm run test:skill
+npm run test:flow-skill
 $env:CHROME_BIN='C:/Program Files/Google/Chrome/Application/chrome.exe'
-npm run test:e2e
-npm run test:capture-matrix
+npm run test:flow-native-store
+npm run test:flow-acceptance
+npm run test:flow-performance
 ```
 
-The [release report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) distinguishes actual results from limitations. No Docker/WSL or replacement user browser is used; tests only clean resources they create. Historical viewer tests do not define the current UI.
+Production uses flow-background/flow-content/flow-archive. Historical heavy/viewer sources remain out of the build. Native Windows, no Docker/WSL; only task-owned test browsers are closed.
