@@ -6,11 +6,13 @@ Record authorized browser workflows and observable page/network evidence in Chro
 
 ## Deliverables
 
-**Recommended: [complete release bundle](<app/release/logic-recorder-release-v0.3.0.zip>)**, including both archives, installation/release notes, actual verification and checksums.
+Published: [GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>). All ten assets were downloaded from their public URLs and matched the previously verified local SHA-256 values.
 
-- [Chrome extension ZIP](<app/release/v0.3.0/logic-recorder-chrome-v0.3.0.zip>) — extract and load unpacked; Node.js/Python are not required to record.
-- [Analysis skill ZIP](<app/release/v0.3.0/extension-logic-clone-v0.3.0.zip>) — integrity validation, SQLite indexing, fragment reconstruction and style decoding; Python 3.9+ standard library.
-- [SHA-256 checksums](<app/release/v0.3.0/SHA256SUMS.txt>) · [Actual verification report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
+**Recommended: [complete release bundle](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-release-v0.3.0.zip>)**, including both archives, installation/release notes, actual verification and checksums.
+
+- [Chrome extension ZIP](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-chrome-v0.3.0.zip>) — extract and load unpacked; Node.js/Python are not required to record.
+- [Analysis skill ZIP](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/extension-logic-clone-v0.3.0.zip>) — integrity validation, SQLite indexing, fragment reconstruction and style decoding; Python 3.9+ standard library.
+- [SHA-256 checksums](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/SHA256SUMS.txt>) · [Actual verification report](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
 
 Four primary operations remain: **Start, Stop, select a batch, Export**. This version repairs per-batch acknowledgement, fragment terminal handling, source-scoped dictionaries, immutable sealing, late-task ownership and Stop/export control; it adds clear operational warnings and provenance. Historical results are not counted as passing this build.
 

@@ -6,11 +6,13 @@
 
 ## 本版交付
 
-**推荐下载：[完整release交付包](<app/release/logic-recorder-release-v0.3.0.zip>)**，内含扩展、解析工具、安装/更新说明、真实验证记录和校验清单。
+已正式发布：[GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)。10个附件已从公开链接重新下载并核对SHA-256，与此前本地交付字节一致。
 
-- [Chrome 扩展安装包](<app/release/v0.3.0/logic-recorder-chrome-v0.3.0.zip>)：解压后加载，不需 Node.js/Python。
-- [独立解析技能](<app/release/v0.3.0/extension-logic-clone-v0.3.0.zip>)：ZIP 校验、SQLite 索引、分段重组与样式解码，Python 3.9+ 标准库。
-- [SHA-256 校验清单](<app/release/v0.3.0/SHA256SUMS.txt>) · [本版验收报告](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
+**推荐下载：[完整release交付包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-release-v0.3.0.zip>)**，内含扩展、解析工具、安装/更新说明、真实验证记录和校验清单。
+
+- [Chrome 扩展安装包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/logic-recorder-chrome-v0.3.0.zip>)：解压后加载，不需 Node.js/Python。
+- [独立解析技能](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/extension-logic-clone-v0.3.0.zip>)：ZIP 校验、SQLite 索引、分段重组与样式解码，Python 3.9+ 标准库。
+- [SHA-256 校验清单](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.3.0/SHA256SUMS.txt>) · [本版验收报告](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>)
 
 本版保留四项主要操作：**开始、停止、选择批次、导出**。修复批次确认、分段终态、跨来源字段汇总、会话封存、迟到任务归属和停止/导出控制；增加原值/范围披露、核验状态及版本来源。结果以本版实际报告为准，不沿用旧构建的通过数。
 

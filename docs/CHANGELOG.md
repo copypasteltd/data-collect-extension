@@ -3,7 +3,9 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
-## 0.3.0 - 2026-11-13（本地 release / Local release）
+## 0.3.0 - 2026-11-13（GitHub Release 已发布 / Published）
+
+- 经用户明确授权，正式发布[GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)，标签指向原验证提交9abce787e6ecc777ec4c9c8934012dd4832d605b；10附件公开下载与本地SHA-256一致，无重新编译或更改产物。 / Explicitly authorized GitHub publication; all ten public downloads match the original verified artifacts, with no rebuild or changed bytes.
 
 - 按用户要求直接在当前 Windows 原生环境修复、编译和验证，不建设隔离环境；发布包与真实执行记录见[本版交付](<交付/2026-11-13/native-release/RELEASE-REPORT.md>)。 / Build and verify directly on the current Windows host, without constructing an isolation environment.
 - 修复独立BatchOutcome、提交未知/失败、producer中止sticky标志、分段终态/UTF16/安全整数及JS/Python一致性。 / Repair per-batch outcomes, transport uncertainty, sticky producer state and cross-consumer fragment rules.
