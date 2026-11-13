@@ -1,0 +1,132 @@
+{
+  "sampledAt": "2026-11-13T13:13:59.256Z",
+  "syntheticOnly": true,
+  "chains": [
+    {
+      "depth": 256,
+      "rows": 771,
+      "locationCells": 32896,
+      "observationBytes": 1061825,
+      "summaryBytes": 888450,
+      "observationMs": 13.37,
+      "summaryMs": 7.95
+    },
+    {
+      "depth": 512,
+      "rows": 1539,
+      "locationCells": 131328,
+      "observationBytes": 3433153,
+      "summaryBytes": 3086722,
+      "observationMs": 31.93,
+      "summaryMs": 19.26
+    },
+    {
+      "depth": 1024,
+      "rows": 3075,
+      "locationCells": 524800,
+      "observationBytes": 12108043,
+      "summaryBytes": 11415426,
+      "observationMs": 108.54,
+      "summaryMs": 92.59
+    },
+    {
+      "depth": 2048,
+      "rows": 6147,
+      "locationCells": 2098176,
+      "observationBytes": 45189387,
+      "summaryBytes": 43801474,
+      "observationMs": 317.73,
+      "summaryMs": 228.48
+    }
+  ],
+  "fragments": [
+    {
+      "parts": 16,
+      "utf16Units": 1600000,
+      "reconstructionMs": 0.65
+    },
+    {
+      "parts": 64,
+      "utf16Units": 6400000,
+      "reconstructionMs": 2.63
+    },
+    {
+      "parts": 128,
+      "utf16Units": 12800000,
+      "reconstructionMs": 6.28
+    }
+  ],
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+    "cspViolations": [
+      {
+        "directive": "worker-src",
+        "blocked": "blob"
+      }
+    ],
+    "asyncZipDeflate": {
+      "success": false,
+      "error": "Error: timeout"
+    },
+    "syncZip": {
+      "inputBytes": 2000000,
+      "pushAndEndMs": 66.5,
+      "timerFiredBeforeReturn": false,
+      "timerDelayMs": 66.8
+    },
+    "digest2MBMs": 1.9,
+    "selfModuleWorker": {
+      "success": true,
+      "elapsedMs": 135.2,
+      "intervalTicks": 23
+    },
+    "compressionStream": {
+      "success": true,
+      "elapsedMs": 37.9,
+      "compressedBytes": 1643650
+    },
+    "idb": [
+      {
+        "limit": 20,
+        "events": 600,
+        "pages": 31,
+        "payloadUtf16Units": 12000000,
+        "elapsedMs": 189.7
+      },
+      {
+        "limit": 200,
+        "events": 600,
+        "pages": 4,
+        "payloadUtf16Units": 12000000,
+        "elapsedMs": 176.8
+      }
+    ]
+  },
+  "staticAnalysisPhase": "Before parent production fixes; later graph budget patch explicitly authorized by parent",
+  "afterGraphBudget": {
+    "sampledAt": "2026-11-13T13:18:53.893Z",
+    "depth2048": {
+      "observationBytes": 2921098,
+      "summaryBytes": 888450,
+      "locationCells": 32896,
+      "observationMs": 28.12,
+      "summaryMs": 5.75
+    },
+    "limits": {
+      "depth": 256,
+      "locationCells": 1000000,
+      "pending": 100000,
+      "paths": 100000
+    },
+    "coverage": "Explicit field-path-coverage status partial on exceeded budget; all raw graph-node and direct-field evidence preserved",
+    "verification": {
+      "command": "node --test tests/browser-observations.test.js tests/browser-field-summary.test.js tests/browser-archive.test.js tests/archive.test.js tests/archive-seal.test.js",
+      "exitCode": 0,
+      "passed": 37,
+      "failed": 0
+    },
+    "productionPathsChangedByThisSubagent": [
+      "app/src/browser-observations.js"
+    ]
+  }
+}

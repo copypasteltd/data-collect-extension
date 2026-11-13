@@ -1,5 +1,9 @@
 # 界面与演示素材
 
+## v0.3.1 停止／导出修复
+
+[准备](<media/v0.3.1-01-ready.png>) · [录制](<media/v0.3.1-02-recording.png>) · [批次](<media/v0.3.1-03-history.png>)。真实本机Chrome合成页截图，保留v0.3.0历史图片不覆盖。由[修复版截图脚本](<../app/scripts/capture-hotfix-ui.mjs>)生成；进度行为通过[故障恢复测试](<修复/2026-11-13-stop-export/export-recovery.md>)实际观察，截图本身不是所有业务完整证明。
+
 ## v0.3.0 当前截图
 
 - [准备录制](<media/v0.3.0-01-ready.png>)

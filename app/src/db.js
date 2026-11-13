@@ -3,7 +3,63 @@ import { isActiveSession, sessionWriteError, mergeInterruptionDiagnostics } from
 const NAME = "logic-recorder";
 const OPEN_TIMEOUT_MS = 5000;
 const WRITE_TIMEOUT_MS = 5000;
+const READ_TIMEOUT_MS = 15000;
+const MAX_EVENT_PAGE_SIZE = 1000;
 let promise;
+
+// Read failures must settle the caller as well as stop the underlying readonly
+// transaction. Do not turn a timeout/abort into an empty successful result.
+function guardRead(tx, operation, resolve, reject, { timeoutMs = READ_TIMEOUT_MS, signal } = {}) {
+  let settled = false;
+  const finish = (error, value) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
+    if (error) reject(error);
+    else resolve(value);
+  };
+  const abort = (error) => {
+    if (settled) return;
+    // Settle first: even a synchronous fake abort notification must not replace
+    // the operation-specific timeout/cancel error.
+    finish(error);
+    try { tx.abort(); } catch {}
+  };
+  const cancel = () => abort(new Error(`${operation}已取消`));
+  const delay = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : READ_TIMEOUT_MS;
+  const timer = setTimeout(() => abort(new Error(`${operation}超时`)), delay);
+  tx.onerror = () => finish(tx.error || new Error(`${operation}事务失败`));
+  tx.onabort = () => finish(tx.error || new Error(`${operation}事务已中断`));
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
+  return {
+    get settled() { return settled; },
+    resolve: (value) => finish(null, value),
+    abort,
+  };
+}
+
+async function readRequest(store, operation, requestFor, options) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store);
+    const guard = guardRead(tx, operation, resolve, reject, options);
+    if (guard.settled) return;
+    try {
+      const request = requestFor(tx.objectStore(store));
+      // Keep request-success settlement for existing callers/test doubles; only
+      // cursor pages need transaction-complete to reject a partial page.
+      request.onsuccess = () => {
+        if (guard.settled) return;
+        try { guard.resolve(request.result); } catch (error) { guard.abort(error); }
+      };
+      request.onerror = () => {
+        if (!guard.settled) guard.abort(request.error || tx.error || new Error(`${operation}请求失败`));
+      };
+    } catch (error) { guard.abort(error); }
+  });
+}
 function limitWrite(tx, reject) {
   const timer = setTimeout(() => {
     try { tx.abort(); } catch {}
@@ -62,55 +118,47 @@ export function openDB() {
   }
   return promise;
 }
-export async function eventPage(sessionId, after = 0, limit = 20) {
+export async function eventPage(sessionId, after = 0, limit = 20, options) {
+  if (!Number.isInteger(limit) || limit <= 0 || limit > MAX_EVENT_PAGE_SIZE)
+    throw new RangeError(`读取记录分页大小须为1至${MAX_EVENT_PAGE_SIZE}的整数`);
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("events");
-    const range = IDBKeyRange.bound(
-      [sessionId, after],
-      [sessionId, Number.MAX_SAFE_INTEGER],
-      true,
-      false,
-    );
-    const request = tx
-      .objectStore("events")
-      .index("sessionSeq")
-      .openCursor(range);
+    const guard = guardRead(tx, "读取记录", resolve, reject, options);
+    if (guard.settled) return;
     const results = [];
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (cursor && results.length < limit) {
-        results.push(cursor.value);
-        cursor.continue();
-      }
-    };
-    tx.oncomplete = () => resolve(results);
-    tx.onerror = () => reject(tx.error || new Error("读取记录事务失败"));
-    // An explicit abort need not dispatch an individual request error. Never
-    // leave an export page waiting only for an oncomplete that cannot happen.
-    tx.onabort = () => reject(tx.error || new Error("读取记录事务已中断"));
+    tx.oncomplete = () => guard.resolve(results);
+    try {
+      const range = IDBKeyRange.bound(
+        [sessionId, after],
+        [sessionId, Number.MAX_SAFE_INTEGER],
+        true,
+        false,
+      );
+      const request = tx.objectStore("events").index("sessionSeq").openCursor(range);
+      request.onsuccess = () => {
+        if (guard.settled) return;
+        try {
+          const cursor = request.result;
+          if (cursor && results.length < limit) {
+            results.push(cursor.value);
+            if (results.length < limit) cursor.continue();
+          }
+        } catch (error) { guard.abort(error); }
+      };
+      request.onerror = () => {
+        if (!guard.settled) guard.abort(request.error || tx.error || new Error("读取记录游标请求失败"));
+      };
+    } catch (error) { guard.abort(error); }
   });
 }
-export async function countEvents(sessionId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const request = db
-      .transaction("events")
-      .objectStore("events")
-      .index("session")
-      .count(IDBKeyRange.only(sessionId));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+export function countEvents(sessionId, options) {
+  return readRequest("events", "读取记录数量",
+    (store) => store.index("session").count(IDBKeyRange.only(sessionId)), options);
 }
-export async function countAssets(sessionId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction("assets").objectStore("assets").index("session")
-      .count(IDBKeyRange.only(sessionId));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+export function countAssets(sessionId, options) {
+  return readRequest("assets", "读取附件数量",
+    (store) => store.index("session").count(IDBKeyRange.only(sessionId)), options);
 }
 function writeError(reason) {
   return Object.assign(new Error(`会话拒绝写入：${reason}`), { code: reason });
@@ -368,24 +416,12 @@ export async function putIdempotentEvents(values, capacity, options) {
   const { results } = await writeEvidence("events", values, { ...options, capacity, idempotent: true });
   return results;
 }
-export async function get(store, key) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const req = db.transaction(store).objectStore(store).get(key);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+export function get(store, key, options) {
+  return readRequest(store, "读取单条记录", (source) => source.get(key), options);
 }
-export async function all(store, sessionId) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const source = db.transaction(store).objectStore(store);
-    const req = sessionId
-      ? source.index("session").getAll(sessionId)
-      : source.getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+export function all(store, sessionId, options) {
+  return readRequest(store, "读取记录列表",
+    (source) => sessionId ? source.index("session").getAll(sessionId) : source.getAll(), options);
 }
 export async function saveImport(session, blob) {
   const db = await openDB();

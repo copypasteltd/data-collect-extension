@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AlertTriangle, Circle, Download, Square } from "lucide-react";
 import { createArchive } from "./archive.js";
+import { exportProgressPhase, exportProgressDetail } from "./export-progress.js";
 import { downloadBlob } from "./downloads.js";
 import { canStartRecording, canStopRecording, canExportRecording, recordingNotice, batchStatusLabel, exportPhaseLabel } from "./panel-state.js";
 import "./style.css";
@@ -29,6 +30,8 @@ function App() {
   const [statusError, setStatusError] = useState("");
   const [batchError, setBatchError] = useState("");
   const [exportPhase, setExportPhase] = useState("");
+  const [exportProgress, setExportProgress] = useState(null);
+  const [exportElapsed, setExportElapsed] = useState(0);
   const [exportNotice, setExportNotice] = useState("");
   const operation = useRef(null);
   const exportOperation = useRef(null);
@@ -101,6 +104,10 @@ function App() {
     return () => clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => () => {
+    exportOperation.current?.controller.abort(new Error("侧边栏已关闭，本地批次仍保留，可重新导出"));
+  }, []);
+
   async function start() {
     if (!canStartRecording(state.active, operation.current, exportOperation.current)) return;
     const currentOperation = { type: "starting" };
@@ -157,11 +164,14 @@ function App() {
 
   async function download() {
     if (!canExportRecording(state.active, selectedId, operation.current, exportOperation.current)) return;
-    const currentExport = { id: selectedId };
+    const currentExport = { id: selectedId, startedAt: Date.now(), controller: new AbortController() };
     exportOperation.current = currentExport;
     setError("");
     setExportNotice("");
     setExportPhase("checking");
+    setExportProgress(null);
+    setExportElapsed(0);
+    const elapsedTimer = setInterval(() => setExportElapsed(Date.now() - currentExport.startedAt), 1000);
     try {
       // A second panel may have started recording since the last poll. Do not
       // open a new historical export in that state; an already running export
@@ -172,8 +182,9 @@ function App() {
       setExportPhase("events");
       const { blob, importIssues = [] } = await createArchive(currentExport.id, (progress) => {
         if (exportOperation.current !== currentExport) return;
-        setExportPhase(progress.phase === "整理截图与资源" ? "assets" : "events");
-      });
+        setExportPhase(exportProgressPhase(progress));
+        setExportProgress(progress);
+      }, { signal: currentExport.controller.signal });
       if (exportOperation.current !== currentExport) return;
       setExportPhase("download");
       await downloadBlob(blob, `逻辑记录-${currentExport.id.slice(0, 8)}.zip`);
@@ -185,9 +196,11 @@ function App() {
     } catch (reason) {
       if (exportOperation.current === currentExport) setError(reason.message);
     } finally {
+      clearInterval(elapsedTimer);
       if (exportOperation.current === currentExport) {
         exportOperation.current = null;
         setExportPhase("");
+        setExportProgress(null);
       }
     }
   }
@@ -238,6 +251,7 @@ function App() {
         <button className="export" disabled={!canExportRecording(active, selectedId, busy ? { type: busy } : null, exporting)} onClick={download} aria-busy={exporting}>
           <Download size={16} />{exporting ? exportPhaseLabel(exportPhase) : "导出记录包"}
         </button>
+        {exporting && <p className="disclosure" role="status" aria-live="polite">{exportProgressDetail(exportProgress, exportElapsed)}。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。</p>}
         {active && <p className="disclosure">请先停止当前录制，再导出记录包。</p>}
         {exportNotice && <p className="notice" role="status">{exportNotice}</p>}
         <p className="disclosure">导出会保留本地批次，当前不会自动到期删除；分享与后续副本的保存范围需另行控制。</p>

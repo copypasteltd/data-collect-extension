@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-13T13:15:20.652Z",
+  "status": "implemented-and-scoped-tests-passed",
+  "source": "delegated-db-read-repair",
+  "environment": {
+    "os": "Windows (native)",
+    "node": "v24.22.1",
+    "osIsolation": false,
+    "data": "synthetic in-memory IndexedDB notifications only",
+    "realProfileOpened": false,
+    "realRecordingOpened": false
+  },
+  "scope": {
+    "changed": [
+      "app/src/db.js",
+      "app/tests/db-read-timeout.test.js",
+      "docs/修复/2026-11-13-stop-export/db-read-repair.md",
+      "docs/修复/2026-11-13-stop-export/db-read-repair.json"
+    ],
+    "notChanged": [
+      "openDB shared-open contract / OPEN_TIMEOUT_MS=5000 / DB version 3",
+      "WRITE_TIMEOUT_MS=5000 / writer authority and writeEvidence",
+      "sealSession / interruptSession",
+      "removeSession / saveImport",
+      "package.json / dependencies",
+      "archive / UI / codec / background (owned by parent or other agent)"
+    ],
+    "dirtyWorktreePreserved": true
+  },
+  "implementation": {
+    "readTimeoutMs": 15000,
+    "eventPageLimit": {
+      "min": 1,
+      "max": 1000,
+      "integer": true
+    },
+    "operations": {
+      "countEvents": "读取记录数量",
+      "countAssets": "读取附件数量",
+      "get": "读取单条记录",
+      "all": "读取记录列表",
+      "eventPage": "读取记录"
+    },
+    "options": {
+      "fields": [
+        "timeoutMs",
+        "signal"
+      ],
+      "api": [
+        "countEvents(sessionId, options?)",
+        "countAssets(sessionId, options?)",
+        "get(store, key, options?)",
+        "all(store, sessionId, options?)",
+        "eventPage(sessionId, after=0, limit=20, options?)"
+      ]
+    },
+    "semantics": [
+      "readonly transactions only; no delete/write/close on timeout or cancellation",
+      "settle once, clear timer, remove abort listener, ignore late success/cursor notifications",
+      "timeout/cancel cause settles before tx.abort; still rejects when abort throws or never notifies",
+      "transaction onerror/onabort and request errors reject; preserve original browser errors",
+      "single-request reads resolve at request success for existing fake-request compatibility",
+      "eventPage resolves only on transaction complete, rejects partial page on timeout/error/abort, catches cursor callback exceptions",
+      "page stops cursor continuation immediately when the configured positive limit is reached",
+      "unknown failure is never converted to zero or an empty array"
+    ],
+    "sharedOpenNote": "Read options apply after shared openDB resolves; existing shared open timeout remains 5000ms. A per-read cancellation does not close/cancel the shared opening connection."
+  },
+  "verification": {
+    "command": "node --test tests/db*.test.js tests/browser-archive.test.js tests/seal-session.test.js",
+    "cwd": "app",
+    "jobId": "bash-01da8cbcb70b42f1",
+    "exitCode": 0,
+    "tests": 61,
+    "passed": 61,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0,
+    "durationMs": 10183.9341,
+    "breakdown": {
+      "dbReadTimeout": 43,
+      "db": 3,
+      "dbAbort": 4,
+      "browserArchive": 4,
+      "sealSession": 7
+    },
+    "newTests": [
+      "five helpers with 5ms truly pending deadlines",
+      "five helpers with abort-only transaction notifications",
+      "five helpers with original transaction error identity",
+      "five helpers with cancellation/listener cleanup and non-disclosure of signal reason",
+      "five helpers with pre-cancellation and throwing abort",
+      "five helpers with request errors and throwing abort",
+      "five helpers with success and timer/listener cleanup",
+      "15000ms default for all helpers using fake timers",
+      "partial event page timeout and ignoring late cursor",
+      "cursor.continue exception capture",
+      "positive page size limit and waiting for tx.complete",
+      "invalid limit rejection before opening DB",
+      "all without sessionId old call compatibility",
+      "synchronous request setup error cleanup",
+      "shared connection remains after per-read cancellation"
+    ],
+    "whitespaceCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  },
+  "limitations": [
+    "No real-Chrome/profile/recording acceptance was performed by this subagent.",
+    "Full unit/build and documentation README/changelog integration remain with parent.",
+    "The newly created test file is not automatically included in existing package.json explicit npm test list; parent was notified.",
+    "This repair bounds read waiting and preserves existing batches; it does not claim to repair background stop, archive analysis CPU time, codec or UI."
+  ],
+  "handoff": {
+    "sourceFrozen": true,
+    "delegationStarted": false,
+    "push": false,
+    "publish": false,
+    "packageBuild": false
+  }
+}

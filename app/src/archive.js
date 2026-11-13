@@ -2,8 +2,6 @@ import {
   strToU8,
   strFromU8,
   Zip,
-  ZipDeflate,
-  ZipPassThrough,
   Unzip,
   UnzipInflate,
 } from "fflate";
@@ -22,6 +20,8 @@ import { createInterfaceIndex } from "./interface-index.js";
 import { reconstructFragments } from "./fragments.js";
 import { createFragmentTerminals } from "./fragment-terminals.js";
 import { createArchiveProvenance, readArchiveExporterVersion } from "./archive-provenance.js";
+import { createArchiveTask } from "./archive-task.js";
+import { addArchiveFile } from "./archive-compression.js";
 
 const digest = async (bytes) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
@@ -64,8 +64,12 @@ async function readLocalSessionData(id) {
     files,
   };
 }
-export async function createArchive(id, onProgress = () => {}) {
-  return withSessionLock(id, "shared", () => createArchiveData(id, onProgress));
+export async function createArchive(id, onProgress = () => {}, options = {}) {
+  const task = createArchiveTask(onProgress, options);
+  try {
+    task.stage("等待记录访问");
+    return await task.wait(() => withSessionLock(id, "shared", () => createArchiveData(id, task), { signal: task.signal }));
+  } finally { task.dispose(); }
 }
 export function archiveSeal(session) {
   if (session?.seal == null) return null;
@@ -82,20 +86,22 @@ export function sameArchiveSeal(session, expected) {
   return expected === null || JSON.stringify(archiveSeal(session)) === JSON.stringify(expected);
 }
 
-async function createArchiveData(id, onProgress) {
-  const session = await get("sessions", id);
+async function createArchiveData(id, task) {
+  const readOptions = { signal: task.signal };
+  task.stage("读取批次与附件索引");
+  const session = await task.wait(() => get("sessions", id, readOptions));
   if (!session || !["ready", "interrupted"].includes(session.status))
     throw new Error("记录尚未结束，无法导出");
   if (session.imported) {
-    const stored = await get("imports", id);
+    const stored = await task.wait(() => get("imports", id, readOptions));
     if (!(stored?.blob instanceof Blob)) throw new Error("已导入的记录包不存在");
     return { blob: stored.blob, importIssues: [] };
   }
   const sealed = archiveSeal(session);
-  const assets = await all("assets", id);
+  const assets = await task.wait(() => all("assets", id, readOptions));
   if (assets.length > 25000) throw new Error("截图和资源数量超过单包上限");
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-  const count = await countEvents(id),
+  const count = await task.wait(() => countEvents(id, readOptions)),
     chunks = [],
     integrity = [],
     eventChunks = [],
@@ -112,19 +118,22 @@ async function createArchiveData(id, onProgress) {
     throw new Error("记录与封存计数不一致，无法导出");
   const fragmentTerminals = createFragmentTerminals();
   let terminalAfter = 0, terminalEventCount = 0;
+  task.stage("核对分段终态", { total: count });
   while (true) {
-    const events = await eventPage(id, terminalAfter);
+    const events = await task.wait(() => eventPage(id, terminalAfter, 20, readOptions));
     if (!events.length) break;
     for (const event of events) {
       fragmentTerminals.add(event);
       terminalAfter = event.seq;
       terminalEventCount++;
     }
+    task.progress({ current: terminalEventCount, total: count }, true);
+    await task.yield(true);
   }
   if (terminalEventCount !== count || (sealed && terminalAfter !== sealed.lastSeq))
     throw new Error("分段终态预扫与记录计数或封存序号不一致");
   if (sealed) {
-    const afterPrepass = await get("sessions", id);
+    const afterPrepass = await task.wait(() => get("sessions", id, readOptions));
     if (!afterPrepass || !["ready", "interrupted"].includes(afterPrepass.status) || !sameArchiveSeal(afterPrepass, sealed))
       throw new Error("记录在分段终态预扫期间发生变化，请重新下载");
   }
@@ -133,6 +142,8 @@ async function createArchiveData(id, onProgress) {
     resolveZip = resolve;
     rejectZip = reject;
   });
+  // Observe a codec error even while another stage is awaiting I/O.
+  finished.catch(() => {});
   const zip = new Zip((error, data, final) => {
     if (error) {
       zipError = error;
@@ -142,14 +153,19 @@ async function createArchiveData(id, onProgress) {
       if (final) resolveZip(new Blob(chunks, { type: "application/zip" }));
     }
   });
+  const abortZip = () => zip.terminate();
+  task.signal.addEventListener("abort", abortZip, { once: true });
+  let compressedInputBytes = 0;
+  try {
   async function addFile(path, bytes, compress = true) {
+    task.check();
     if (zipError) throw zipError;
-    const item = compress
-      ? new ZipDeflate(path, { level: 6 })
-      : new ZipPassThrough(path);
-    zip.add(item);
-    item.push(bytes, true);
-    integrity.push({ path, size: bytes.length, sha256: await digest(bytes) });
+    const before = compressedInputBytes;
+    await task.wait(() => addArchiveFile(zip, path, bytes, { compress, signal: task.signal,
+      onBlock: (done) => task.progress({ bytesDone: before + done }) }));
+    compressedInputBytes += bytes.length;
+    const sha256 = await task.wait(() => digest(bytes));
+    integrity.push({ path, size: bytes.length, sha256 });
   }
   function observationWriter(prefix, paths) {
     let batch = [], size = 0;
@@ -157,6 +173,7 @@ async function createArchiveData(id, onProgress) {
       async add(row) {
         const encoded = strToU8(JSON.stringify(row) + "\n");
         if (size && size + encoded.length > 2000000) await this.flush();
+        await task.yield();
         batch.push(encoded);
         size += encoded.length;
       },
@@ -213,6 +230,7 @@ async function createArchiveData(id, onProgress) {
       JSON.stringify(indexEvent(event, path, index + 1))).join("\n") + "\n"));
     eventIndexChunks.push(indexPath);
     for (let index = 0; index < indexBatch.length; index++) {
+      await task.yield();
       const event = indexBatch[index];
       pageInstances.add(event, path, index + 1);
       interfaces.add(event, path, index + 1);
@@ -246,7 +264,7 @@ async function createArchiveData(id, onProgress) {
       if (body?.status === "captured_asset" && asset && /(?:^|\/)json$|\+json$|(?:^|\/)xml$|\+xml$|^application\/x-www-form-urlencoded$|^text\/plain$/i.test(asset.mime || "")) {
         const assetPath = `resources/${asset.id}.bin`;
         try {
-          sample = { path: assetPath, text: new TextDecoder("utf-8", { fatal: true }).decode(await asset.blob.arrayBuffer()) };
+          sample = { path: assetPath, text: new TextDecoder("utf-8", { fatal: true }).decode(await task.wait(() => asset.blob.arrayBuffer())) };
         } catch (error) { sample = { path: assetPath, error: String(error) }; }
       }
       const request = requestEndpoints.get(event.payload?.requestId);
@@ -297,8 +315,9 @@ async function createArchiveData(id, onProgress) {
     indexBatch = [];
     batchSize = 0;
   }
+  task.stage("整理操作与页面", { total: count });
   while (true) {
-    const events = await eventPage(id, after);
+    const events = await task.wait(() => eventPage(id, after, 20, readOptions));
     if (!events.length) break;
     for (const event of events) {
       const json = JSON.stringify(event);
@@ -312,10 +331,11 @@ async function createArchiveData(id, onProgress) {
       after = event.seq;
       eventCount++;
     }
-    onProgress({ phase: "整理操作与页面", current: eventCount, total: count });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    task.progress({ current: eventCount, total: count }, true);
+    await task.yield(true);
   }
   await flushEvents();
+  task.stage("整理字段与关系索引");
   await fieldWriter.flush();
   for (const pending of pendingBrowserFragments.values())
     await writeBrowserObservation(incompleteBrowserObservation(pending.event, pending.evidence, "未收到分段结束确认"));
@@ -339,19 +359,16 @@ async function createArchiveData(id, onProgress) {
     ),
   );
   let assetsDone = 0;
+  task.stage("整理截图与资源", { total: assets.length });
   for (const asset of assets) {
     const path =
       asset.type === "screenshot"
         ? screenshotAssetPath(asset.id, asset.mime)
         : `resources/${asset.id}.bin`;
-    await addFile(path, new Uint8Array(await asset.blob.arrayBuffer()), false);
+    await addFile(path, new Uint8Array(await task.wait(() => asset.blob.arrayBuffer())), false);
     assetsDone++;
     if (assetsDone % 10 === 0 || assetsDone === assets.length)
-      onProgress({
-        phase: "整理截图与资源",
-        current: assetsDone,
-        total: assets.length,
-      });
+      task.progress({ current: assetsDone, total: assets.length }, true);
   }
   const manifest = {
     format: "logic-recorder",
@@ -383,15 +400,15 @@ async function createArchiveData(id, onProgress) {
       "记录包含浏览器提供的原始数据，ZIP 未加密",
     ],
   };
+  task.stage("生成清单与完整性校验");
   await addFile("manifest.json", strToU8(JSON.stringify(manifest, null, 2)));
-  const index = new ZipDeflate("integrity.json", { level: 6 });
-  zip.add(index);
-  index.push(strToU8(JSON.stringify(integrity, null, 2)), true);
+  await addFile("integrity.json", strToU8(JSON.stringify(integrity, null, 2)));
   zip.end();
-  const blob = await finished;
-  const [latest, finalEvents, finalAssets] = await Promise.all([
-    get("sessions", id), countEvents(id), countAssets(id),
-  ]);
+  const blob = await task.wait(finished);
+  task.stage("核对封存与下载准备");
+  const [latest, finalEvents, finalAssets] = await task.wait(() => Promise.all([
+    get("sessions", id, readOptions), countEvents(id, readOptions), countAssets(id, readOptions),
+  ]));
   if (!latest || !["ready", "interrupted"].includes(latest.status) ||
       finalEvents !== eventCount || finalAssets !== assets.length || !sameArchiveSeal(latest, sealed))
     throw new Error("记录在打包期间发生变化，请重新下载");
@@ -400,11 +417,13 @@ async function createArchiveData(id, onProgress) {
   if (eventCount > 1000000) importIssues.push("事件超过 100 万条");
   if (oversizedEvent) importIssues.push("单条事件超过 1000 万个 UTF-16 代码单元");
   try {
-    await inspectZip(blob);
+    await task.wait(() => inspectZip(blob));
   } catch (error) {
     importIssues.push(error.message);
   }
+  task.check();
   return { blob, importIssues };
+  } finally { task.signal.removeEventListener("abort", abortZip); zip.terminate(); }
 }
 export async function saveImportedArchive(blob, manifest) {
   const original = manifest.session;

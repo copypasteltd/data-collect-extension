@@ -1,10 +1,18 @@
 # Logic Recorder
 
-Record authorized browser workflows and observable page/network evidence in Chrome, then export a selected batch locally. Current delivery: **v0.3.0**.
+Record authorized browser workflows and observable page/network evidence in Chrome, then export a selected batch locally. Current patch: **v0.3.1** (local hotfix; published v0.3.0 artifacts remain unchanged).
 
 [中文](<README.md>) · [Installation](<docs/插件安装与使用说明.md>) · [Release verification](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [Changelog](<docs/CHANGELOG.md>)
 
-## Deliverables
+## v0.3.1 Stop/export hotfix
+
+Fix normal Stop being mislabeled interrupted when only a producer deadline left known gaps, and make archive work/read waits cooperative, bounded and progress-visible. Genuine storage/transport failures remain interrupted; existing batches are not relabeled or rewritten.
+
+[Patch extension ZIP](<app/release/v0.3.1/logic-recorder-chrome-v0.3.1.zip>) · [Update and recovery](<docs/修复/2026-11-13-stop-export/UPDATE-RECOVERY.md>) · [Actual verification](<docs/修复/2026-11-13-stop-export/REPORT.md>)
+
+**Replace files in the existing installation path and reload after stopping; do not uninstall or clear browser data.** No new public GitHub Release is created automatically.
+
+## Published v0.3.0
 
 Published: [GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>). All ten assets were downloaded from their public URLs and matched the previously verified local SHA-256 values.
 
@@ -38,11 +46,11 @@ The manifest declares Chrome 125+. See the release report for the browser/OS act
 
 Recordings stay local and are not uploaded by the extension. There is no automatic expiry/deletion, in-extension content viewer, import or replay. Exported files and external indexes remain the holder's responsibility.
 
-## Current interface
+## Current patched interface (v0.3.1)
 
 | Ready | Batch selection |
 | :---: | :---: |
-| ![v0.3.0 ready](<docs/media/v0.3.0-01-ready.png>) | ![v0.3.0 batch selection](<docs/media/v0.3.0-03-history.png>) |
+| ![v0.3.0 ready](<docs/media/v0.3.1-01-ready.png>) | ![v0.3.0 batch selection](<docs/media/v0.3.1-03-history.png>) |
 
 These are real extension screenshots using synthetic local data. Automation pre-grants host access in a temporary extension copy; it does not prove native permission-dialog acceptance/denial. See [media notes](<docs/DEMO.md>).
 

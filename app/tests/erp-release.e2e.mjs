@@ -122,7 +122,8 @@ try {
   report.evidence.directory = evidenceDir;
   await fs.cp(path.join(appRoot, "dist"), extension, { recursive: true });
   const manifestPath = path.join(extension, "manifest.json"), manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  assert.equal(manifest.version, "0.3.0", "parent-built dist must be release 0.3.0");
+  const packageVersion = JSON.parse(await fs.readFile(path.join(appRoot, "package.json"), "utf8")).version;
+  assert.equal(manifest.version, packageVersion, "built dist must match the current release package version");
   report.environment.extensionVersion = manifest.version;
   report.evidence.originalDistManifestSha256 = hash(await fs.readFile(manifestPath));
   manifest.host_permissions = ["http://*/*", "https://*/*"]; // Test copy only: bypass prompt, NOT native permission test.
@@ -262,7 +263,7 @@ try {
   assert.equal(session.seal.assetCount, resources.length); assert.equal(session.assetCount, resources.length);
   assert.equal(session.seal.lastSeq, events.at(-1).seq); assert.equal(session.lastSeq, events.at(-1).seq);
   assert.equal(events.filter((event) => event.kind === "session.stop").length, 1);
-  assert.equal(archive.provenance.producerVersion, "0.3.0"); assert.equal(archive.provenance.exporterVersion, "0.3.0");
+  assert.equal(archive.provenance.producerVersion, manifest.version); assert.equal(archive.provenance.exporterVersion, manifest.version);
   assert.equal(archive.partial, false); assert.deepEqual((await state()).sessions[0].seal, session.seal);
   report.provenance = archive.provenance; report.timelineIdentity = identity;
   report.counters = { events: events.length, assets: resources.length, lastSeq: events.at(-1).seq, linkedPngs: linkedScreenshots.length, seal: session.seal };

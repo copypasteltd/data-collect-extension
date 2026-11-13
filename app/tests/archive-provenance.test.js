@@ -9,7 +9,7 @@ it("provenance keeps producer/exporter roles distinct and projects metadata with
     get content() { throw new Error("raw content must not be read"); } });
   const result = createArchiveProvenance(session, "0.2.0");
   assert.deepEqual(result, { schemaVersion: 1, producerVersion: "0.1.2", exporterVersion: "0.2.0",
-    derivations: { browserObservations: 2, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 } });
+    derivations: { browserObservations: 3, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 } });
   assert.equal(session.producerVersion, "0.1.2");
   assert.equal(session.raw, raw);
   assert.deepEqual(raw, { content: "synthetic-original-content", cookie: "synthetic-cookie" });
@@ -24,7 +24,7 @@ it("provenance is stable for fixed metadata and each result owns its derivation 
   assert.notEqual(first, second);
   assert.notEqual(first.derivations, second.derivations);
   first.derivations.browserObservations = 99;
-  assert.equal(second.derivations.browserObservations, 2);
+  assert.equal(second.derivations.browserObservations, 3);
   assert.deepEqual(createArchiveProvenance(session, "2.0"), second);
   assert.equal(createArchiveProvenance(session, "3.0").producerVersion, "1.2.3");
 });
@@ -49,7 +49,7 @@ it("unknown legacy/invalid producers stay null even when the current exporter ve
   for (const session of [undefined, null, {}, { version: "1.0", exporterVersion: "2.0" }, { producerVersion: "bad-content" }])
     assert.equal(createArchiveProvenance(session, "2.0").producerVersion, null);
   assert.deepEqual(createArchiveProvenance({}, "2.0"), { schemaVersion: 1, producerVersion: null, exporterVersion: "2.0",
-    derivations: { browserObservations: 2, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 } });
+    derivations: { browserObservations: 3, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 } });
   assert.equal(createArchiveProvenance({ producerVersion: "1.0" }).exporterVersion, null);
 });
 

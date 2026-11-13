@@ -19,7 +19,7 @@ export function readArchiveExporterVersion(environment = globalThis) {
 
 // These label the existing export derivations, not capabilities, validation results or source commits.
 const derivations = Object.freeze({
-  browserObservations: 2, // schema-v2 rows and their source identity projection
+  browserObservations: 3, // schema-v2 rows, source identity and explicit bounded derived paths
   browserFieldSummary: 2, // schema-v2 namespace-scoped aggregation
   fragmentValidation: 1, // validateFragments/reconstructFragments reference, part and End rules
   fragmentTerminals: 1, // whole-stream End/Failure/late-part checks before browser derivation

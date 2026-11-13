@@ -113,9 +113,12 @@ export function* observeBrowserData(event, evidence, decoded = null) {
           recordIndex: payload.index, nodeId: node.id, key, type: typeOf(value) };
     }
     if (graph.root) {
+      // These budgets apply only to derived paths. Raw graph evidence and every
+      // graph-node/direct-field row above remain intact, even when paths are partial.
+      const limits = { depth: 256, locationCells: 1000000, pending: 100000, paths: 100000 };
       const stack = [{ ref: graph.root, path: "", location: [], ancestors: new Set() }];
-      let visited = 0;
-      while (stack.length && visited < 100000) {
+      let visited = 0, locationCells = 0, limited = null;
+      while (stack.length && visited < limits.paths) {
         const { ref, path, location, ancestors } = stack.pop();
         visited++;
         const node = ref?.type === "ref" ? nodes.get(ref.id) : null;
@@ -124,9 +127,20 @@ export function* observeBrowserData(event, evidence, decoded = null) {
           store: payload.store, recordIndex: payload.index, path, location, type: typeOf(ref),
           ...(node ? { nodeId: node.id } : {}), ...(cycle ? { cycle: true } : {}) };
         if (!node || cycle || !["object", "array", "map", "set"].includes(node.type)) continue;
+        const entries = node.type === "set" ? node.values || [] : node.entries || [];
+        if (!entries.length) continue;
+        const children = entries.length * (node.type === "map" ? 2 : 1), nextDepth = location.length + 1;
+        const reason = nextDepth > limits.depth ? "depth_limit"
+          : stack.length + children > limits.pending ? "pending_limit"
+          : locationCells + children * nextDepth > limits.locationCells ? "path_budget" : null;
+        if (reason) {
+          // Count the immediate unscheduled paths too; never imply complete coverage.
+          limited = { reason, pending: stack.length + children };
+          break;
+        }
+        locationCells += children * nextDepth;
         const nextAncestors = new Set(ancestors);
         nextAncestors.add(node.id);
-        const entries = node.type === "set" ? node.values || [] : node.entries || [];
         for (let index = entries.length - 1; index >= 0; index--) {
           if (node.type === "map") {
             const [key, value] = entries[index];
@@ -142,9 +156,10 @@ export function* observeBrowserData(event, evidence, decoded = null) {
           }
         }
       }
-      if (stack.length) yield { schemaVersion: 2, kind: "field-path-coverage", domain: "indexeddb", source,
+      if (limited || stack.length) yield { schemaVersion: 2, kind: "field-path-coverage", domain: "indexeddb", source,
         database: payload.database, store: payload.store, recordIndex: payload.index,
-        status: "partial", reason: "path_limit", observed: visited, pending: stack.length };
+        status: "partial", reason: limited?.reason || "path_limit", observed: visited,
+        pending: limited?.pending ?? stack.length, locationCells, limits };
     }
   }
 }

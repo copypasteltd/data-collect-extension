@@ -1,10 +1,18 @@
 # 逻辑记录 | Logic Recorder
 
-在 Chrome 中记录获授权的网页操作、页面状态及网络证据，按批次导出本机 ZIP。当前交付版本：**v0.3.0**。
+在 Chrome 中记录获授权的网页操作、页面状态及网络证据，按批次导出本机 ZIP。当前修复版本：**v0.3.1**（本地修复包；v0.3.0 GitHub Release 保持不变）。
 
 [English](<README.en.md>) · [安装与更新](<docs/插件安装与使用说明.md>) · [本版交付与验证](<docs/交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [更新说明](<docs/CHANGELOG.md>)
 
-## 本版交付
+## v0.3.1 停止／导出修复
+
+修复大页面正常停止被误判为录制中断，以及导出阶段无进展等待/同步压缩卡顿。保留真实缺口和真正存储/通信中断，旧批次不重写。
+
+[修复安装包](<app/release/v0.3.1/logic-recorder-chrome-v0.3.1.zip>) · [更新与旧记录恢复](<docs/修复/2026-11-13-stop-export/UPDATE-RECOVERY.md>) · [真实验证报告](<docs/修复/2026-11-13-stop-export/REPORT.md>)
+
+**更新请覆盖原加载目录后刷新，不卸载扩展、不清浏览器数据。** 新导出显示真实阶段/数量/用时；超时保留本地批次可重试。本次没有自动发布新GitHub Release。
+
+## 已发布的v0.3.0
 
 已正式发布：[GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)。10个附件已从公开链接重新下载并核对SHA-256，与此前本地交付字节一致。
 
@@ -38,11 +46,11 @@ Manifest 声明 Chrome 125+；本版实际验证环境与版本见验收报告�
 
 批次和导出包留在本机；扩展不主动上传记录。当前不自动到期、不自动删除已导出批次，不提供内容查看、导入或回放。卸载扩展可能清除本地数据；导出文件和外部索引的保留/分享由持有人负责。
 
-## 当前界面
+## 当前修复版界面（v0.3.1）
 
 | 准备录制 | 选择批次 |
 | :---: | :---: |
-| ![v0.3.0 准备录制](<docs/media/v0.3.0-01-ready.png>) | ![v0.3.0 多批次选择](<docs/media/v0.3.0-03-history.png>) |
+| ![v0.3.0 准备录制](<docs/media/v0.3.1-01-ready.png>) | ![v0.3.0 多批次选择](<docs/media/v0.3.1-03-history.png>) |
 
 截图来自真实扩展和本地合成页面。自动化使用临时扩展副本预授网站权限，**不等于原生权限弹窗接受/拒绝已自动验证**；原图/演示说明见[素材说明](<docs/DEMO.md>)。
 

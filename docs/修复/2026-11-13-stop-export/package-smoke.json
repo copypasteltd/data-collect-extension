@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "version": "0.3.1",
+  "startedAt": "2026-11-13T13:38:54.755Z",
+  "status": "passed",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.22.1",
+    "mode": "native-host; no OS isolation environment"
+  },
+  "scope": "Exact packaged extension loaded without modifying its manifest; optional packaged Python CLI reads only a local synthetic recording",
+  "checks": [
+    "release files/checksums/entry sizes and hashes match current dist and skill source",
+    "exact unmodified extension ZIP extracts and loads in actual Chrome with JS/CSS/icons and expected idle controls",
+    "extracted packaged Python indexer verifies synthetic ERP recording integrity and event count"
+  ],
+  "artifacts": [
+    {
+      "path": "logic-recorder-chrome-v0.3.1.zip",
+      "size": 139788,
+      "sha256": "ecdd8a7f42778366a1cb2a722dbb90f930bbf6b808958c0eb044d63b8e1780fe",
+      "entriesVerified": 11
+    },
+    {
+      "path": "extension-logic-clone-v0.3.1.zip",
+      "size": 22661,
+      "sha256": "5065c3fb6dde51a08d4b6a3512de783ec5c6782795186879e9223b2c0c558c60",
+      "entriesVerified": 7
+    }
+  ],
+  "limitations": [
+    "No native permission-dialog acceptance/denial test",
+    "No macOS or minimum Chrome125 execution",
+    "Hashes are consistency evidence, not publisher signatures"
+  ],
+  "browser": {
+    "extensionVersion": "0.3.1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "pageErrors": 0
+  },
+  "consumer": {
+    "verification": "passed",
+    "version": 2,
+    "events": 312,
+    "files": 34,
+    "event_types": {
+      "cache.catalog": 2,
+      "cache.catalogEnd": 2,
+      "canvas.captureEnd": 8,
+      "cookie.initial": 1,
+      "cookie.partitionSnapshot": 1,
+      "database.catalog": 2,
+      "database.catalogEnd": 2,
+      "frame.tree": 1,
+      "interaction.change": 3,
+      "interaction.click": 8,
+      "interaction.focusin": 8,
+      "interaction.focusout": 7,
+      "interaction.input": 3,
+      "interaction.keydown": 6,
+      "interaction.keyup": 6,
+      "interaction.pointerdown": 8,
+      "interaction.pointermove": 5,
+      "interaction.pointerout": 7,
+      "interaction.pointerover": 8,
+      "interaction.pointerup": 8,
+      "interaction.scroll": 1,
+      "network.finished": 5,
+      "network.request": 5,
+      "network.requestDataEntries": 3,
+      "network.requestExtraInfo": 5,
+      "network.response": 5,
+      "network.responseExtraInfo": 5,
+      "page.computedStyle": 42,
+      "page.computedStyleEnd": 8,
+      "page.fonts": 8,
+      "page.interactionDescendantStyleEnd": 30,
+      "page.interactionStyle": 30,
+      "page.mutation": 22,
+      "page.shadowRootEnd": 8,
+      "page.snapshot": 8,
+      "page.stylesheet": 8,
+      "resource.initialSummary": 1,
+      "resource.loadedSummary": 1,
+      "screenshot": 9,
+      "screenshot.fullPage": 2,
+      "screenshot.fullPageStarted": 2,
+      "session.ready": 1,
+      "session.start": 1,
+      "session.stop": 1,
+      "state.capture": 4,
+      "storage.snapshot": 1
+    },
+    "recordingSha256": "eb9d8081dcc3feba1b67909156d24b5cc48cc752c26e30f35a4f5e88c885153e",
+    "indexCreated": true
+  },
+  "chromeCleanup": "confirmed",
+  "profileCleanup": "removed",
+  "finishedAt": "2026-11-13T13:38:57.293Z"
+}

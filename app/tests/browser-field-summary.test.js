@@ -185,3 +185,23 @@ it("摘要 evidence 只保留来源白名单，不照抄历史 row/source 的原
   assert.doesNotMatch(JSON.stringify(field), /synthetic-(source|payload|identity|row)-secret/);
   assert.equal(source.value, "synthetic-source-secret");
 });
+
+it("路径预算coverage不伪装成完整字段或重复数据库样本", () => {
+  const graph = { root: { type: "ref", id: 0 }, nodes: Array.from({ length: 300 }, (_, id) => ({
+    id, type: "object", entries: id < 299 ? [["next", { type: "ref", id: id + 1 }]] : [],
+  })) };
+  const event = record("partial-paths", {}, { graph });
+  const summary = createBrowserFieldSummary();
+  let coverage;
+  for (const row of observeBrowserData(event, { path: "timeline/synthetic.jsonl", line: 1 })) {
+    summary.add(row);
+    if (row.kind === "field-path-coverage") coverage = row;
+  }
+  assert.equal(coverage.status, "partial");
+  assert.equal(coverage.reason, "depth_limit");
+  const fields = [...summary.results()];
+  assert.equal(fields.length, 257);
+  assert.ok(fields.every(row => row.location.length <= 256));
+  for (const field of fields) assert.deepEqual(field.sampleCounts, { total: 1, available: 1 });
+});
+

@@ -36,6 +36,10 @@ export function batchStatusLabel(session) {
 export function exportPhaseLabel(phase) {
   return ({
     checking: "正在核对录制状态…",
+    waiting: "正在等待读取记录…",
+    fragments: "正在核对分段记录…",
+    indexes: "正在整理字段与索引…",
+    verifying: "正在核对封存与校验…",
     events: "正在整理记录包…",
     assets: "正在整理附件…",
     download: "正在等待下载确认…",

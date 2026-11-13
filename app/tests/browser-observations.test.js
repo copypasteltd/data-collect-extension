@@ -146,3 +146,70 @@ it("archive 的失败和缺少结束确认分支共用 incomplete 来源 helper�
   assert.match(code, /incompleteBrowserObservation\(pending\.event, pending\.evidence, "未收到分段结束确认"\)/);
   assert.doesNotMatch(code, /source: \{ eventId: pending\.event\.id/);
 });
+
+function budgetRecord(depth, leaves = 0) {
+  const nodes = Array.from({ length: depth + 1 }, (_, id) => ({ id, type: "object",
+    entries: id < depth ? [["next", { type: "ref", id: id + 1 }]]
+      : Array.from({ length: leaves }, (_, index) => [String(index), { type: "string", value: "synthetic-only" }]),
+  }));
+  return { id: "budget", kind: "database.record", payload: { database: "db", store: "items", index: 0,
+    status: "captured", graph: { root: { type: "ref", id: 0 }, nodes } } };
+}
+
+function budgetRows(event) {
+  let paths = 0, fields = 0, nodes = 0, maxDepth = 0, coverage;
+  for (const row of observeBrowserData(event, { path: "timeline/synthetic.jsonl", line: 1 })) {
+    if (row.kind === "field-path") { paths++; maxDepth = Math.max(maxDepth, row.location.length); }
+    if (row.kind === "field") fields++;
+    if (row.kind === "graph-node") nodes++;
+    if (row.kind === "field-path-coverage") { assert.equal(coverage, undefined); coverage = row; }
+  }
+  return { paths, fields, nodes, maxDepth, coverage };
+}
+
+it("只限制深层派生路径，保留所有原图节点和直接字段且不更改原记录", () => {
+  const atBoundary = budgetRows(budgetRecord(256));
+  assert.equal(atBoundary.maxDepth, 256);
+  assert.equal(atBoundary.coverage, undefined);
+  const event = budgetRecord(2048), before = JSON.stringify(event), result = budgetRows(event);
+  assert.equal(result.paths, 257);
+  assert.equal(result.nodes, 2049);
+  assert.equal(result.fields, 2048);
+  assert.equal(result.maxDepth, 256);
+  assert.equal(result.coverage.status, "partial");
+  assert.equal(result.coverage.reason, "depth_limit");
+  assert.equal(result.coverage.observed, result.paths);
+  assert.equal(result.coverage.pending, 1);
+  assert.equal(result.coverage.source.eventId, event.id);
+  assert.equal(JSON.stringify(event), before);
+});
+
+it("按路径位置总单元预算阻止浅图大分支，显式保留partial证据", () => {
+  const result = budgetRows(budgetRecord(20, 50000));
+  assert.equal(result.fields, 50020);
+  assert.equal(result.nodes, 21);
+  assert.equal(result.coverage.reason, "path_budget");
+  assert.equal(result.coverage.status, "partial");
+  assert.equal(result.coverage.pending, 50000);
+  assert.ok(result.coverage.locationCells <= 1000000);
+  assert.equal(result.coverage.limits.locationCells, 1000000);
+});
+
+it("分支入栈前限制pending而不裁剪直接field", () => {
+  const result = budgetRows(budgetRecord(0, 100001));
+  assert.equal(result.paths, 1);
+  assert.equal(result.fields, 100001);
+  assert.equal(result.coverage.reason, "pending_limit");
+  assert.equal(result.coverage.pending, 100001);
+  assert.equal(result.coverage.observed, 1);
+});
+
+it("保留原有100k路径限制并准确区分pending边界", () => {
+  const result = budgetRows(budgetRecord(0, 100000));
+  assert.equal(result.paths, 100000);
+  assert.equal(result.fields, 100000);
+  assert.equal(result.coverage.reason, "path_limit");
+  assert.equal(result.coverage.pending, 1);
+  assert.equal(result.coverage.observed, 100000);
+});
+

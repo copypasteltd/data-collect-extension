@@ -3,6 +3,14 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.3.1 - 2026-11-13（停止／导出修复 / Stop and export hotfix）
+
+- 复现正常大页面Stop的9秒producer截止被误标通信未知/录制中断，分开stopOutcome与采集缺口；真正存储/传输/清理失败仍保守中断，旧批次不重贴状态。 / Separate lifecycle completion from acknowledged producer gaps without clearing real failures.
+- 导出只读事务有15秒deadline/abort，任务45秒无进展退出；锁等候可中断，失败释放入口保留本地数据。 / Bound read/lock waits and recover the export control without deleting data.
+- 原生deflate-raw异步压缩、64KiB低级别fallback和8ms协作让步，预扫/字段/附件/封存校验均有真实进度；不放宽CSP或舍弃XML派生。 / Cooperative compression and truthful phases retain all raw evidence and parser compatibility.
+- 图字段派生路径预算显式partial，原始图和直接节点/字段保留；派生规则browserObservations标签升3。 / Bound derived paths with explicit partial coverage, retaining raw graphs.
+- [复现与验证](<修复/2026-11-13-stop-export/REPORT.md>)、[安全更新恢复](<修复/2026-11-13-stop-export/UPDATE-RECOVERY.md>)。未修改或覆盖已发布v0.3.0；新公开发布另须明确请求。 / Existing published v0.3.0 artifacts remain unchanged.
+
 ## 0.3.0 - 2026-11-13（GitHub Release 已发布 / Published）
 
 - 经用户明确授权，正式发布[GitHub Release v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)，标签指向原验证提交9abce787e6ecc777ec4c9c8934012dd4832d605b；10附件公开下载与本地SHA-256一致，无重新编译或更改产物。 / Explicitly authorized GitHub publication; all ten public downloads match the original verified artifacts, with no rebuild or changed bytes.

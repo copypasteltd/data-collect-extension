@@ -15,7 +15,7 @@ v0.3.0修复分段终态、派生来源与封存一致性；读取器支持记�
 
 新本地 v2 导出可带 `manifest.provenance`：`schemaVersion:1` 仅标此元数据结构；`producerVersion` 只来自批次创建时已持久化的 `session.producerVersion`，缺失或不合法为 `null`；`exporterVersion` 来自导出当下真实扩展 runtime 版本，API缺失/错误或版本无效同样为 `null`。不能用 exporter、当前包名或时间给旧录制补造 producer。导入原 Blob 早退保持不重包，旧 v1/v2 没有此字段仍按原规则读取。
 
-`provenance.derivations` 当前只标实际派生规则：`browserObservations:2`、`browserFieldSummary:2`、`fragmentValidation:1`、`fragmentTerminals:1`。这些不是完整事件schema、transport握手、平台支持或验证通过声明，未知标签需保持未知而不推断已采集能力。
+`provenance.derivations` 当前只标实际派生规则：`browserObservations:3`（v0.3.1显式限制派生路径深度256、累计位置单元1000000、待访问100000；超限保留partial coverage与全部原始图；旧标签2无此预算）、`browserFieldSummary:2`、`fragmentValidation:1`、`fragmentTerminals:1`。这些不是完整事件schema、transport握手、平台支持或验证通过声明，未知标签需保持未知而不推断已采集能力。
 
 会话可含固定大小的 `storageDiagnostic`，仅保存已报告错误的枚举分类、白名单name/code、phase、finalEvent和安全观察时间；不含原error.message/stack或业务内容。`quota_reported`、`abort_reported`等只说明信号，不证明实际根因。该字段不改变既有封存、原值和失败/未知语义，也不是业务质量判定；验证范围应以随release的实际报告为准，字段存在本身不表示测试或业务验收通过。
 

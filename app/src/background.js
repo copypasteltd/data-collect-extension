@@ -2,6 +2,7 @@ import { all, get, put, putMany, putIdempotentEvents, removeSession, interruptSe
 import { createSessionTasks } from "./session-tasks.js";
 import { createSessionLifecycle, isActiveSession } from "./session-lifecycle.js";
 import { storageWriteDiagnostic, mergeStorageDiagnostics } from "./storage-diagnostics.js";
+import { collectorFlushOutcome, normalStopOutcome } from "./stop-outcome.js";
 import { fontMime } from "./font-format.js";
 import { cleanDebuggerResponse } from "./response-body.js";
 import { recoverPendingRequests, recoverRootSockets, recoverChildSockets } from "./network-recovery.js";
@@ -1273,6 +1274,8 @@ async function stop(onStopping) {
   if (!["preparing", "recording"].includes(session.status))
     throw new Error("录制任务正在准备或停止，请稍候");
   const stoppedDuringPreparation = session.status === "preparing";
+  // A later producer timeout cannot excuse an earlier unexplained startup/collector fault.
+  let finalizationFailed = !!session.incomplete && !session.captureIncomplete && !session.needsVerification;
   session.status = "stopping";
   state.lifecycle.beginStop();
   onStopping(session);
@@ -1304,6 +1307,7 @@ async function stop(onStopping) {
       }
       frames = [];
       session.incomplete = true;
+      finalizationFailed = true;
       void warning("结束时无法枚举页面框架", { tabId: target.id });
     }
     return (frames || []).filter((frame) => allowedUrl(frame.url)).map((frame) => ({ tabId: target.id, frameId: frame.frameId }));
@@ -1320,8 +1324,8 @@ async function stop(onStopping) {
           12000,
           "页面状态收尾",
         );
-        const failed = Number.isSafeInteger(result?.failedEvents) ? result.failedEvents : 0;
-        const unknown = Number.isSafeInteger(result?.unknownEvents) ? result.unknownEvents : 0;
+        const outcome = collectorFlushOutcome(result);
+        const { failed, unknown } = outcome;
         if (result?.captureIncomplete || result?.needsVerification) {
           session.captureIncomplete ||= !!result.captureIncomplete;
           session.needsVerification = true;
@@ -1332,11 +1336,14 @@ async function stop(onStopping) {
           session.unknownEvents = (session.unknownEvents || 0) + unknown;
           session.communicationUnknown = true;
         }
-        if (!result?.ok || failed > 0 || unknown > 0)
-          throw new Error(`页面采集收尾：失败 ${failed} 条，未确认 ${unknown} 条`);
+        if (outcome.producerOnly)
+          void warning("录制已正常停止，部分末次采集未完成；已保存内容仍可导出核验", frame);
+        if (outcome.transportUnknown) session.communicationUnknown = true;
+        if (outcome.failedDelivery || outcome.transportUnknown)
+          throw Object.assign(new Error(`页面采集收尾：失败 ${failed} 条，未确认 ${unknown} 条`), { transportUnknown: outcome.transportUnknown });
       } catch (error) {
         session.incomplete = true;
-        session.communicationUnknown = true;
+        if (error.transportUnknown !== false) session.communicationUnknown = true;
         void warning("结束时无法取得页面最终状态", {
           tabId: frame.tabId,
           frameId: frame.frameId,
@@ -1354,6 +1361,7 @@ async function stop(onStopping) {
       await withDeadline(capture(), Math.max(0, screenshotDeadline - Date.now()), "截图收尾");
     } catch {
       session.incomplete = true;
+      finalizationFailed = true;
       screenshotPending = [];
       void warning("截图收尾超时，部分截图可能缺失");
       break;
@@ -1363,6 +1371,7 @@ async function stop(onStopping) {
     await withDeadline(sessionTasks.drain(session), 8000, "数据收尾");
   } catch {
     session.incomplete = true;
+      finalizationFailed = true;
     void warning("数据收尾超时，部分记录可能缺失");
   }
   await withDeadline(state.writeChain, 10000, "记录写入收尾");
@@ -1379,6 +1388,7 @@ async function stop(onStopping) {
       );
     } catch {
       session.incomplete = true;
+      finalizationFailed = true;
       void warning("页面采集器未能正常关闭", frame);
     }
   }));
@@ -1399,6 +1409,7 @@ async function stop(onStopping) {
         );
       } catch {
         session.incomplete = true;
+      finalizationFailed = true;
         void warning("调试连接未能正常关闭", { tabId: target.id });
       }
   }));
@@ -1407,6 +1418,7 @@ async function stop(onStopping) {
     await withDeadline(sessionTasks.drain(session), 2000, "网络收尾");
   } catch {
     session.incomplete = true;
+      finalizationFailed = true;
     void warning("网络收尾超时，部分响应内容可能缺失");
   }
   await withDeadline(state.writeChain, 10000, "网络记录写入收尾");
@@ -1426,6 +1438,7 @@ async function stop(onStopping) {
   } catch {
     if (!session.scriptId || session.scriptRegistered) {
       session.incomplete = true;
+      finalizationFailed = true;
       void warning("页面采集器注册未能清理");
     }
   }
@@ -1566,7 +1579,8 @@ async function stop(onStopping) {
       markCoverageUnavailable(error);
     }
   }
-  const status = session.storageError || session.incomplete ? "interrupted" : "ready";
+  session.stopOutcome = normalStopOutcome(session, { stoppedDuringPreparation, finalizationFailed });
+  const status = session.stopOutcome.result === "interrupted" ? "interrupted" : "ready";
   const endedAt = Date.now();
   const sealed = await sealSession({ ...session, status, endedAt }, { expectedRevision: closed.revision });
   Object.assign(session, sealed);

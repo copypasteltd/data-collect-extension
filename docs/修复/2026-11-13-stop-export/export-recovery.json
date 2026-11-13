@@ -1,0 +1,1568 @@
+{
+  "schemaVersion": 1,
+  "preflight": {
+    "firstFailure": "node --check: SyntaxError: Invalid regular expression flags (cross-tool escaped Chrome UA regex)",
+    "correction": "Before first native execution: equivalent includes(\"Chrome/157.\") assertion and fileURLToPath for Windows app path; no production/core invariant change",
+    "finalSyntaxExitCode": 0
+  },
+  "evidenceReadNote": "A report preview parse at 700/808 lines was incomplete; final rerun 2000-line read was additionally output-budget-limited at 1050/1555. Full bounded reads parsed correctly. Native runs passed first time on each dist, no native failure suppressed.",
+  "finalDistRerun": {
+    "requestedBy": "parent explicit final-dist recheck",
+    "testSourceChanged": false,
+    "runsPreserved": 2,
+    "latestNativeExitCode": 0
+  }
+,
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "startedAt": "2026-11-13T13:22:25.572Z",
+      "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-export-recovery-kcdqws",
+      "scenarios": [
+        {
+          "sessionId": "legacy-recovery-synthetic",
+          "fault": {
+            "elapsedMs": 255,
+            "error": "读取记录数量超时",
+            "instrumentation": {
+              "countCalls": 1,
+              "abortCalls": 1,
+              "timers": [
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                }
+              ]
+            },
+            "observation": {
+              "changes": [
+                {
+                  "at": 218,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 239,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 244,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 414,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 108,
+                "ticks": 2
+              }
+            }
+          },
+          "retry": {
+            "elapsedMs": 902,
+            "observation": {
+              "changes": [
+                {
+                  "at": 565,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 578,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 581,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 585,
+                  "text": "正在核对分段记录… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 594,
+                  "text": "正在核对分段记录… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 599,
+                  "text": "正在核对分段记录… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 604,
+                  "text": "正在核对分段记录… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 609,
+                  "text": "正在核对分段记录… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 614,
+                  "text": "正在核对分段记录… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 620,
+                  "text": "正在核对分段记录… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 624,
+                  "text": "正在核对分段记录… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 628,
+                  "text": "正在核对分段记录… | 已处理 160 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 631,
+                  "text": "正在核对分段记录… | 已处理 180 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 633,
+                  "text": "正在核对分段记录… | 已处理 181 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 635,
+                  "text": "正在整理记录包… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 642,
+                  "text": "正在整理记录包… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 652,
+                  "text": "正在整理记录包… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 658,
+                  "text": "正在整理记录包… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 664,
+                  "text": "正在整理记录包… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 669,
+                  "text": "正在整理记录包… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 675,
+                  "text": "正在整理记录包… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 681,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 784,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 已打包 1.6 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 832,
+                  "text": "正在整理记录包… | 已处理 160 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 844,
+                  "text": "正在整理记录包… | 已处理 180 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 847,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 947,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.9 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1048,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 4.2 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1093,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1192,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 已打包 5.6 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1255,
+                  "text": "正在整理附件… | 已处理 0 / 2 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1258,
+                  "text": "正在核对封存与校验… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1266,
+                  "text": "正在等待下载确认… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1450,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 108.5,
+                "ticks": 9
+              }
+            },
+            "zipBytes": 96464,
+            "zipSha256": "dcea176ad72dce53da10b19bb7988b9f8cc2543211a0fcabb485c5a9e13836a5",
+            "eventCount": 181,
+            "assetCount": 2,
+            "partial": true,
+            "provenance": {
+              "schemaVersion": 1,
+              "producerVersion": "0.3.0",
+              "exporterVersion": "0.3.1",
+              "derivations": {
+                "browserObservations": 2,
+                "browserFieldSummary": 2,
+                "fragmentValidation": 1,
+                "fragmentTerminals": 1
+              }
+            },
+            "coverage": [
+              {
+                "schemaVersion": 2,
+                "kind": "field-path-coverage",
+                "domain": "indexeddb",
+                "source": {
+                  "path": "timeline/events-00002.jsonl",
+                  "line": 23,
+                  "eventId": "legacy-recovery-synthetic-deep-graph",
+                  "identity": {
+                    "version": 1,
+                    "origin": "http://127.0.0.1",
+                    "originBasis": "payload.url",
+                    "sessionId": "legacy-recovery-synthetic",
+                    "tabId": 1,
+                    "frameId": 0,
+                    "documentId": "synthetic-document",
+                    "graphCaptureId": "legacy-recovery-synthetic-graph",
+                    "catalogId": null,
+                    "fragmentCaptureId": null,
+                    "storagePartition": {
+                      "status": "unknown"
+                    },
+                    "storageInstance": {
+                      "status": "unknown"
+                    }
+                  }
+                },
+                "database": "synthetic",
+                "store": "records",
+                "recordIndex": 0,
+                "status": "partial",
+                "reason": "depth_limit",
+                "observed": 257,
+                "pending": 1,
+                "locationCells": 32896,
+                "limits": {
+                  "depth": 256,
+                  "locationCells": 1000000,
+                  "pending": 100000,
+                  "paths": 100000
+                }
+              }
+            ],
+            "integrityFiles": 13,
+            "fileSha256": {
+              "timeline/events-00001.jsonl": "7e6c5ad48b5b7d46ca645c86e71a1da3036b95fdb1046ed05b0754c74ad28d37",
+              "indexes/events-00001.jsonl": "03f7d34bb7ac6796fc891d2a2f187f4b015f43f8177d4fe81063d7dcc598d110",
+              "timeline/events-00002.jsonl": "67cd93688baad710dafdd6d91bc72bd58b0bcd48c67e72f434b24ba25ec6b4e6",
+              "indexes/events-00002.jsonl": "2bd7c00ff5991cc16880d34055c3809d3cc123723d70ca89ccfc9b3012146214",
+              "data-dictionary/browser-observations-00001.jsonl": "b5431722353d691a8f3192733f66ec81278d1e84528e384a965fbd597c71af6c",
+              "data-dictionary/browser-observations-00002.jsonl": "82082d72096666bc321c46f023a6909bcf59a8fadd8708d28951e32d32178257",
+              "data-dictionary/browser-fields-00001.jsonl": "b8e11673302240e5e77850b010864e41c1895a6c5c4d99079c8886c4f95ff7a4",
+              "indexes/relationships-00001.jsonl": "b933d9b537e8b53b03258822d91056906f99037b6a09de41d905fa3ebc34bdbe",
+              "indexes/page-instances-00001.jsonl": "abf6aecd6c869c580e442efdd931d7a43a28c2aacf2a04bdb6b1768655cd7992",
+              "resources/index.json": "0ee4d607291f850d3e3d0136a583edae268a1345ae9c22cd521f558075ad153c",
+              "resources/legacy-recovery-synthetic-asset-0.bin": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72",
+              "resources/legacy-recovery-synthetic-asset-1.bin": "7aaf9790b749f50e6fad3b2da356c82a3d816a5aed72beac6c76acb6e3f4fc28",
+              "manifest.json": "4e3af37b8bc6e3c660579e149345c3d91f1e26f828d596cfce92f0ed28e129dd",
+              "integrity.json": "c133793288cc70540851793cca09d140969198672f53e3c1cc149d14c4aef0d1"
+            }
+          },
+          "passed": true
+        },
+        {
+          "sessionId": "sealed-recovery-synthetic",
+          "fault": {
+            "elapsedMs": 220,
+            "error": "读取记录数量超时",
+            "instrumentation": {
+              "countCalls": 1,
+              "abortCalls": 1,
+              "timers": [
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                }
+              ]
+            },
+            "observation": {
+              "changes": [
+                {
+                  "at": 1635,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 1651,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1653,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1819,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 109,
+                "ticks": 2
+              }
+            }
+          },
+          "retry": {
+            "elapsedMs": 1816,
+            "observation": {
+              "changes": [
+                {
+                  "at": 1981,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 2003,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2006,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2012,
+                  "text": "正在核对分段记录… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2018,
+                  "text": "正在核对分段记录… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2024,
+                  "text": "正在核对分段记录… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2030,
+                  "text": "正在核对分段记录… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2042,
+                  "text": "正在核对分段记录… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2048,
+                  "text": "正在核对分段记录… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2053,
+                  "text": "正在核对分段记录… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2058,
+                  "text": "正在核对分段记录… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2063,
+                  "text": "正在核对分段记录… | 已处理 160 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2067,
+                  "text": "正在核对分段记录… | 已处理 180 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2070,
+                  "text": "正在核对分段记录… | 已处理 181 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2072,
+                  "text": "正在整理记录包… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2080,
+                  "text": "正在整理记录包… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2089,
+                  "text": "正在整理记录包… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2095,
+                  "text": "正在整理记录包… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2102,
+                  "text": "正在整理记录包… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2109,
+                  "text": "正在整理记录包… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2116,
+                  "text": "正在整理记录包… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2122,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2226,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 已打包 0.9 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2335,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 已打包 1.3 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2445,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 已打包 1.8 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2524,
+                  "text": "正在整理记录包… | 已处理 160 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2536,
+                  "text": "正在整理记录包… | 已处理 180 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2542,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2682,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.5 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2788,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 3.0 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2898,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 3.5 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3006,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 4.0 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3116,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 4.5 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3153,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3256,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 已打包 5.0 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3365,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 已打包 5.3 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3474,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 已打包 5.8 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3586,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 已打包 6.0 MB原数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3599,
+                  "text": "正在整理附件… | 已处理 0 / 2 项 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3602,
+                  "text": "正在核对封存与校验… | 正在处理已保存的数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3614,
+                  "text": "正在等待下载确认… | 正在处理已保存的数据 · 用时 1 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3773,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 114,
+                "ticks": 18
+              }
+            },
+            "zipBytes": 96445,
+            "zipSha256": "72c1831853f458799f239ba9bcdb2e4b2eb44fbfdc6927ac6d210a832894f24e",
+            "eventCount": 181,
+            "assetCount": 2,
+            "partial": false,
+            "provenance": {
+              "schemaVersion": 1,
+              "producerVersion": "0.3.1",
+              "exporterVersion": "0.3.1",
+              "derivations": {
+                "browserObservations": 2,
+                "browserFieldSummary": 2,
+                "fragmentValidation": 1,
+                "fragmentTerminals": 1
+              }
+            },
+            "coverage": [
+              {
+                "schemaVersion": 2,
+                "kind": "field-path-coverage",
+                "domain": "indexeddb",
+                "source": {
+                  "path": "timeline/events-00002.jsonl",
+                  "line": 23,
+                  "eventId": "sealed-recovery-synthetic-deep-graph",
+                  "identity": {
+                    "version": 1,
+                    "origin": "http://127.0.0.1",
+                    "originBasis": "payload.url",
+                    "sessionId": "sealed-recovery-synthetic",
+                    "tabId": 1,
+                    "frameId": 0,
+                    "documentId": "synthetic-document",
+                    "graphCaptureId": "sealed-recovery-synthetic-graph",
+                    "catalogId": null,
+                    "fragmentCaptureId": null,
+                    "storagePartition": {
+                      "status": "unknown"
+                    },
+                    "storageInstance": {
+                      "status": "unknown"
+                    }
+                  }
+                },
+                "database": "synthetic",
+                "store": "records",
+                "recordIndex": 0,
+                "status": "partial",
+                "reason": "depth_limit",
+                "observed": 257,
+                "pending": 1,
+                "locationCells": 32896,
+                "limits": {
+                  "depth": 256,
+                  "locationCells": 1000000,
+                  "pending": 100000,
+                  "paths": 100000
+                }
+              }
+            ],
+            "integrityFiles": 13,
+            "fileSha256": {
+              "timeline/events-00001.jsonl": "cd3a3dec54057f86a1fdabdc17bf2c5b2a57c877dc6ca1246a67c9c540ac5cb2",
+              "indexes/events-00001.jsonl": "b35489deddd4e25686ed57e51b7f8a5b4b6318820fcd41e6c08d2f93399f9dad",
+              "timeline/events-00002.jsonl": "8eb388e27d9d8b1dfe423288e02649f7f9872eb22a0f063c62952d125ae9dd02",
+              "indexes/events-00002.jsonl": "20ef42036f512178240945ddf6f48b34053114acbc2f7e164e6c9f7b8814758c",
+              "data-dictionary/browser-observations-00001.jsonl": "cf94289daaa092dabf4f5d70f10cc6afd33e41b1100f739ccbec6f213cbc0288",
+              "data-dictionary/browser-observations-00002.jsonl": "7425a80c9d61b2c7afe4f8bd3427cbe739d8d5b864690b19977617f5a47a405d",
+              "data-dictionary/browser-fields-00001.jsonl": "dcde08e3e95bd44efe3787ad0096b713a71a42c56de2ce60d9bfcd11a11dd7b8",
+              "indexes/relationships-00001.jsonl": "e8ef09ae0dbe4f169128ab754f823e6c698140d0eb3809d2747128fc8043234c",
+              "indexes/page-instances-00001.jsonl": "6684a3d6f3d22ca7656ff8cde62469789d267b506be546fcff215a66dabc4600",
+              "resources/index.json": "adc9c6468d8fdf7251dfd23607aedaf1c7eea31ec65ff3888b1b004bba972c03",
+              "resources/sealed-recovery-synthetic-asset-0.bin": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72",
+              "resources/sealed-recovery-synthetic-asset-1.bin": "342e91e7b553f1330de0279a5894c6040e2bcb892fd577ecabc4f9416a574890",
+              "manifest.json": "b1235ea1889f3e7a8940b050aa81b717fbfdb09bfba2a87a96381258ca03bd8a",
+              "integrity.json": "db45e008928d9c2b94365902a2bc3f56ac52f916b3ad23d537291a09627c5b2f"
+            }
+          },
+          "passed": true
+        }
+      ],
+      "assertions": [
+        "native Chrome 157 confirmed",
+        "both legal terminal batches exist only in owned synthetic profile",
+        "stalled native events count triggers read guard and storage abort attempt",
+        "actual 15s read guard accelerated exclusively for fault",
+        "stalled read never starts a download",
+        "deep path budget explicitly reports partial coverage",
+        "real Export UI shows changing work-stage/count/elapsed progress",
+        "100ms UI heartbeat max gap remains below fixed 1000ms bound",
+        "stalled native events count triggers read guard and storage abort attempt",
+        "actual 15s read guard accelerated exclusively for fault",
+        "stalled read never starts a download",
+        "deep path budget explicitly reports partial coverage",
+        "real Export UI shows changing work-stage/count/elapsed progress",
+        "100ms UI heartbeat max gap remains below fixed 1000ms bound",
+        "exactly one real successful download per restored retry"
+      ],
+      "scope": "knownDBstalled and legacy interrupted read-only export recovery; synthetic seed, no real user data",
+      "sourceIdentity": {
+        "commit": "f45535f8b5136c1269eb7982e10cbf6dd4c3f7d4",
+        "testSha256": "756b9120eaf0a768b18243d73da8bcbdbb00096efa8234bd21c4d9b36edbc6b6",
+        "copiedDistFiles": {
+          "assets/fragments-BJho5A_q.js": "c5a8cba516e8a4059fc0ab936ed0d17e084cb596a1ea8a58a5d15c02b6540e17",
+          "assets/sidepanel-Bc9-MS7D.js": "69c7cd2cce100120f8e90f486f9033d280d23de6a8deda16c6fb5153bace0ba9",
+          "assets/sidepanel-RQU0TV3r.css": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3",
+          "background.js": "7c1721910ce9172265efcd5c53506c8e1ebec00f0a6aca10674b63d78cccff65",
+          "content.js": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44",
+          "icons/icon-128.png": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1",
+          "icons/icon-16.png": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173",
+          "icons/icon-32.png": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131",
+          "icons/icon-48.png": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501",
+          "manifest.json": "79a75aa1fa4ff2d3f2d38521ccf2140625a15804fa4329c41006622e8eacaed0",
+          "sidepanel.html": "1bea8a29e62a98201b324a6ebbd8caa7935a591b34a86c2ac5c716750f4ae2f5"
+        }
+      },
+      "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "before": {
+        "sessions": [
+          {
+            "id": "legacy-recovery-synthetic",
+            "producerVersion": "0.3.0",
+            "title": "Synthetic export recovery",
+            "origin": "http://127.0.0.1",
+            "startedAt": 1794571200000,
+            "endedAt": 1794571201000,
+            "status": "interrupted",
+            "eventCount": 181,
+            "lastSeq": 181,
+            "assetCount": 2,
+            "options": {
+              "scope": "site"
+            },
+            "tabs": {},
+            "incomplete": true,
+            "notice": "Synthetic legacy interrupted terminal; retained for export"
+          },
+          {
+            "id": "sealed-recovery-synthetic",
+            "producerVersion": "0.3.1",
+            "title": "Synthetic export recovery",
+            "origin": "http://127.0.0.1",
+            "startedAt": 1794571200001,
+            "endedAt": 1794571201000,
+            "status": "ready",
+            "eventCount": 181,
+            "lastSeq": 181,
+            "assetCount": 2,
+            "options": {
+              "scope": "site"
+            },
+            "tabs": {},
+            "writeState": "sealed",
+            "revision": 2,
+            "seal": {
+              "revision": 2,
+              "lastSeq": 181,
+              "eventCount": 181,
+              "assetCount": 2,
+              "sealedAt": 1794571201000
+            }
+          }
+        ],
+        "eventCount": 362,
+        "assetCount": 4,
+        "eventsSha256": "4ae35f96831b52fd8d760f6c59adfe08588d11f78f934d18c79537faf95c9bad",
+        "assets": [
+          {
+            "id": "legacy-recovery-synthetic-asset-0",
+            "sessionId": "legacy-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 32768,
+            "sha256": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72"
+          },
+          {
+            "id": "legacy-recovery-synthetic-asset-1",
+            "sessionId": "legacy-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 12328,
+            "sha256": "7aaf9790b749f50e6fad3b2da356c82a3d816a5aed72beac6c76acb6e3f4fc28"
+          },
+          {
+            "id": "sealed-recovery-synthetic-asset-0",
+            "sessionId": "sealed-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 32768,
+            "sha256": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72"
+          },
+          {
+            "id": "sealed-recovery-synthetic-asset-1",
+            "sessionId": "sealed-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 12328,
+            "sha256": "342e91e7b553f1330de0279a5894c6040e2bcb892fd577ecabc4f9416a574890"
+          }
+        ]
+      },
+      "passed": true,
+      "cleanup": {
+        "status": "confirmed",
+        "code": null,
+        "scope": "owned-observable-only",
+        "rootClosed": true,
+        "browserClosed": true,
+        "terminal": "exited",
+        "exitCode": null,
+        "signal": "SIGTERM",
+        "childError": null,
+        "setupSettled": true,
+        "resourcesClosed": true,
+        "profileDeleted": false,
+        "steps": [
+          {
+            "name": "setup.settle",
+            "status": "completed",
+            "elapsedMs": 0
+          },
+          {
+            "name": "Browser.close",
+            "status": "completed",
+            "elapsedMs": 4
+          },
+          {
+            "name": "browser.close",
+            "status": "completed",
+            "elapsedMs": 15
+          },
+          {
+            "name": "child.kill",
+            "status": "completed",
+            "elapsedMs": 2
+          },
+          {
+            "name": "child.exit",
+            "status": "completed",
+            "elapsedMs": 129
+          },
+          {
+            "name": "profile.delete",
+            "status": "skipped",
+            "reason": "not_owned_or_created",
+            "elapsedMs": 0
+          }
+        ]
+      },
+      "profileCleanup": {
+        "status": "removed"
+      },
+      "finishedAt": "2026-11-13T13:22:33.118Z"
+    },
+    {
+      "schemaVersion": 1,
+      "startedAt": "2026-11-13T13:26:38.801Z",
+      "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-export-recovery-ktNCI3",
+      "scenarios": [
+        {
+          "sessionId": "legacy-recovery-synthetic",
+          "fault": {
+            "elapsedMs": 281,
+            "error": "读取记录数量超时",
+            "instrumentation": {
+              "countCalls": 1,
+              "abortCalls": 1,
+              "timers": [
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                }
+              ]
+            },
+            "observation": {
+              "changes": [
+                {
+                  "at": 559,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 593,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 601,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 765,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 110.40000000596046,
+                "ticks": 2
+              }
+            }
+          },
+          "retry": {
+            "elapsedMs": 998,
+            "observation": {
+              "changes": [
+                {
+                  "at": 1047,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 1120,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1126,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1141,
+                  "text": "正在核对分段记录… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1163,
+                  "text": "正在核对分段记录… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1173,
+                  "text": "正在核对分段记录… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1186,
+                  "text": "正在核对分段记录… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1201,
+                  "text": "正在核对分段记录… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1211,
+                  "text": "正在核对分段记录… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1222,
+                  "text": "正在核对分段记录… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1235,
+                  "text": "正在核对分段记录… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1245,
+                  "text": "正在核对分段记录… | 已处理 160 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1258,
+                  "text": "正在核对分段记录… | 已处理 180 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1264,
+                  "text": "正在核对分段记录… | 已处理 181 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1266,
+                  "text": "正在整理记录包… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1287,
+                  "text": "正在整理记录包… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1301,
+                  "text": "正在整理记录包… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1319,
+                  "text": "正在整理记录包… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1337,
+                  "text": "正在整理记录包… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1353,
+                  "text": "正在整理记录包… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1372,
+                  "text": "正在整理记录包… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1383,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1427,
+                  "text": "正在整理记录包… | 已处理 160 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1444,
+                  "text": "正在整理记录包… | 已处理 180 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1467,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1648,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.5 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1706,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1761,
+                  "text": "正在整理附件… | 已处理 0 / 2 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1772,
+                  "text": "正在核对封存与校验… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 1783,
+                  "text": "正在等待下载确认… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2035,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 114.19999998807907,
+                "ticks": 10
+              }
+            },
+            "zipBytes": 96467,
+            "zipSha256": "9580df3b6ec68aec97484a857e7343bfcd3f3fa97c7f420932539174abf306f8",
+            "eventCount": 181,
+            "assetCount": 2,
+            "partial": true,
+            "provenance": {
+              "schemaVersion": 1,
+              "producerVersion": "0.3.0",
+              "exporterVersion": "0.3.1",
+              "derivations": {
+                "browserObservations": 3,
+                "browserFieldSummary": 2,
+                "fragmentValidation": 1,
+                "fragmentTerminals": 1
+              }
+            },
+            "coverage": [
+              {
+                "schemaVersion": 2,
+                "kind": "field-path-coverage",
+                "domain": "indexeddb",
+                "source": {
+                  "path": "timeline/events-00002.jsonl",
+                  "line": 23,
+                  "eventId": "legacy-recovery-synthetic-deep-graph",
+                  "identity": {
+                    "version": 1,
+                    "origin": "http://127.0.0.1",
+                    "originBasis": "payload.url",
+                    "sessionId": "legacy-recovery-synthetic",
+                    "tabId": 1,
+                    "frameId": 0,
+                    "documentId": "synthetic-document",
+                    "graphCaptureId": "legacy-recovery-synthetic-graph",
+                    "catalogId": null,
+                    "fragmentCaptureId": null,
+                    "storagePartition": {
+                      "status": "unknown"
+                    },
+                    "storageInstance": {
+                      "status": "unknown"
+                    }
+                  }
+                },
+                "database": "synthetic",
+                "store": "records",
+                "recordIndex": 0,
+                "status": "partial",
+                "reason": "depth_limit",
+                "observed": 257,
+                "pending": 1,
+                "locationCells": 32896,
+                "limits": {
+                  "depth": 256,
+                  "locationCells": 1000000,
+                  "pending": 100000,
+                  "paths": 100000
+                }
+              }
+            ],
+            "integrityFiles": 13,
+            "fileSha256": {
+              "timeline/events-00001.jsonl": "7e6c5ad48b5b7d46ca645c86e71a1da3036b95fdb1046ed05b0754c74ad28d37",
+              "indexes/events-00001.jsonl": "03f7d34bb7ac6796fc891d2a2f187f4b015f43f8177d4fe81063d7dcc598d110",
+              "timeline/events-00002.jsonl": "67cd93688baad710dafdd6d91bc72bd58b0bcd48c67e72f434b24ba25ec6b4e6",
+              "indexes/events-00002.jsonl": "2bd7c00ff5991cc16880d34055c3809d3cc123723d70ca89ccfc9b3012146214",
+              "data-dictionary/browser-observations-00001.jsonl": "b5431722353d691a8f3192733f66ec81278d1e84528e384a965fbd597c71af6c",
+              "data-dictionary/browser-observations-00002.jsonl": "82082d72096666bc321c46f023a6909bcf59a8fadd8708d28951e32d32178257",
+              "data-dictionary/browser-fields-00001.jsonl": "b8e11673302240e5e77850b010864e41c1895a6c5c4d99079c8886c4f95ff7a4",
+              "indexes/relationships-00001.jsonl": "b933d9b537e8b53b03258822d91056906f99037b6a09de41d905fa3ebc34bdbe",
+              "indexes/page-instances-00001.jsonl": "abf6aecd6c869c580e442efdd931d7a43a28c2aacf2a04bdb6b1768655cd7992",
+              "resources/index.json": "0ee4d607291f850d3e3d0136a583edae268a1345ae9c22cd521f558075ad153c",
+              "resources/legacy-recovery-synthetic-asset-0.bin": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72",
+              "resources/legacy-recovery-synthetic-asset-1.bin": "7aaf9790b749f50e6fad3b2da356c82a3d816a5aed72beac6c76acb6e3f4fc28",
+              "manifest.json": "82e0ec18231f420e3312ac6236972bb54b135d2369516695984306d7fe161dc2",
+              "integrity.json": "b48d2d53ab61d80489a96b0f27fe467a536ff9b192aa5ae52ea2e05426973c96"
+            }
+          },
+          "passed": true
+        },
+        {
+          "sessionId": "sealed-recovery-synthetic",
+          "fault": {
+            "elapsedMs": 248,
+            "error": "读取记录数量超时",
+            "instrumentation": {
+              "countCalls": 1,
+              "abortCalls": 1,
+              "timers": [
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                },
+                {
+                  "original": 45000,
+                  "mapped": 1000
+                },
+                {
+                  "original": 15000,
+                  "mapped": 150
+                }
+              ]
+            },
+            "observation": {
+              "changes": [
+                {
+                  "at": 2431,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 2460,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2464,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2628,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 108.09999999403954,
+                "ticks": 2
+              }
+            }
+          },
+          "retry": {
+            "elapsedMs": 650,
+            "observation": {
+              "changes": [
+                {
+                  "at": 2861,
+                  "text": "导出记录包 | "
+                },
+                {
+                  "at": 2895,
+                  "text": "正在核对录制状态… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2900,
+                  "text": "正在等待读取记录… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2910,
+                  "text": "正在核对分段记录… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2920,
+                  "text": "正在核对分段记录… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2927,
+                  "text": "正在核对分段记录… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2940,
+                  "text": "正在核对分段记录… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2944,
+                  "text": "正在核对分段记录… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2950,
+                  "text": "正在核对分段记录… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2958,
+                  "text": "正在核对分段记录… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2965,
+                  "text": "正在核对分段记录… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2971,
+                  "text": "正在核对分段记录… | 已处理 160 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2975,
+                  "text": "正在核对分段记录… | 已处理 180 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2978,
+                  "text": "正在核对分段记录… | 已处理 181 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2979,
+                  "text": "正在整理记录包… | 已处理 0 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2988,
+                  "text": "正在整理记录包… | 已处理 20 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 2994,
+                  "text": "正在整理记录包… | 已处理 40 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3003,
+                  "text": "正在整理记录包… | 已处理 60 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3010,
+                  "text": "正在整理记录包… | 已处理 80 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3018,
+                  "text": "正在整理记录包… | 已处理 100 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3025,
+                  "text": "正在整理记录包… | 已处理 120 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3034,
+                  "text": "正在整理记录包… | 已处理 140 / 181 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3066,
+                  "text": "正在整理记录包… | 已处理 160 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3073,
+                  "text": "正在整理记录包… | 已处理 180 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3081,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 2.1 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3182,
+                  "text": "正在整理记录包… | 已处理 181 / 181 项 · 已打包 4.0 MB原数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3236,
+                  "text": "正在整理字段与索引… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3293,
+                  "text": "正在整理附件… | 已处理 0 / 2 项 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3300,
+                  "text": "正在核对封存与校验… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3305,
+                  "text": "正在等待下载确认… | 正在处理已保存的数据 · 用时 0 秒。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。"
+                },
+                {
+                  "at": 3476,
+                  "text": "导出记录包 | "
+                }
+              ],
+              "heartbeat": {
+                "intervalMs": 100,
+                "maxGapMs": 116.40000000596046,
+                "ticks": 6
+              }
+            },
+            "zipBytes": 96445,
+            "zipSha256": "e4298302a0825f51cf9ad5430867488a033bf7534fd506d23e09d4a808ccc519",
+            "eventCount": 181,
+            "assetCount": 2,
+            "partial": false,
+            "provenance": {
+              "schemaVersion": 1,
+              "producerVersion": "0.3.1",
+              "exporterVersion": "0.3.1",
+              "derivations": {
+                "browserObservations": 3,
+                "browserFieldSummary": 2,
+                "fragmentValidation": 1,
+                "fragmentTerminals": 1
+              }
+            },
+            "coverage": [
+              {
+                "schemaVersion": 2,
+                "kind": "field-path-coverage",
+                "domain": "indexeddb",
+                "source": {
+                  "path": "timeline/events-00002.jsonl",
+                  "line": 23,
+                  "eventId": "sealed-recovery-synthetic-deep-graph",
+                  "identity": {
+                    "version": 1,
+                    "origin": "http://127.0.0.1",
+                    "originBasis": "payload.url",
+                    "sessionId": "sealed-recovery-synthetic",
+                    "tabId": 1,
+                    "frameId": 0,
+                    "documentId": "synthetic-document",
+                    "graphCaptureId": "sealed-recovery-synthetic-graph",
+                    "catalogId": null,
+                    "fragmentCaptureId": null,
+                    "storagePartition": {
+                      "status": "unknown"
+                    },
+                    "storageInstance": {
+                      "status": "unknown"
+                    }
+                  }
+                },
+                "database": "synthetic",
+                "store": "records",
+                "recordIndex": 0,
+                "status": "partial",
+                "reason": "depth_limit",
+                "observed": 257,
+                "pending": 1,
+                "locationCells": 32896,
+                "limits": {
+                  "depth": 256,
+                  "locationCells": 1000000,
+                  "pending": 100000,
+                  "paths": 100000
+                }
+              }
+            ],
+            "integrityFiles": 13,
+            "fileSha256": {
+              "timeline/events-00001.jsonl": "cd3a3dec54057f86a1fdabdc17bf2c5b2a57c877dc6ca1246a67c9c540ac5cb2",
+              "indexes/events-00001.jsonl": "b35489deddd4e25686ed57e51b7f8a5b4b6318820fcd41e6c08d2f93399f9dad",
+              "timeline/events-00002.jsonl": "8eb388e27d9d8b1dfe423288e02649f7f9872eb22a0f063c62952d125ae9dd02",
+              "indexes/events-00002.jsonl": "20ef42036f512178240945ddf6f48b34053114acbc2f7e164e6c9f7b8814758c",
+              "data-dictionary/browser-observations-00001.jsonl": "cf94289daaa092dabf4f5d70f10cc6afd33e41b1100f739ccbec6f213cbc0288",
+              "data-dictionary/browser-observations-00002.jsonl": "7425a80c9d61b2c7afe4f8bd3427cbe739d8d5b864690b19977617f5a47a405d",
+              "data-dictionary/browser-fields-00001.jsonl": "dcde08e3e95bd44efe3787ad0096b713a71a42c56de2ce60d9bfcd11a11dd7b8",
+              "indexes/relationships-00001.jsonl": "e8ef09ae0dbe4f169128ab754f823e6c698140d0eb3809d2747128fc8043234c",
+              "indexes/page-instances-00001.jsonl": "6684a3d6f3d22ca7656ff8cde62469789d267b506be546fcff215a66dabc4600",
+              "resources/index.json": "adc9c6468d8fdf7251dfd23607aedaf1c7eea31ec65ff3888b1b004bba972c03",
+              "resources/sealed-recovery-synthetic-asset-0.bin": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72",
+              "resources/sealed-recovery-synthetic-asset-1.bin": "342e91e7b553f1330de0279a5894c6040e2bcb892fd577ecabc4f9416a574890",
+              "manifest.json": "f9745f3a740358c2fc18fe82c926bcb83b030bc1eeb04103b175ba1fdc402c59",
+              "integrity.json": "b7e0a70d3c4acffaeb988999b7d01dab7c73096efe64ad320bfd56afcbf50b08"
+            }
+          },
+          "passed": true
+        }
+      ],
+      "assertions": [
+        "native Chrome 157 confirmed",
+        "both legal terminal batches exist only in owned synthetic profile",
+        "stalled native events count triggers read guard and storage abort attempt",
+        "actual 15s read guard accelerated exclusively for fault",
+        "stalled read never starts a download",
+        "deep path budget explicitly reports partial coverage",
+        "real Export UI shows changing work-stage/count/elapsed progress",
+        "100ms UI heartbeat max gap remains below fixed 1000ms bound",
+        "stalled native events count triggers read guard and storage abort attempt",
+        "actual 15s read guard accelerated exclusively for fault",
+        "stalled read never starts a download",
+        "deep path budget explicitly reports partial coverage",
+        "real Export UI shows changing work-stage/count/elapsed progress",
+        "100ms UI heartbeat max gap remains below fixed 1000ms bound",
+        "exactly one real successful download per restored retry"
+      ],
+      "scope": "knownDBstalled and legacy interrupted read-only export recovery; synthetic seed, no real user data",
+      "sourceIdentity": {
+        "commit": "f45535f8b5136c1269eb7982e10cbf6dd4c3f7d4",
+        "testSha256": "756b9120eaf0a768b18243d73da8bcbdbb00096efa8234bd21c4d9b36edbc6b6",
+        "copiedDistFiles": {
+          "assets/fragments-BJho5A_q.js": "c5a8cba516e8a4059fc0ab936ed0d17e084cb596a1ea8a58a5d15c02b6540e17",
+          "assets/sidepanel-RQU0TV3r.css": "7a514bca9a7814344e945b9fc15a7305246b37bc3ea3575f2f029d54785202f3",
+          "assets/sidepanel-z-XinFbq.js": "5bd65339615e3d6b28aebe774404e690359da830d01564ae5c7c69db681bee94",
+          "background.js": "39185b4db3ecb7cbd0f8aaa27f0ec1f766f16500542a79767a0b49261e183ead",
+          "content.js": "7d0a8c01caae822ab0ce4eb63efca43149a671b04accf821d77d4219dd7ede44",
+          "icons/icon-128.png": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1",
+          "icons/icon-16.png": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173",
+          "icons/icon-32.png": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131",
+          "icons/icon-48.png": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501",
+          "manifest.json": "79a75aa1fa4ff2d3f2d38521ccf2140625a15804fa4329c41006622e8eacaed0",
+          "sidepanel.html": "ca9a12f827be51654dfda3ebb361e0aa7550aba44a095e2d0fd307e8f6385262"
+        }
+      },
+      "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "before": {
+        "sessions": [
+          {
+            "id": "legacy-recovery-synthetic",
+            "producerVersion": "0.3.0",
+            "title": "Synthetic export recovery",
+            "origin": "http://127.0.0.1",
+            "startedAt": 1794571200000,
+            "endedAt": 1794571201000,
+            "status": "interrupted",
+            "eventCount": 181,
+            "lastSeq": 181,
+            "assetCount": 2,
+            "options": {
+              "scope": "site"
+            },
+            "tabs": {},
+            "incomplete": true,
+            "notice": "Synthetic legacy interrupted terminal; retained for export"
+          },
+          {
+            "id": "sealed-recovery-synthetic",
+            "producerVersion": "0.3.1",
+            "title": "Synthetic export recovery",
+            "origin": "http://127.0.0.1",
+            "startedAt": 1794571200001,
+            "endedAt": 1794571201000,
+            "status": "ready",
+            "eventCount": 181,
+            "lastSeq": 181,
+            "assetCount": 2,
+            "options": {
+              "scope": "site"
+            },
+            "tabs": {},
+            "writeState": "sealed",
+            "revision": 2,
+            "seal": {
+              "revision": 2,
+              "lastSeq": 181,
+              "eventCount": 181,
+              "assetCount": 2,
+              "sealedAt": 1794571201000
+            }
+          }
+        ],
+        "eventCount": 362,
+        "assetCount": 4,
+        "eventsSha256": "4ae35f96831b52fd8d760f6c59adfe08588d11f78f934d18c79537faf95c9bad",
+        "assets": [
+          {
+            "id": "legacy-recovery-synthetic-asset-0",
+            "sessionId": "legacy-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 32768,
+            "sha256": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72"
+          },
+          {
+            "id": "legacy-recovery-synthetic-asset-1",
+            "sessionId": "legacy-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 12328,
+            "sha256": "7aaf9790b749f50e6fad3b2da356c82a3d816a5aed72beac6c76acb6e3f4fc28"
+          },
+          {
+            "id": "sealed-recovery-synthetic-asset-0",
+            "sessionId": "sealed-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 32768,
+            "sha256": "09fed9cbfb98b6ab0f3e8ff63b7b1f9b0e07d58b225295c78fdc023cc4985a72"
+          },
+          {
+            "id": "sealed-recovery-synthetic-asset-1",
+            "sessionId": "sealed-recovery-synthetic",
+            "type": "resource",
+            "mime": "application/octet-stream",
+            "bytes": 12328,
+            "sha256": "342e91e7b553f1330de0279a5894c6040e2bcb892fd577ecabc4f9416a574890"
+          }
+        ]
+      },
+      "passed": true,
+      "cleanup": {
+        "status": "confirmed",
+        "code": null,
+        "scope": "owned-observable-only",
+        "rootClosed": true,
+        "browserClosed": true,
+        "terminal": "exited",
+        "exitCode": null,
+        "signal": "SIGTERM",
+        "childError": null,
+        "setupSettled": true,
+        "resourcesClosed": true,
+        "profileDeleted": false,
+        "steps": [
+          {
+            "name": "setup.settle",
+            "status": "completed",
+            "elapsedMs": 0
+          },
+          {
+            "name": "Browser.close",
+            "status": "completed",
+            "elapsedMs": 2
+          },
+          {
+            "name": "browser.close",
+            "status": "completed",
+            "elapsedMs": 121
+          },
+          {
+            "name": "child.kill",
+            "status": "completed",
+            "elapsedMs": 1
+          },
+          {
+            "name": "child.exit",
+            "status": "completed",
+            "elapsedMs": 117
+          },
+          {
+            "name": "profile.delete",
+            "status": "skipped",
+            "reason": "not_owned_or_created",
+            "elapsedMs": 0
+          }
+        ]
+      },
+      "profileCleanup": {
+        "status": "removed"
+      },
+      "finishedAt": "2026-11-13T13:26:48.570Z"
+    }
+  ]
+}

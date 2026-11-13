@@ -160,7 +160,7 @@ async function exportSyntheticProvenance(producerVersion, chromeValue) {
 }
 
 it("createArchive/readArchive provenance preserves known old/new producers and leaves legacy unknown (not-run)", async () => {
-  const derivations = { browserObservations: 2, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 };
+  const derivations = { browserObservations: 3, browserFieldSummary: 2, fragmentValidation: 1, fragmentTerminals: 1 };
   for (const producerVersion of ["0.1.0", "0.2.0", undefined, "synthetic-invalid-version"]) {
     const archive = await exportSyntheticProvenance(producerVersion, { runtime: { getManifest: () => ({ version: "0.9.0" }) } });
     assert.deepEqual(archive.manifest.provenance, { schemaVersion: 1,

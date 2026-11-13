@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-13",
+  "verdict": "pass",
+  "verdictScope": "源码与原生Node纯测试的限定review；非真实现场、新build或Chrome大包验收",
+  "criticalOpen": 0,
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "medium",
+      "status": "resolved-in-parent-caller-rechecked",
+      "problem": "preexisting unexplained incomplete could be reclassified to completed_with_gaps after a later producer-only FLUSH",
+      "originalLocation": "app/src/stop-outcome.js:27",
+      "reachableSources": [
+        "app/src/background.js:543-547 register failure",
+        "app/src/background.js:550-556 attach outer deadline timeout",
+        "app/src/background.js:584-617 injection/readiness failure"
+      ],
+      "reproduction": {
+        "before": {
+          "incomplete": true
+        },
+        "later": {
+          "captureIncomplete": true,
+          "needsVerification": true
+        },
+        "beforeOutcome": "interrupted",
+        "unfixedOutcome": "completed_with_gaps"
+      },
+      "fix": "app/src/background.js:1277-1278 snapshots preexisting unexplained incomplete into finalizationFailed before FLUSH; app/src/background.js:1582 passes it to normalStopOutcome",
+      "recheck": {
+        "method": "read actual caller and emulate exact stop-entry snapshot in native Node",
+        "outcome": "interrupted",
+        "reason": "finalization_unconfirmed",
+        "chromeReproduced": false
+      }
+    }
+  ],
+  "reviewedFiles": [
+    "app/src/archive.js",
+    "app/src/archive-compression.js",
+    "app/src/archive-task.js",
+    "app/src/session-lock.js",
+    "app/src/sidepanel.jsx",
+    "app/src/export-progress.js",
+    "app/src/db.js",
+    "app/src/stop-outcome.js",
+    "app/src/background.js stop FLUSH/terminal only"
+  ],
+  "reviewedGitBlobHashes": {
+    "app/src/archive.js": "3172098380e21c973b8c73f931e503eb93755c7c",
+    "app/src/archive-compression.js": "543edc8198890d173ddc4b23a5a3c3e638e01bd4",
+    "app/src/archive-task.js": "f68a1558ed2a8303fce17674ad5e4ced2c2bad61",
+    "app/src/session-lock.js": "9698240077978c6a166476b0d45005a95a0033d0",
+    "app/src/sidepanel.jsx": "bede04f0121ba267471b5b59174a10c248b2f66b",
+    "app/src/export-progress.js": "80155f0fb9dd500f6c7c06ff8f9ec0cf14d25ebe",
+    "app/src/db.js": "64d864d2542cbde9f7c3008bbe19c7120cca161b",
+    "app/src/stop-outcome.js": "13956745e6b844b284e2892c2f451ae1c56d2834",
+    "app/src/background.js": "1581bca16c370e926538b538759dfb8a74c33056"
+  },
+  "commands": [
+    {
+      "command": "node --test tests/archive-compression.test.js tests/archive-task.test.js tests/stop-outcome.test.js tests/export-progress.test.js tests/db-read-timeout.test.js tests/archive-seal.test.js",
+      "workdir": "app",
+      "exitCode": 0,
+      "pass": 62,
+      "fail": 0
+    },
+    {
+      "command": "node test-stop-review-pure/review.mjs",
+      "workdir": "app",
+      "runtime": "v24.22.1",
+      "exitCode": 0,
+      "checks": [
+        "native central CRC/size and data descriptor CRC/size independently computed for multiblock 450123B, empty, raw, UTF8 filenames",
+        "native midstream abort plus zip.terminate emits no final ZIP",
+        "real createArchive/readArchive synthetic legacy interrupted without seal succeeds, zero write calls and source session/events unchanged",
+        "all raw ZIP entries except integrity.json listed, SHA256 exact",
+        "parent repaired stop-entry snapshot retains interrupted"
+      ]
+    },
+    {
+      "command": "node --test tests/archive-compression.test.js tests/stop-outcome.test.js",
+      "workdir": "app",
+      "exitCode": 0,
+      "pass": 10,
+      "fail": 0,
+      "note": "recheck after cooperativeScheduler change"
+    },
+    {
+      "command": "node --test tests/stop-outcome.test.js",
+      "workdir": "app",
+      "exitCode": 0,
+      "pass": 4,
+      "fail": 0,
+      "note": "last narrow recheck after parent adds before-stop snapshot regression"
+    }
+  ],
+  "probe": "app/test-stop-review-pure/review.mjs",
+  "probeCorrection": "first probe assumed readArchive returned timeline files, but it intentionally consumes/deletes them; changed verification to raw unzipSync entries and reran successfully, not a product issue",
+  "intentBoundaries": [
+    "native ZipPassThrough.process override retains original push CRC/size; pump starts before writes",
+    "fallback 64KiB level1 and 8ms cooperative scheduling; timers are not hard CPU deadlines",
+    "45s idle abort and 15s readonly guards reject rather than invent empty/completed; source export contains no writes",
+    "producer-only capture gaps preserve coverage and ready/completed_with_gaps; explicit storage/failed/unknown/finalization/coverage-unavailable remain interrupted",
+    "legacy interrupted rows are exported read-only without repair or fabricated seal"
+  ],
+  "notVerified": [
+    "user site or recording; browser bridge was not connected",
+    "new build Chrome or large ZIP latency/error; parent owns this check",
+    "parallel graph-owner changes or whole-codebase audit"
+  ],
+  "preservation": {
+    "agentsRead": true,
+    "dirtyBaselineRecorded": true,
+    "productionFilesWritten": false,
+    "userChromeProfileDataTouched": false,
+    "delegated": false,
+    "build": false,
+    "fullTestSuite": false,
+    "commitPush": false
+  }
+}
