@@ -1,0 +1,85 @@
+{
+  "status": "passed",
+  "skill": "E:\\dev\\copypaste\\\u7f8e\u5bb9ERP\\\u903b\u8f91\u8bb0\u5f55\u63d2\u4ef6\\app\\test-reading-skill-package-Vc3Daz\\extension-logic-clone",
+  "archiveSha256": "9556192481b808f65de0d4ef103ff297c7985e7b8cf6e40af663451ef03e2220",
+  "syntheticOnly": true,
+  "indexSummary": {
+    "verification": "passed",
+    "version": 3,
+    "events": 96,
+    "files": 54,
+    "contentCount": 52,
+    "event_types": {
+      "network.request": 9,
+      "network.response": 9,
+      "page.navigation": 1,
+      "page.snapshot": 24,
+      "page.stylesheet": 4,
+      "recorder.notice": 5,
+      "scope.child": 1,
+      "screenshot": 18,
+      "session.start": 1,
+      "session.stop": 1,
+      "ui.change": 7,
+      "ui.click": 14,
+      "ui.scroll": 1,
+      "ui.submit": 1
+    },
+    "profile": "business-flow-v1",
+    "partial": false,
+    "recordedCoverage": {
+      "declared": true,
+      "version": 1,
+      "policyGaps": 0,
+      "physicalCdpStreamLimit": false
+    },
+    "policyStopped": false,
+    "byteAccountingVerification": "performed",
+    "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+  },
+  "verifiedContents": {
+    "DOM": {
+      "eventId": "3f73c7a9-99fd-44e1-b8ac-6d639eae7394:event:2",
+      "field": "sourceHtml",
+      "size": 1978,
+      "sha256": "4c98c13894c129e63eefa3563935fad3f0d5c2c029b75532bb3473cd7b15e4e6",
+      "path": "contents/4c98c13894c129e63eefa3563935fad3f0d5c2c029b75532bb3473cd7b15e4e6.bin",
+      "contentExecuted": false
+    },
+    "PNG": {
+      "eventId": "3f73c7a9-99fd-44e1-b8ac-6d639eae7394:event:4",
+      "field": "image",
+      "size": 22582,
+      "sha256": "cc06abbf926de5cc8f768ef190e5cf990f4234f1fa528d1fb0a9ce3db58b1071",
+      "path": "contents/cc06abbf926de5cc8f768ef190e5cf990f4234f1fa528d1fb0a9ce3db58b1071.bin",
+      "contentExecuted": false
+    },
+    "CSS": {
+      "eventId": "3f73c7a9-99fd-44e1-b8ac-6d639eae7394:event:5",
+      "field": "text",
+      "size": 108034,
+      "sha256": "0591ddf1bcc41324a6b6f2da17c2bd2b6b4f644e1cb9482947f271e0d4b85fb6",
+      "path": "contents/0591ddf1bcc41324a6b6f2da17c2bd2b6b4f644e1cb9482947f271e0d4b85fb6.bin",
+      "contentExecuted": false
+    },
+    "response-body": {
+      "eventId": "3f73c7a9-99fd-44e1-b8ac-6d639eae7394:event:10",
+      "field": "body",
+      "size": 73,
+      "sha256": "874cd46ba2fb67bdb52bcf8f49add7147990dfb780271d11b6cfb415d0d126c0",
+      "path": "contents/874cd46ba2fb67bdb52bcf8f49add7147990dfb780271d11b6cfb415d0d126c0.bin",
+      "contentExecuted": false
+    },
+    "request-body": {
+      "eventId": "3f73c7a9-99fd-44e1-b8ac-6d639eae7394:event:41",
+      "field": "bodyText",
+      "size": 110,
+      "sha256": "d6a744507c5e09bfd42d220efecb79729563703699a626622b76f8a840e91040",
+      "path": "contents/d6a744507c5e09bfd42d220efecb79729563703699a626622b76f8a840e91040.bin",
+      "contentExecuted": false
+    }
+  },
+  "recordingOrIndexUploaded": false,
+  "contentExecuted": false,
+  "temporaryArtifacts": "E:\\dev\\copypaste\\\u7f8e\u5bb9ERP\\\u903b\u8f91\u8bb0\u5f55\u63d2\u4ef6\\app\\test-reading-skill-vn5ti3aq"
+}

@@ -3,6 +3,14 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 读取skill 0.4.0.1 - 2026-11-14（插件仍为0.4.0 / Reader-only update）
+
+- 查明当前DSH及Codex安装仍是旧v1/v2副本，备份后同步10文件并分别实际运行新版索引/内容读取；DSH当前会话重载确认。 / Update both installed readers rather than only the project source.
+- v3为主入口，旧fragment/计算样式说明分到历史参考；补真实ui.*、forms property与长值引用、短命提示、scope/预算/缺口及受控本地复建路线。 / Route current and legacy formats explicitly.
+- 新索引绑定整个ZIP身份；可选字节账本/封存按实际事件和唯一内容核对。新增read_content.py校验源事件、引用与原字节；修复被篡改索引以内容附件冒充timeline事件的缺口。 / Bind extraction to declared timeline chunks and exact contents.
+- 35项格式/索引＋11项内容读取回归通过，实际v0.4.0合成包96events/52contents在项目及两安装位置验证五类原字节；详见[报告](<技能更新/2026-11-14-v3/REPORT.md>)。 / Synthetic-only and installed-entry execution verified.
+- 只更新skill，不改Chrome程序、浏览器数据或原v0.4.0交付包，不自动同步无关myskills远端。 / Preserve extension and prior release bytes.
+
 ## 0.4.0 - 2026-11-14（轻量业务记录 / Lightweight business flow）
 
 - 按用户批准的[减量方案](<2026-11-14-需求减量评估.md>)重定八项义务；绑定根业务标签、必要授权框架及一个可信归因子页，不扫描全profile。 / Replace browser-wide capture with an explicit bounded workflow.

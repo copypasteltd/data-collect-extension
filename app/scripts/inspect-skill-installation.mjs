@@ -1,0 +1,4 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+const roots=['C:/Users/carzy/.codex/skills/extension-logic-clone','C:/Users/carzy/.agents/skills/extension-logic-clone','C:/dev/sandbox/dsh/data/skills/extension-logic-clone','C:/dev/本地skill/myskills/extension-logic-clone','E:/dev/copypaste/美容ERP/逻辑记录插件/app/skills/extension-logic-clone','C:/Users/carzy/.codex/skills/.system/skill-creator','C:/dev/本地skill/myskills/skill-creator'];
+for(const location of roots){try{const st=await fs.lstat(location);console.log(JSON.stringify({location,exists:true,isDirectory:st.isDirectory(),isLink:st.isSymbolicLink(),realPath:await fs.realpath(location),entries:(await fs.readdir(location)).filter(n=>!n.startsWith('.')).slice(0,30)}));}catch(e){console.log(JSON.stringify({location,exists:false,code:e.code}));}}

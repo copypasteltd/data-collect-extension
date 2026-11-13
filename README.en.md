@@ -8,7 +8,7 @@
 
 - [Complete local v0.4.0 release](<app/release/logic-recorder-release-v0.4.0.zip>)
 - [Chrome extension](<app/release/v0.4.0/logic-recorder-chrome-v0.4.0.zip>) — no Node/Python required to record.
-- [Standalone analysis skill](<app/release/v0.4.0/extension-logic-clone-v0.4.0.zip>) — Python3.9+ standard library.
+- [Current reading skill0.4.0.1](<app/release/skill-v0.4.0.1/extension-logic-clone-v0.4.0.1.zip>) — v3 plus legacyv1/v2, ledger/seal checks and verified raw content extraction; [local installation verification](<docs/技能更新/2026-11-14-v3/REPORT.md>). Originalv0.4.0 release bytes remain unchanged.
 - [Checksums](<app/release/v0.4.0/SHA256SUMS.txt>)
 
 This turn produces a local release and updates the current installation path; it does not automatically publish a new public GitHub Release. Published [v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>) remains historical and byte-identical.

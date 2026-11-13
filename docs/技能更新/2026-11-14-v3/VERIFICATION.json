@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "skill": "extension-logic-clone",
+  "skillVersion": "0.4.0.1",
+  "pluginVersion": "0.4.0",
+  "currentFormat": {
+    "version": 3,
+    "profile": "business-flow-v1"
+  },
+  "legacyFormatVersions": [
+    1,
+    2
+  ],
+  "tests": {
+    "command": "npm run test:skill-readers",
+    "passed": 46,
+    "failed": 0,
+    "legacyIndexAndHelpers": 12,
+    "v3IndexAndConsistency": 23,
+    "rawContentExtraction": 11,
+    "actualV3": {
+      "events": 96,
+      "contents": 52,
+      "files": 54,
+      "archiveSha256": "9556192481b808f65de0d4ef103ff297c7985e7b8cf6e40af663451ef03e2220",
+      "rawKinds": [
+        "DOM",
+        "CSS",
+        "PNG",
+        "request-body",
+        "response-body"
+      ],
+      "entrypoints": [
+        "project-source",
+        "dsh-installed",
+        "codex-installed",
+        "extracted-skill-zip"
+      ]
+    }
+  },
+  "localInstalledSkillPaths": [
+    {
+      "name": "codex",
+      "path": "C:/Users/carzy/.codex/skills/extension-logic-clone",
+      "filesVerified": 10
+    },
+    {
+      "name": "dsh",
+      "path": "C:/dev/sandbox/dsh/data/skills/extension-logic-clone",
+      "filesVerified": 10
+    }
+  ],
+  "loadedByCurrentSession": {
+    "provider": "dsh-skills-manager-external",
+    "resourcePath": "C:/dev/sandbox/dsh/data/skills/extension-logic-clone",
+    "reloadedV3ContentConfirmed": true,
+    "otherAlreadyRunningCodexSessionsMayNeedReload": true
+  },
+  "backupPath": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\release\\skill-backups\\extension-logic-clone-before-v3-f7XZiC",
+  "package": {
+    "path": "app/release/skill-v0.4.0.1/extension-logic-clone-v0.4.0.1.zip",
+    "size": 39301,
+    "sha256": "957961cbb2fdba37b7dd151469b6b6c05a032f07caa1bcdccfa1ff039789ffaa"
+  },
+  "independentFinding": {
+    "problem": "A tampered index could point event.chunk to a captured content attachment instead of the manifest timeline, causing incorrect event attribution",
+    "reproducedBeforeFix": true,
+    "fix": "Require event.chunk in validated manifest.eventChunks and verify original line/event/ref against source ZIP",
+    "regression": "ContentReaderTests.test_content_attachment_cannot_impersonate_timeline_event",
+    "passedAfterFix": true
+  },
+  "limitsAndScope": {
+    "recordingsUsed": "Only previously-approved synthetic release test recording",
+    "rawBusinessRecordingRead": false,
+    "browserProfileAccessed": false,
+    "chromeExtensionChanged": false,
+    "oldReleaseBytesChanged": false,
+    "skillRepoOrLoaderJunctionChanged": false,
+    "thirdPartySkillRepositoryPushed": false,
+    "hashesEstablishConsistencyNotAuthenticity": true
+  },
+  "historicalTestInvocation": {
+    "failed": "npm on Windows preserved single quotes in unittest pattern and selected zero tests (exit5)",
+    "fixed": "Use double-quoted discovery pattern; final46-test run exit0"
+  },
+  "evidence": [
+    {
+      "path": "app/test-skill-parser.log",
+      "size": 140,
+      "sha256": "7c71bc9fbd90d101fe82d8ccc7cefd5b9ca9af4007e59799f3e8893c9d9d3f6f"
+    },
+    {
+      "path": "app/test-skill-content-final.log",
+      "size": 115,
+      "sha256": "f522555645868ecb9dedb3da577eabd8da41738720fb1f039aa073004c8d95fa"
+    },
+    {
+      "path": "app/test-skill-readers-verified.log",
+      "size": 255,
+      "sha256": "49028e4d59ce4aaf5ce260b12b267b113c25d48ee95d03781295a2c471073e32"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/source-verification.json",
+      "size": 3186,
+      "sha256": "985628fc54a86ba82fd4ddd4b6568f1ef06ea34bc324696c98c7e96cfcba69b7"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/dsh-verification.json",
+      "size": 3135,
+      "sha256": "fd9b3bc7fc43501bf7c19a90258110bdf1fafe3a76df27b5f8c07bf70dd514f5"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/codex-verification.json",
+      "size": 3132,
+      "sha256": "75f023b88f593ea6fdd3341f8102a5a7938262cd7d1bb5e93a1ac39234c1e2dd"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/package-verification.json",
+      "size": 3213,
+      "sha256": "86034000ab88758e4f37576cbc8a1076fcf97dcbf82f6b233cdbe91606daa549"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/installation.json",
+      "size": 5013,
+      "sha256": "5f8138c39e7bfd2995e038329fe9d9908c463ef4af72777afc0aa30e8374f23d"
+    },
+    {
+      "path": "docs/技能更新/2026-11-14-v3/package.json",
+      "size": 2040,
+      "sha256": "a52128fcacaf0e9a333741a427ea5964f7621658e6b4cb343cf2c4851f4b461c"
+    }
+  ]
+}

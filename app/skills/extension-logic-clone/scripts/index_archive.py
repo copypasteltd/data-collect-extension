@@ -149,7 +149,7 @@ def validate(zf, max_entry, max_total):
 def validate_flow_manifest(manifest, chunks, checked):
     session = manifest["session"]
     if (manifest.get("profile") != "business-flow-v1" or manifest.get("derivations") != "none"
-            or not session["id"] or "ownerToken" in session
+            or not session["id"] or any(key in session or key in manifest for key in ("ownerToken", "captureKey"))
             or not isinstance(manifest.get("capturePolicy"), dict) or not isinstance(manifest.get("budget"), dict)):
         fail("invalid business flow profile, policy, budget, or session metadata")
     for key, maximum in (("eventCount", MAX_EVENTS), ("contentCount", MAX_FILES)):
@@ -157,8 +157,21 @@ def validate_flow_manifest(manifest, chunks, checked):
             fail("invalid business flow manifest count")
         if key in session and (not safe_integer(session[key]) or session[key] != manifest[key]):
             fail("session count does not match manifest")
+    if "partial" in manifest and type(manifest["partial"]) is not bool:
+        fail("invalid partial declaration")
     if "lastSeq" in session and not safe_integer(session["lastSeq"]):
         fail("invalid session sequence watermark")
+    if "seal" in session:
+        seal = session["seal"]
+        if not isinstance(seal, dict):
+            fail("invalid session seal")
+        for key in ("lastSeq", "eventCount", "contentCount"):
+            expected = manifest["eventCount"] if key == "lastSeq" else manifest[key]
+            if not safe_integer(seal.get(key)) or seal[key] != expected:
+                fail("session seal count or watermark mismatch")
+        for key in ("sealedAt", "revision"):
+            if key in seal and not safe_integer(seal[key]):
+                fail("invalid session seal number")
     budget = manifest["budget"]
     for key in ("usedBytes", "limitBytes", "reserveBytes"):
         if key in budget and not safe_integer(budget[key]):
@@ -169,6 +182,14 @@ def validate_flow_manifest(manifest, chunks, checked):
     if "byCategory" in budget and (not isinstance(budget["byCategory"], dict)
             or any(not safe_integer(value) for value in budget["byCategory"].values())):
         fail("invalid category budget")
+    if "budget" in session and (not isinstance(session["budget"], dict)
+            or json.dumps(session["budget"], sort_keys=True) != json.dumps(budget, sort_keys=True)):
+        fail("session budget does not match manifest budget")
+    if "byteAccounting" in manifest:
+        ledger = manifest["byteAccounting"]
+        if (not isinstance(ledger, dict) or any(not safe_integer(ledger.get(key)) for key in
+                ("eventJsonlBytes", "uniqueContentBytes", "storedLogicalBytes"))):
+            fail("invalid byte accounting")
     expected_chunks = [f"timeline/events-{index:05d}.jsonl" for index in range(1, len(chunks) + 1)]
     if chunks != expected_chunks or {name for name in checked if name.startswith("timeline/")} != set(chunks):
         fail("event chunks are unordered, nonconsecutive, or unlisted")
@@ -194,6 +215,20 @@ def validate_flow_manifest(manifest, chunks, checked):
         paths.add(path)
     if {name for name in checked if name.startswith("contents/")} != paths:
         fail("unlisted or missing content entry")
+    verify_byte_accounting(manifest, sum(checked[name][0] for name in chunks))
+
+
+def verify_byte_accounting(manifest, event_bytes):
+    if "byteAccounting" not in manifest:
+        return
+    content_bytes = sum(content["size"] for content in manifest["contents"])
+    actual = {"eventJsonlBytes": event_bytes, "uniqueContentBytes": content_bytes,
+              "storedLogicalBytes": event_bytes + content_bytes}
+    if any(manifest["byteAccounting"][key] != value for key, value in actual.items()):
+        fail("byte accounting does not match verified raw bytes")
+    budget = manifest["budget"]
+    if "usedBytes" in budget and budget["usedBytes"] != actual["storedLogicalBytes"]:
+        fail("budget usedBytes does not match byte accounting")
 
 
 def content_references(payload, contents):
@@ -227,7 +262,7 @@ def scalar(value):
     return None
 
 
-def build_index(zf, manifest, chunks, checked, target):
+def build_index(zf, manifest, chunks, checked, target, archive_identity=None):
     flow = manifest["version"] == 3
     contents = {entry["contentId"]: entry for entry in manifest["contents"]} if flow else {}
     fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -255,11 +290,19 @@ def build_index(zf, manifest, chunks, checked, target):
             CREATE INDEX content_refs_content ON content_refs(content_id);
         """)
         db.execute("INSERT INTO metadata VALUES (?, ?)", ("manifest", json.dumps(manifest, ensure_ascii=True)))
+        if archive_identity is not None:
+            if (not isinstance(archive_identity, dict) or type(archive_identity.get("schemaVersion")) is not int
+                    or archive_identity["schemaVersion"] != 1 or not safe_integer(archive_identity.get("size"))
+                    or not isinstance(archive_identity.get("sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", archive_identity["sha256"])):
+                fail("invalid archive identity")
+            db.execute("INSERT INTO metadata VALUES (?, ?)", ("archive_identity", json.dumps(archive_identity)))
         db.executemany("INSERT INTO files VALUES (?, ?, ?)", ((name, *info) for name, info in checked.items()))
         db.executemany("INSERT INTO contents VALUES (?,?,?,?,?,?)", (
             tuple(entry[key] for key in ("contentId", "path", "size", "sha256", "mime", "category"))
             for entry in contents.values()))
-        count, last_seq = 0, 0
+        count, last_seq, event_bytes = 0, 0, 0
+        last_kind, last_id = None, None
         kinds = collections.Counter()
         for name in chunks:
             chunk_digest = hashlib.sha256()
@@ -292,7 +335,8 @@ def build_index(zf, manifest, chunks, checked, target):
                         fail(f"invalid event: {name}:{line_number}")
                     if flow:
                         if (event.get("sessionId") != manifest["session"]["id"] or not kind
-                                or not safe_integer(seq, 1) or seq <= last_seq
+                                or not safe_integer(seq, 1) or seq != last_seq + 1
+                                or any(key in event for key in ("ownerToken", "captureKey"))
                                 or timestamp < 0 or timestamp > MAX_SAFE_INTEGER):
                             fail("invalid business flow event identity, sequence, or time")
                         for key in ("tabId", "frameId"):
@@ -308,21 +352,67 @@ def build_index(zf, manifest, chunks, checked, target):
                             (event_id, field, content_id, mime, category)
                             for field, content_id, mime, category in content_references(payload, contents)))
                     kinds[kind] += 1
+                    last_kind, last_id = kind, event_id
+            event_bytes += chunk_size
             if chunk_size != checked[name][0] or not hmac.compare_digest(chunk_digest.hexdigest(), checked[name][1]):
                 fail(f"event chunk changed during indexing: {name}")
         if manifest["version"] in (2, 3) and (not safe_integer(manifest.get("eventCount")) or manifest["eventCount"] != count):
             fail("event count does not match manifest")
         if flow and "lastSeq" in manifest["session"] and manifest["session"]["lastSeq"] != last_seq:
             fail("session sequence watermark does not match events")
+        if flow:
+            verify_byte_accounting(manifest, event_bytes)
+            session = manifest["session"]
+            if "seal" in session:
+                if (session["seal"]["lastSeq"] != last_seq or kinds["session.stop"] != 1
+                        or last_kind != "session.stop"):
+                    fail("session seal requires one final session.stop at its watermark")
+                for key, expected in (("stopEventCount", 1), ("stopSeq", last_seq)):
+                    if key in session and (not safe_integer(session[key]) or session[key] != expected):
+                        fail("session stop watermark does not match events")
+                if "stopEventId" in session and session["stopEventId"] != last_id:
+                    fail("session stop identity does not match events")
         db.commit()
         success = True
+        coverage = manifest["session"].get("coverage")
+        recorded_coverage = {"declared": isinstance(coverage, dict)}
+        if isinstance(coverage, dict):
+            for key in ("version", "policyGaps", "recoveryGaps"):
+                if safe_integer(coverage.get(key)):
+                    recorded_coverage[key] = coverage[key]
+            if type(coverage.get("physicalCdpStreamLimit")) is bool:
+                recorded_coverage["physicalCdpStreamLimit"] = coverage["physicalCdpStreamLimit"]
         return {"verification": "passed", "version": manifest["version"], "events": count,
-                "files": len(checked), "contentCount": len(contents), "event_types": dict(sorted(kinds.items()))}
+                "files": len(checked), "contentCount": len(contents), "event_types": dict(sorted(kinds.items())),
+                "profile": "business-flow-v1" if flow else None, "partial": manifest.get("partial") if flow else None,
+                "recordedCoverage": recorded_coverage,
+                "policyStopped": manifest["budget"].get("policyStopped") if flow else None,
+                "byteAccountingVerification": "performed" if flow and "byteAccounting" in manifest else "not_performed",
+                "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"}
     finally:
         if db is not None:
             db.close()
         if not success:
             Path(target).unlink(missing_ok=True)
+
+
+def archive_snapshot(stream):
+    """Hash the already-open ZIP, preserving its position for ZipFile callers."""
+    before = os.fstat(stream.fileno())
+    position = stream.tell()
+    digest, size = hashlib.sha256(), 0
+    try:
+        stream.seek(0)
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    finally:
+        stream.seek(position)
+    after = os.fstat(stream.fileno())
+    stamp = lambda stat: (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    if stamp(before) != stamp(after) or size != after.st_size:
+        fail("archive changed while computing identity")
+    return {"schemaVersion": 1, "sha256": digest.hexdigest(), "size": size}, stamp(after)
 
 
 def main():
@@ -335,13 +425,25 @@ def main():
     args = parser.parse_args()
     if min(args.max_archive_mb, args.max_entry_mb, args.max_expanded_mb) <= 0:
         fail("size limits must be positive")
-    if args.archive.stat().st_size > args.max_archive_mb * 1000000:
-        fail("ZIP exceeds the configured archive size limit")
     if not args.output.parent.is_dir():
         fail("output parent directory does not exist")
-    with zipfile.ZipFile(args.archive) as zf:
-        manifest, chunks, checked = validate(zf, args.max_entry_mb * 1000000, args.max_expanded_mb * 1000000)
-        summary = build_index(zf, manifest, chunks, checked, args.output)
+    built = False
+    try:
+        with args.archive.open("rb") as stream:
+            if os.fstat(stream.fileno()).st_size > args.max_archive_mb * 1000000:
+                fail("ZIP exceeds the configured archive size limit")
+            identity, stamp = archive_snapshot(stream)
+            with zipfile.ZipFile(stream) as zf:
+                manifest, chunks, checked = validate(zf, args.max_entry_mb * 1000000, args.max_expanded_mb * 1000000)
+                summary = build_index(zf, manifest, chunks, checked, args.output, archive_identity=identity)
+                built = True
+            final_identity, final_stamp = archive_snapshot(stream)
+            if final_identity != identity or final_stamp != stamp:
+                fail("archive changed during indexing")
+    except BaseException:
+        if built:
+            args.output.unlink(missing_ok=True)
+        raise
     print(json.dumps(summary, ensure_ascii=True))
 
 

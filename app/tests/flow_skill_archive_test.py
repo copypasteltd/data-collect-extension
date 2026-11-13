@@ -68,12 +68,12 @@ class FlowArchiveTests(unittest.TestCase):
                                "byCategory": {}, "warning": False, "policyStopped": False}, "derivations": "none"}
         return manifest, events, bins
 
-    def write_archive(self, manifest=None, events=None, bins=None, *, files_edit=None, integrity_edit=None):
+    def write_archive(self, manifest=None, events=None, bins=None, *, files_edit=None, integrity_edit=None, event_encode=encoded):
         if manifest is None:
             manifest, events, bins = self.fixture()
         files = {"manifest.json": encoded(manifest), **bins}
         for index, event in enumerate(events):
-            files[f"timeline/events-{index + 1:05d}.jsonl"] = encoded(event) + b"\n"
+            files[f"timeline/events-{index + 1:05d}.jsonl"] = event_encode(event) + b"\n"
         if files_edit:
             files_edit(files)
         integrity = [{"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
@@ -111,6 +111,9 @@ class FlowArchiveTests(unittest.TestCase):
         self.assertNotIn("ordinary-business-value", result.stdout)
         with closing(sqlite3.connect(self.index)) as db, zipfile.ZipFile(self.archive) as zf:
             self.assertEqual(json.loads(db.execute("SELECT value_json FROM metadata WHERE key='manifest'").fetchone()[0]), manifest)
+            identity = json.loads(db.execute("SELECT value_json FROM metadata WHERE key='archive_identity'").fetchone()[0])
+            raw_zip = self.archive.read_bytes()
+            self.assertEqual(identity, {"schemaVersion": 1, "sha256": hashlib.sha256(raw_zip).hexdigest(), "size": len(raw_zip)})
             rows = db.execute("SELECT chunk,line,event_json FROM events ORDER BY seq").fetchall()
             self.assertEqual([(row[0], row[1]) for row in rows], [(CHUNKS[0], 1), (CHUNKS[1], 1)])
             self.assertEqual([json.loads(row[2]) for row in rows], events)
@@ -305,6 +308,145 @@ class FlowArchiveTests(unittest.TestCase):
         result = self.run_index()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.index.read_bytes(), b"synthetic-existing-output")
+
+    def current_fixture(self, event_encode=encoded):
+        manifest, events, bins = self.fixture()
+        events[-1]["kind"] = "session.stop"
+        event_bytes = sum(len(event_encode(event)) + 1 for event in events)
+        content_bytes = sum(map(len, bins.values()))
+        manifest["byteAccounting"] = {"eventJsonlBytes": event_bytes, "uniqueContentBytes": content_bytes,
+                                      "storedLogicalBytes": event_bytes + content_bytes}
+        manifest["budget"]["usedBytes"] = event_bytes + content_bytes
+        manifest["partial"] = False
+        manifest["session"].update(status="ready", stopEventCount=1, stopSeq=2, stopEventId="e2",
+                                   seal={"eventCount": 2, "contentCount": 2, "lastSeq": 2, "revision": 4, "sealedAt": 12},
+                                   budget=copy.deepcopy(manifest["budget"]))
+        return manifest, events, bins
+
+    def test_current_writer_ledger_uses_raw_unicode_jsonl_including_lf(self):
+        def utf8(event):
+            event = copy.deepcopy(event)
+            event["payload"]["text"] = "合成标题😀"
+            return json.dumps(event, ensure_ascii=False, indent=2).replace("\n", " ").encode("utf-8")
+        manifest, events, bins = self.current_fixture(utf8)
+        manifest["session"]["coverage"] = {"version": 1, "policyGaps": 3, "reasons": {"synthetic-private": 3}}
+        self.write_archive(manifest, events, bins, event_encode=utf8)
+        result = self.run_index()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["byteAccountingVerification"], "performed")
+        self.assertEqual(summary["profile"], "business-flow-v1")
+        self.assertIs(summary["partial"], False)
+        self.assertIs(summary["policyStopped"], False)
+        self.assertEqual(summary["recordedCoverage"], {"declared": True, "version": 1, "policyGaps": 3})
+        self.assertNotIn("synthetic-private", result.stdout)
+        self.assertIn("do not prove full capture", summary["coverageCaveat"])
+
+    def test_byte_accounting_schema_and_each_ledger_guard_rejected(self):
+        for key in ("eventJsonlBytes", "uniqueContentBytes", "storedLogicalBytes"):
+            for value in (None, True, -1, 1.0, 9007199254740992, 0):
+                with self.subTest(key=key, value=value):
+                    manifest, events, bins = self.current_fixture()
+                    manifest["byteAccounting"][key] = value
+                    self.write_archive(manifest, events, bins)
+                    self.assert_rejected()
+        for value in (None, [], True):
+            manifest, events, bins = self.current_fixture()
+            manifest["byteAccounting"] = value
+            self.write_archive(manifest, events, bins)
+            self.assert_rejected()
+        manifest, events, bins = self.current_fixture()
+        del manifest["byteAccounting"]["eventJsonlBytes"]
+        self.write_archive(manifest, events, bins)
+        self.assert_rejected()
+
+    def test_budget_and_session_budget_must_match_when_declared(self):
+        for mode in ("ledger", "session", "session-type", "session-boolean"):
+            with self.subTest(mode=mode):
+                manifest, events, bins = self.current_fixture()
+                if mode == "ledger":
+                    manifest["budget"]["usedBytes"] += 1
+                    manifest["session"]["budget"] = copy.deepcopy(manifest["budget"])
+                elif mode == "session":
+                    manifest["session"]["budget"]["usedBytes"] += 1
+                elif mode == "session-type":
+                    manifest["session"]["budget"] = []
+                else:
+                    manifest["session"]["budget"]["warning"] = 0
+                self.write_archive(manifest, events, bins)
+                self.assert_rejected()
+
+    def test_seal_requires_unique_final_stop_and_matching_counts(self):
+        for kinds in (("page.snapshot", "network.finished"), ("session.stop", "session.stop"),
+                      ("session.stop", "network.finished")):
+            with self.subTest(kinds=kinds):
+                manifest, events, bins = self.current_fixture()
+                del manifest["byteAccounting"]
+                for event, kind in zip(events, kinds):
+                    event["kind"] = kind
+                self.write_archive(manifest, events, bins)
+                self.assert_rejected()
+        for key in ("eventCount", "contentCount", "lastSeq", "revision", "sealedAt"):
+            for value in (True, -1, 1.0, 9007199254740992):
+                manifest, events, bins = self.current_fixture()
+                manifest["session"]["seal"][key] = value
+                self.write_archive(manifest, events, bins)
+                self.assert_rejected()
+        for key in ("eventCount", "contentCount", "lastSeq"):
+            manifest, events, bins = self.current_fixture()
+            manifest["session"]["seal"][key] = 1
+            self.write_archive(manifest, events, bins)
+            self.assert_rejected()
+
+    def test_optional_fields_and_raw_internal_markers_are_guarded(self):
+        for location in ("manifest", "session", "event"):
+            for key in ("ownerToken", "captureKey"):
+                manifest, events, bins = self.fixture()
+                target = manifest if location == "manifest" else manifest["session"] if location == "session" else events[0]
+                target[key] = "synthetic-private-marker"
+                self.write_archive(manifest, events, bins)
+                result = self.assert_rejected()
+                self.assertNotIn("synthetic-private-marker", result.stderr)
+        for value in (None, 0, "false", []):
+            manifest, events, bins = self.fixture()
+            manifest["partial"] = value
+            self.write_archive(manifest, events, bins)
+            self.assert_rejected()
+        manifest, events, bins = self.fixture()
+        events[-1]["seq"] = 3
+        manifest["session"]["lastSeq"] = 3
+        self.write_archive(manifest, events, bins)
+        self.assert_rejected()
+
+    def test_minimal_flow_without_seal_or_ledger_remains_valid(self):
+        manifest, events, bins = self.fixture()
+        events[0]["kind"] = "future.event-kind"
+        events[0]["payload"]["ownerToken"] = "ordinary-synthetic-business-value"
+        self.write_archive(manifest, events, bins)
+        result = self.run_index()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["byteAccountingVerification"], "not_performed")
+        self.assertIsNone(summary["partial"])
+
+    def test_cli_detects_archive_change_after_build_and_removes_index(self):
+        import importlib.util
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location("indexer_consistency", SCRIPT)
+        indexer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(indexer)
+        self.write_archive()
+        original_build = indexer.build_index
+        def changing_build(*args, **kwargs):
+            result = original_build(*args, **kwargs)
+            with self.archive.open("ab") as stream:
+                stream.write(b"synthetic-archive-replacement")
+            return result
+        with mock.patch.object(indexer, "build_index", changing_build), mock.patch.object(sys, "argv",
+                [str(SCRIPT), str(self.archive), "--output", str(self.index)]):
+            with self.assertRaisesRegex(ValueError, "archive changed"):
+                indexer.main()
+        self.assertFalse(self.index.exists())
 
 
 if __name__ == "__main__":
