@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "status": "prepared",
+  "repository": "copypasteltd/data-collect-extension",
+  "tag": "v0.4.0",
+  "sourceCommit": "3b5626a5ba88370d521756737a9d35b5340d52a2",
+  "name": "v0.4.0 — 轻量业务记录正式版",
+  "readerSkillVersion": "0.4.0.1",
+  "formalDirectory": "app/release/formal-v0.4.0",
+  "bodyFile": "docs/releases/v0.4.0-publication/RELEASE-NOTES.md",
+  "assets": [
+    {
+      "name": "logic-recorder-chrome-v0.4.0.zip",
+      "path": "app/release/formal-v0.4.0/logic-recorder-chrome-v0.4.0.zip",
+      "size": 94163,
+      "sha256": "ba4a38cbd70cd2f8146eefb24b60150dc2e6701f2b11dc96f57c5b425f715e26"
+    },
+    {
+      "name": "extension-logic-clone-v0.4.0.1.zip",
+      "path": "app/release/formal-v0.4.0/extension-logic-clone-v0.4.0.1.zip",
+      "size": 39301,
+      "sha256": "957961cbb2fdba37b7dd151469b6b6c05a032f07caa1bcdccfa1ff039789ffaa"
+    },
+    {
+      "name": "RELEASE-REPORT.md",
+      "path": "app/release/formal-v0.4.0/RELEASE-REPORT.md",
+      "size": 1867,
+      "sha256": "4800688c1f9201e585eaec122a707cf5a498c587ce3368756f34d17f80b19e3d"
+    },
+    {
+      "name": "VERIFICATION.json",
+      "path": "app/release/formal-v0.4.0/VERIFICATION.json",
+      "size": 2558,
+      "sha256": "b46f4275c226a528663c67eec15dc44853854efe04db026c12452a516b91ddba"
+    },
+    {
+      "name": "INSTALL.md",
+      "path": "app/release/formal-v0.4.0/INSTALL.md",
+      "size": 3330,
+      "sha256": "3bf83f593649874cfd3dca172706f693772fc8a7fa405036490bd0d5f293be1c"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "path": "app/release/formal-v0.4.0/RELEASE-NOTES.md",
+      "size": 3358,
+      "sha256": "d5985309ad8b310374152d1573b28449cecc2dd454619a3ea51111c8da764fad"
+    },
+    {
+      "name": "release-manifest.json",
+      "path": "app/release/formal-v0.4.0/release-manifest.json",
+      "size": 5224,
+      "sha256": "a9c271afa6ec8a382bae4986293e4480d1816a1bc0d49217d23419828d4b695e"
+    },
+    {
+      "name": "logic-recorder-release-v0.4.0.zip",
+      "path": "app/release/formal-v0.4.0/logic-recorder-release-v0.4.0.zip",
+      "size": 142284,
+      "sha256": "aa9a7088cc3618310ff7d3b86028854760e7fa53e19d0b5f868b6ea3df079903"
+    },
+    {
+      "name": "logic-recorder-release-v0.4.0.zip.sha256",
+      "path": "app/release/formal-v0.4.0/logic-recorder-release-v0.4.0.zip.sha256",
+      "size": 100,
+      "sha256": "befd004a978788d8cad70cdfdf10914598e71274bf0e1051d31295c54f7f2c3f"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "path": "app/release/formal-v0.4.0/SHA256SUMS.txt",
+      "size": 823,
+      "sha256": "fc02245000dd90191b9ebe0ff08bbc71f439bd121bed802fef3e51cc904cd999"
+    }
+  ],
+  "originalComponentHashesUnchanged": true,
+  "rawDataIncluded": false
+}

@@ -6,10 +6,12 @@
 
 ## 本版交付
 
-- **[完整v0.4.0交付包](<app/release/logic-recorder-release-v0.4.0.zip>)**：扩展、解析技能、安装/更新说明、真实验证与校验值。
-- [仅Chrome扩展](<app/release/v0.4.0/logic-recorder-chrome-v0.4.0.zip>)：解压后加载，录制不需要Node.js/Python。
-- [当前读取skill 0.4.0.1](<app/release/skill-v0.4.0.1/extension-logic-clone-v0.4.0.1.zip>)：适配v3及历史v1/v2，校验账本/封存并按事件提取原字节；[本地安装与验证](<docs/技能更新/2026-11-14-v3/REPORT.md>)。原release内v0.4.0工具字节保持历史不覆盖。
-- [校验清单](<app/release/v0.4.0/SHA256SUMS.txt>)。本次是本地release和同路径程序更新，不自动发布新GitHub Release；[旧v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)保持历史字节和标签，不代表本版。
+已正式发布：[GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>)，包含Chrome扩展0.4.0及读取skill0.4.0.1。
+
+- **[完整正式交付包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/logic-recorder-release-v0.4.0.zip>)**：扩展、最新读取skill、安装/验证说明及校验值。
+- [仅Chrome扩展](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/logic-recorder-chrome-v0.4.0.zip>)：解压后加载，无需Node.js/Python。
+- [读取skill0.4.0.1](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/extension-logic-clone-v0.4.0.1.zip>)：v3及历史v1/v2、账本/封存/原字节读取；[本地验证](<docs/技能更新/2026-11-14-v3/REPORT.md>)。
+- [SHA256清单](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/SHA256SUMS.txt>) · [发布回执](<docs/releases/v0.4.0-publication/GITHUB-RELEASE.json>)。正式完整包已包含最新skill，组件ZIP保留验证字节；早期本地包及[旧v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>)不覆盖。
 
 ## 从“尽量全采”收口为八项核心义务
 

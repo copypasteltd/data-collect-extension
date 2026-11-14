@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "status": "verified-before-publication",
+  "releaseTag": "v0.4.0",
+  "extensionVersion": "0.4.0",
+  "readerSkillVersion": "0.4.0.1",
+  "recordingFormat": {
+    "version": 3,
+    "profile": "business-flow-v1"
+  },
+  "sourceCommit": "3b5626a5ba88370d521756737a9d35b5340d52a2",
+  "codeArtifactsRebuilt": false,
+  "environment": {
+    "platform": "Windows native x64",
+    "chrome": "157.0.8103.40",
+    "node": "24.22.1",
+    "npm": "10.9.2",
+    "syntheticOnly": true
+  },
+  "tests": {
+    "javascript": 445,
+    "newFlow": 72,
+    "readerPython": 46,
+    "readerBreakdown": {
+      "legacy": 12,
+      "v3": 23,
+      "content": 11
+    },
+    "business60s": {
+      "zipBytes": 562491,
+      "stopMs": 1837,
+      "exportMs": 2366,
+      "events": 96,
+      "contents": 52
+    },
+    "twentyShortCycles": {
+      "passed": 20,
+      "stopP95Ms": 2436,
+      "exportP95Ms": 2703,
+      "maxZipBytes": 329596
+    },
+    "independentReconstruction": {
+      "uiChecksPassed": 13,
+      "earlierFocusedBundleUi": true,
+      "finalBundleEvidenceCompatibilityChecked": true
+    },
+    "nativeBudgetAndSeal": true,
+    "readerActualV3ContentsChecked": [
+      "DOM",
+      "CSS",
+      "PNG",
+      "request-body",
+      "response-body"
+    ]
+  },
+  "evidence": {
+    "extensionCandidate": "3636e8658f9cb1f18c2534650b585af44ae485603339d2a5953511cf1399532f",
+    "extensionZip": {
+      "sha256": "ba4a38cbd70cd2f8146eefb24b60150dc2e6701f2b11dc96f57c5b425f715e26",
+      "size": 94163,
+      "files": 11
+    },
+    "readerZip": {
+      "sha256": "957961cbb2fdba37b7dd151469b6b6c05a032f07caa1bcdccfa1ff039789ffaa",
+      "size": 39301,
+      "files": 10
+    }
+  },
+  "limits": {
+    "captureTotalBytes": 67108864,
+    "captureWarningBytes": 50331648,
+    "normalAdmissionBytes": 66060288,
+    "finalReserveBytes": 1048576,
+    "singleBodyBytes": 2097152,
+    "notHardProcessMemoryCap": true
+  },
+  "limitations": [
+    "Integrity establishes internal byte consistency, not authenticity or complete capture",
+    "Twenty short cycles are not twenty60-second recordings",
+    "Native permission dialog, minimumChrome125, macOS and real customer sites not automatically certified",
+    "Unknown CDP response sizes have no physical streaming memory guarantee",
+    "No original source/server/login/database/unvisited-branch/pixel-identical restoration guarantee"
+  ],
+  "privacy": {
+    "realRecordingsIncluded": false,
+    "browserProfilesIncluded": false,
+    "credentialsIncluded": false,
+    "localInstallationReceiptsIncluded": false
+  }
+}

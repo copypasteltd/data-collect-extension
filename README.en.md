@@ -6,12 +6,14 @@
 
 ## Deliverables
 
-- [Complete local v0.4.0 release](<app/release/logic-recorder-release-v0.4.0.zip>)
-- [Chrome extension](<app/release/v0.4.0/logic-recorder-chrome-v0.4.0.zip>) — no Node/Python required to record.
-- [Current reading skill0.4.0.1](<app/release/skill-v0.4.0.1/extension-logic-clone-v0.4.0.1.zip>) — v3 plus legacyv1/v2, ledger/seal checks and verified raw content extraction; [local installation verification](<docs/技能更新/2026-11-14-v3/REPORT.md>). Originalv0.4.0 release bytes remain unchanged.
-- [Checksums](<app/release/v0.4.0/SHA256SUMS.txt>)
+Official stable [GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>) is published with Chrome extension0.4.0 and reading skill0.4.0.1.
 
-This turn produces a local release and updates the current installation path; it does not automatically publish a new public GitHub Release. Published [v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>) remains historical and byte-identical.
+- **[Complete official bundle](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/logic-recorder-release-v0.4.0.zip>)** — extension, latest reader, instructions, verification and checksums.
+- [Chrome extension](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/logic-recorder-chrome-v0.4.0.zip>) — no Node/Python required to record.
+- [Reading skill0.4.0.1](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/extension-logic-clone-v0.4.0.1.zip>) — v3 and legacyv1/v2, ledger/seal checks and exact content extraction.
+- [Checksums](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.4.0/SHA256SUMS.txt>) · [Publication receipt](<docs/releases/v0.4.0-publication/GITHUB-RELEASE.json>).
+
+The official complete bundle includes the latest reader while retaining the verified component ZIP bytes. Earlier local bundles and published [v0.3.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.3.0>) remain unchanged.
 
 ## Reduced contract
 

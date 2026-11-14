@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.4.0 正式发布 - 2026-11-14 / Official stable release
+
+- 经用户明确授权，发布[正式GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>)，标签指向源提交3b5626a5ba88370d521756737a9d35b5340d52a2，包含扩展0.4.0与读取skill0.4.0.1。 / Publish the authorized stable release with the latest reader.
+- 新正式完整包纳入最新skill和适合公开分发的安装/验证摘要；两个组件ZIP不重新编译、保持原验证字节，不含录制/profile/索引/凭据/本机安装回执。 / Recompose delivery without rebuilding verified code or including local data.
+- 10个附件及校验清单，发布状态/公开下载校验见[发布回执](<releases/v0.4.0-publication/GITHUB-RELEASE.json>)。旧v0.3.0保持原标签与附件。 / Keep previous releases unchanged.
+
 ## 读取skill 0.4.0.1 - 2026-11-14（插件仍为0.4.0 / Reader-only update）
 
 - 查明当前DSH及Codex安装仍是旧v1/v2副本，备份后同步10文件并分别实际运行新版索引/内容读取；DSH当前会话重载确认。 / Update both installed readers rather than only the project source.
