@@ -3,6 +3,14 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.5.0 - 2026-11-14（可设置20倍限额 / Configurable limits）
+
+- 用户最终修正20倍，侧栏新增容量/队列/采样1–20倍率设置，默认及最大20；1280MiB总、960MiB提醒、40MiB单正文。 / Add persisted user settings with twentyfold defaults and maxima.
+- 每批快照固化，修改仅下一批，旧无settings按1倍；采集、后台/存储、导出、reader派生一致，时间/权限不放宽。 / Keep active/old session policies immutable end to end.
+- 长内容确认分片、增量hash/CRC、分页及OPFS磁盘STORE导出，清自有输出不清录制；配套skill0.5.0及DSH/Codex备份同步。 / Stream bounded transfer and export rather than whole-batch memory buffering.
+- 500JS/58Python，原生1/20两批设置及长值、130传输片、72MiB磁盘导出、320px布局通过；最大1.25GiB未满载实测。独立两finding已关闭，见[报告](<设置/2026-11-14-v0.5.0/REPORT.md>)。 / Actual scoped checks are not full-capacity certification.
+- 已本地打包并备份更新原目录，Chrome刷新与程序更新分开；本轮未自动公开新Release，已发布v0.4.0保持不变。 / Local delivery only; preserve the stable published release.
+
 ## 0.4.0 正式发布 - 2026-11-14 / Official stable release
 
 - 经用户明确授权，发布[正式GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>)，标签指向源提交3b5626a5ba88370d521756737a9d35b5340d52a2，包含扩展0.4.0与读取skill0.4.0.1。 / Publish the authorized stable release with the latest reader.

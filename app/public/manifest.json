@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "逻辑记录",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "轻量记录指定业务流程的关键操作、页面状态与接口样本。",
   "minimum_chrome_version": "125",
   "permissions": [
@@ -12,7 +12,8 @@
     "activeTab",
     "webNavigation",
     "debugger",
-    "downloads"
+    "downloads",
+    "unlimitedStorage"
   ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },

@@ -1,4 +1,4 @@
 interface:
   display_name: "逻辑记录 v3 读取与复建"
   short_description: "Verify v3 recordings and rebuild observed workflows"
-  default_prompt: "使用 $extension-logic-clone 校验记录包，按需读取原始内容并整理业务证据；仅在我要求构建时复建已观察流程。"
+  default_prompt: "使用 $extension-logic-clone 校验记录包及批次设置快照，兼容旧批次1倍与新版1–20倍；按需读取原始内容并整理业务证据，仅在我要求构建时复建已观察流程。"

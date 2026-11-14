@@ -1,10 +1,17 @@
 # 逻辑记录 | Logic Recorder
 
-**v0.4.0 轻量业务记录版**：记录指定业务流程的关键操作、页面状态和接口样本，按批次本地导出。不是全浏览器备份工具，也不自动生成巨型主题/字段分析包。
+**v0.5.0 可配置限额版**：记录指定业务流程的关键操作、页面状态和接口样本，按批次本地导出。不是全浏览器备份工具，也不自动生成巨型主题/字段分析包。
 
-[English](<README.en.md>) · [安装与使用](<docs/精简/2026-11-14-v0.4.0/INSTALL.md>) · [实际验收](<docs/精简/2026-11-14-v0.4.0/REPORT.md>) · [需求合同](<docs/精简/2026-11-14-v0.4.0/CONTRACT.md>) · [更新说明](<docs/CHANGELOG.md>)
+[English](<README.en.md>) · [安装与使用](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [实际验收](<docs/设置/2026-11-14-v0.5.0/REPORT.md>) · [需求合同](<docs/设置/2026-11-14-v0.5.0/CONTRACT.md>) · [更新说明](<docs/CHANGELOG.md>)
 
-## 本版交付
+## 最新本地交付 v0.5.0
+
+- [完整交付包](<app/release/logic-recorder-release-v0.5.0.zip>) · [Chrome插件](<app/release/v0.5.0/logic-recorder-chrome-v0.5.0.zip>) · [读取skill0.5.0](<app/release/v0.5.0/extension-logic-clone-v0.5.0.zip>)
+- 侧栏新增“录制限额设置”：容量、队列、采样倍率均可保存1–20整数，默认及最大20。修改仅下一批生效，当前及旧批快照不重写。
+- 默认总1280MiB（1.25GiB）、提醒960MiB、单正文40MiB；原生设置与长内容传输、72MiB磁盘导出已验。最大1.25GiB满载未实测。
+- [安装说明](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [最终验证](<docs/设置/2026-11-14-v0.5.0/REPORT.md>)。当前原程序目录已备份更新，需刷新原扩展生效；本轮未自动发布v0.5.0到GitHub。
+
+## 已公开正式版 v0.4.0（保留历史）
 
 已正式发布：[GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>)，包含Chrome扩展0.4.0及读取skill0.4.0.1。
 
@@ -30,13 +37,19 @@
 
 | 项目 | 上限 |
 | --- | ---: |
-| 单批内容+原始事件元数据 | 64MiB；48MiB提醒，普通接纳63MiB，1MiB收尾保留 |
-| 正文集合 / 单个正文 | 24MiB / 2MiB |
-| DOM / 必要资源 / 视口截图 / 元数据 | 16 / 8 / 12 / 4MiB |
+| 单批内容+原始事件元数据 | 默认1280MiB；960MiB提醒，1260MiB普通接纳，20MiB收尾 |
+| 正文集合 / 单个正文 | 默认480MiB / 40MiB |
+| DOM / 必要资源 / 视口截图 / 元数据 | 默认320 / 160 / 240 / 80MiB |
 
-内容hash在同批复用；跨类别引用仍分别受子预算约束。达到预算受控停止，不干预用户业务、不删除记录，状态明确“按容量停止/部分可导出”。64MiB不是Chrome内存峰值硬保证；未知长度CDP正文物理流式限界的不足会记录，不伪称全量。
+内容hash在同批复用；跨类别引用仍分别受子预算约束。达到预算受控停止，不干预用户业务、不删除记录，状态明确“按容量停止/部分可导出”。页面可保存1–20倍率，仅下一批生效；保存预算不是Chrome内存峰值硬保证；未知长度CDP正文物理流式限界的不足会记录，不伪称全量。
 
-## 实际样本
+## 最新版验证
+
+500项JS、58项Python通过；原生1倍/20倍两批设置冻结、保存重开、非法输入、Stop可用、长Unicode前后值与3MiB正文/DOM取回通过。130条传输分片最大327997B、无Unicode断开；实际保存72MiB，OPFS磁盘ZIP75511309B、约4.9秒并经Python核验。设置页面320px无横溢。导出改STORE流式写入，ZIP可能比旧deflate大；保存上限不是磁盘或内存保证。
+
+![v0.5.0限额设置](<docs/media/v0.5.0-01-settings.png>)
+
+## v0.4.0历史样本（不冒充新版负载）
 
 当前Windows原生Chrome157固定合成场景：20无关页、5000个CSS变量/动画、根页+授权框架+可信业务子页，查询/资料修改/校验/下拉/保存/扣款成功和拒绝、iframe导航后继续输入、200ms提示均验。
 
@@ -50,11 +63,11 @@
 
 在chrome://extensions启用开发者模式，加载扩展ZIP解压后直接含manifest.json的目录。更新当前安装时先停止，备份程序文件，再覆盖**原加载路径**并刷新原扩展；不要先卸载、不要清Chrome数据或加载成另一份。目录名可以仍含旧版本号。
 
-v0.4.0新批次使用独立数据库logic-recorder-flow-v1；旧logic-recorder库不打开、不迁移、不删除，旧批次不在新列表中显示。用户明确本次不考虑旧数据，不代表自动清理旧数据。
+v0.5.0沿用独立数据库logic-recorder-flow-v1，新批固定启动设置，旧批缺设置保留原1倍；旧logic-recorder库不打开、不迁移、不删除，旧批次不在新列表中显示。用户明确本次不考虑旧数据，不代表自动清理旧数据。
 
 开始前切到业务页，原生授权只请求当前来源；已有安装原先授予的权限可能仍保留，内部scope仍只纳根流程。关闭侧栏不会停止录制。ready/导出hash通过不等采集完整，应检查partial/coverage/policy状态。
 
-## 当前界面
+## v0.4.0历史界面
 
 | 准备 | 批次选择 |
 | :---: | :---: |
@@ -93,6 +106,8 @@ npm ci
 npm run build
 npm test
 npm run test:flow
+npm run test:settings
+npm run test:large-export
 npm run test:skill
 npm run test:flow-skill
 $env:CHROME_BIN='C:/Program Files/Google/Chrome/Application/chrome.exe'

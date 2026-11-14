@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "test": "native20x72MiBstored-and-exported",
+  "profile": "fresh-owned-synthetic",
+  "root": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-large-export-Nbvcfj",
+  "maximum1point25GiBFullyStressTested": false,
+  "preparation": {
+    "sessionId": "native-large20",
+    "usedBytes": 75499309,
+    "contentBytes": 75497472,
+    "limitBytes": 1342177280,
+    "eventCount": 5,
+    "contentCount": 4,
+    "settings": {
+      "schemaVersion": 1,
+      "budgetMultiplier": 20,
+      "queueMultiplier": 20,
+      "samplingMultiplier": 20
+    }
+  },
+  "export": {
+    "expandedBytes": 75509919,
+    "storedLogicalBytes": 75499309,
+    "metadataOverheadBytes": 10610,
+    "zipBytes": 75511309,
+    "eventCount": 5,
+    "contentCount": 4,
+    "outputStorage": "opfs",
+    "storageMode": "opfs",
+    "elapsedMs": 4909,
+    "fileBacked": true
+  },
+  "zipBytes": 75511309,
+  "reader": {
+    "verification": "passed",
+    "version": 3,
+    "events": 5,
+    "files": 6,
+    "contentCount": 4,
+    "event_types": {
+      "page.resource": 4,
+      "session.stop": 1
+    },
+    "profile": "business-flow-v1",
+    "partial": false,
+    "settings": {
+      "schemaVersion": 1,
+      "budgetMultiplier": 20,
+      "queueMultiplier": 20,
+      "samplingMultiplier": 20
+    },
+    "recordedCoverage": {
+      "declared": true
+    },
+    "policyStopped": false,
+    "byteAccountingVerification": "performed",
+    "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+  },
+  "browserCleanup": "confirmed",
+  "profileCleanup": "removed"
+}

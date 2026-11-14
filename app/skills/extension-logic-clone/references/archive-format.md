@@ -1,6 +1,6 @@
 # 记录格式、校验与查询
 
-先检查包内清单。`version:3, profile:business-flow-v1` 对应插件v0.4.0轻量业务格式；v1/v2走[历史格式](legacy-v1-v2.md)。Chrome扩展安装包／完整release的manifest不是记录manifest，不能拿它建立记录索引。
+先检查包内清单。`version:3, profile:business-flow-v1` 对应插件v0.4.0/v0.5.0轻量业务格式；v1/v2走[历史格式](legacy-v1-v2.md)。Chrome扩展安装包／完整release的manifest不是记录manifest，不能拿它建立记录索引。
 
 ## v3目录与引用
 
@@ -41,12 +41,12 @@ python <skill>/scripts/index_archive.py <recording.zip> --output <new.sqlite3>
 
 - 标准库执行；只读ZIP，不解压所有文件、不执行内容。索引路径必须不存在。
 - 拒绝重复/越界/穿越/加密条目、缺清单、重复JSON键、非有限值、配置资源限额；校验integrity覆盖、实际展开size/SHA256、v3内容清单及全部明确引用。
-- v3事件必须匹配session、唯一ID、有效顺序/时间，按原分块保留证据路径和从1起行号。JSON数值不能用bool冒充计数。`seq`是接纳顺序，`time`是各端采样时间，不是跨页严格因果时钟。
+- v3事件必须匹配session、唯一ID、有效顺序/时间，每条原JSONL行含换行不超过本批派生eventBytes（旧无设置为32KiB，20倍为640KiB）；每事件顶层captured引用最多16×采样倍率，并按该次引用的实际类别核正文/类别单项上限。按原分块保留证据路径和从1起行号。JSON数值不能用bool冒充计数。`seq`是接纳顺序，`time`是各端采样时间，不是跨页严格因果时钟。
 - 当前包有`byteAccounting`时，核对实际JSONL字节（含换行）＋唯一内容字节与账本；有seal时核计数/水位和唯一末尾stop。缺少这些可选字段的早期最小v3包不补造验证结果。读取器核对声明内部一致，不能据此认证采集器实际执行或所有网页都已采到。
 - 新索引`metadata.archive_identity`绑定整个ZIP字节的SHA256/size。后续提取仍重核身份、源事件和内容；`mode=ro`本身不证明任意SQLite可信。
 - 标准输出仅verification/计数/范围状态摘要，不输出正文；通过只证明随包一致，不证明签名、真实性、全覆盖或业务验收。
 
-索引CLI大小参数为十进制MB：`--max-archive-mb 2048`、`--max-entry-mb 512`、`--max-expanded-mb 8192`；这是兼容旧包的读取资源上限，不是当前插件64MiB的采集预算。超限先核格式/大小/任务价值，不自动放宽为无界。
+索引CLI大小参数为十进制MB：`--max-archive-mb 2048`、`--max-entry-mb 512`、`--max-expanded-mb 8192`；这是兼容旧包及新版最大1280MiB批次的读取资源上限，不是采集预算；Python标准zipfile也兼容合法ZIP64条目。超限先核格式/大小/任务价值，不自动放宽为无界。
 
 ## SQLite：先读轻索引，再按需取内容
 
@@ -88,12 +88,14 @@ python <skill>/scripts/read_content.py <recording.zip> <recording.sqlite3> --con
 
 `--field`是payload字面顶层key，不是JSON Pointer：`formValue2`正确，`/payload/formValue2`不是这个工具的语法。字段含`/`或`~`时传原字段名；普通嵌套对象不提取。长forms值先读同事件forms[].value.field，转到payload该字段。通过content-id读取只证明该内容存在，不自动证明它属于某步骤；步骤关联优先按event-id+field读取。
 
-工具默认最多读取128MiB ZIP、72MiB展开、64MiB单次输出（参数以字节计）；再核ZIP身份/manifest、源分块位置/event及文件hash，只写新输出。不会自动Base64解码、猜文本编码、执行HTML或打开网络。二进制和空内容保持原字节；若需解码文本，先确认该引用MIME/表示，严格UTF-8失败则保字节及未知编码。
+工具默认最多读取1400MiB ZIP、1400MiB展开、1280MiB单次输出（参数以字节计），可容纳20倍保存预算及清单开销；仅指定内容按1MiB块复制，不把整个附件读入内存。单项还受记录内派生策略限制（例如正文40MiB、resource160MiB）；再核ZIP身份/manifest、源分块位置/event及文件hash，只写新输出。不会自动Base64解码、猜文本编码、执行HTML或打开网络。二进制和空内容保持原字节；若需解码文本，先确认该引用MIME/表示，严格UTF-8失败则保字节及未知编码。
 
 ## 能力与缺口分开判断
 
 先读`session.scope`、`capturePolicy.notCollected`、`capabilities`，再读`session.coverage`、`session.stopOutcome`、`budget.policyStopped/reason`、`partial`及逐事件bodyStatus/policies。默认不采全计算样式、Cookie快照、全库/缓存/Storage、全页PNG/Canvas独立像素、所有上传与实时帧正文，不产生派生字典；不能以文件缺少推断损坏或要求补扫。
 
-64MiB总、48MiB警告、63MiB普通接纳＋1MiB收尾；body24/DOM16/resource8/screenshot12/meta4MiB，单body2MiB，是插件声明的保存策略，不是ZIP或内存上限。类别复用的计费与物理去重不同。预算拒绝、已知不可读、未知ACK、实际I/O失败、未访问分支应分别说明。`partial:false`不覆盖coverage或事件明确缺口，`ready`不等业务完整。
+v0.5.0按每批`capturePolicy.settings={schemaVersion:1,budgetMultiplier,queueMultiplier,samplingMultiplier}`解释容量、队列和采样，三倍率各为1–20整数，不能用bool、浮点数、21或200；新默认及上限均20。缺少settings的旧批次按历史1倍，不从当前用户默认补20倍。声明的`capturePolicy.limits`、`runtimeLimits.background/content`、`budget.settings`与session副本必须与设置派生值一致；早期最小v3缺可选快照仍可读，但不补造验证。
+
+1倍为64MiB总、48MiB提醒、63MiB普通接纳＋1MiB收尾；body24/DOM16/resource8/screenshot12/meta4MiB，单body2MiB。20倍为1280MiB（1.25GiB）总、960MiB提醒、1260MiB普通＋20MiB收尾；body480/DOM320/resource160/screenshot240/meta80MiB，单body40MiB，事件元数据640KiB。队列/采样的数量随各自倍率，超时、节流时间、深度、标识格式和根流程范围不乘。这是保存策略，不是ZIP或内存上限；不保证实际内存低于某个常数。类别复用的计费与物理去重不同。预算拒绝、已知不可读、未知ACK、实际I/O失败、未访问分支应分别说明。`partial:false`不覆盖coverage或事件明确缺口，`ready`不等业务完整。
 
 事件字段和正确关联见[新版事件](business-flow-v3.md)；只有用户要构建时才读[复建](reconstruction.md)。

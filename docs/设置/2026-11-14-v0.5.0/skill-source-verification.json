@@ -1,0 +1,87 @@
+{
+  "status": "passed",
+  "skill": "E:\\dev\\copypaste\\\u7f8e\u5bb9ERP\\\u903b\u8f91\u8bb0\u5f55\u63d2\u4ef6\\app\\skills\\extension-logic-clone",
+  "archiveSha256": "37712a80d1837d760a491d98bd97fdf3cc8120f6db9f54b5004a4d1301c9cf25",
+  "syntheticOnly": true,
+  "indexSummary": {
+    "verification": "passed",
+    "version": 3,
+    "events": 18,
+    "files": 11,
+    "contentCount": 9,
+    "event_types": {
+      "network.request": 2,
+      "network.response": 2,
+      "page.snapshot": 4,
+      "page.stylesheet": 1,
+      "screenshot": 2,
+      "session.notice": 2,
+      "session.start": 1,
+      "session.stop": 1,
+      "ui.change": 1,
+      "ui.click": 2
+    },
+    "profile": "business-flow-v1",
+    "partial": false,
+    "settings": {
+      "schemaVersion": 1,
+      "budgetMultiplier": 20,
+      "queueMultiplier": 20,
+      "samplingMultiplier": 20
+    },
+    "recordedCoverage": {
+      "declared": true,
+      "version": 1,
+      "policyGaps": 1,
+      "physicalCdpStreamLimit": false
+    },
+    "policyStopped": false,
+    "byteAccountingVerification": "performed",
+    "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+  },
+  "verifiedContents": {
+    "PNG": {
+      "eventId": "4022692a-2bd9-458b-aa90-94f73bb645f7:event:2",
+      "field": "image",
+      "size": 13105,
+      "sha256": "c37cc4c9dfa8c4dd9a1e0a9b7cb7f6172aaf31574d5edc627704c3b14d3e4b86",
+      "path": "contents/c37cc4c9dfa8c4dd9a1e0a9b7cb7f6172aaf31574d5edc627704c3b14d3e4b86.bin",
+      "contentExecuted": false
+    },
+    "DOM": {
+      "eventId": "4022692a-2bd9-458b-aa90-94f73bb645f7:event:3",
+      "field": "sourceHtml",
+      "size": 3146464,
+      "sha256": "a6e8e1dc0d6da92b8651309f6080ffe4d72daa624fc8653d2344783c7fa25c7a",
+      "path": "contents/a6e8e1dc0d6da92b8651309f6080ffe4d72daa624fc8653d2344783c7fa25c7a.bin",
+      "contentExecuted": false
+    },
+    "CSS": {
+      "eventId": "4022692a-2bd9-458b-aa90-94f73bb645f7:event:4",
+      "field": "text",
+      "size": 95,
+      "sha256": "71e0fcdb57becf9bbb74eee3a218eabccef2fc8d9fd6c7564c12e49d762f0098",
+      "path": "contents/71e0fcdb57becf9bbb74eee3a218eabccef2fc8d9fd6c7564c12e49d762f0098.bin",
+      "contentExecuted": false
+    },
+    "request-body": {
+      "eventId": "4022692a-2bd9-458b-aa90-94f73bb645f7:event:6",
+      "field": "bodyText",
+      "size": 1162159,
+      "sha256": "b559869cf9852ac3063507a9afa50bb1d31ffd6e0239bd0e21741237c0e854b6",
+      "path": "contents/b559869cf9852ac3063507a9afa50bb1d31ffd6e0239bd0e21741237c0e854b6.bin",
+      "contentExecuted": false
+    },
+    "response-body": {
+      "eventId": "4022692a-2bd9-458b-aa90-94f73bb645f7:event:8",
+      "field": "body",
+      "size": 45,
+      "sha256": "f388ddf4629a1d19aed01467f49e6dbe88bab98d5cfb5b41b598a87be25f9ca3",
+      "path": "contents/f388ddf4629a1d19aed01467f49e6dbe88bab98d5cfb5b41b598a87be25f9ca3.bin",
+      "contentExecuted": false
+    }
+  },
+  "recordingOrIndexUploaded": false,
+  "contentExecuted": false,
+  "temporaryArtifacts": "E:\\dev\\copypaste\\\u7f8e\u5bb9ERP\\\u903b\u8f91\u8bb0\u5f55\u63d2\u4ef6\\app\\test-reading-skill-52n6la13"
+}

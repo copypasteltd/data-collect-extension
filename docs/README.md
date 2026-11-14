@@ -1,6 +1,8 @@
 # 文档索引 / Documentation Index
 
-当前v0.4.0：[需求合同](<精简/2026-11-14-v0.4.0/CONTRACT.md>) · [安装](<精简/2026-11-14-v0.4.0/INSTALL.md>) · [验证](<精简/2026-11-14-v0.4.0/REPORT.md>) · [20轮](<精简/2026-11-14-v0.4.0/performance-final.md>) · [只包重建](<精简/2026-11-14-v0.4.0/reconstruction.md>)。
+当前v0.5.0：[设置合同](<设置/2026-11-14-v0.5.0/CONTRACT.md>) · [安装](<设置/2026-11-14-v0.5.0/INSTALL.md>) · [最终验证](<设置/2026-11-14-v0.5.0/REPORT.md>)。
+
+历史v0.4.0：[需求合同](<精简/2026-11-14-v0.4.0/CONTRACT.md>) · [安装](<精简/2026-11-14-v0.4.0/INSTALL.md>) · [验证](<精简/2026-11-14-v0.4.0/REPORT.md>) · [20轮](<精简/2026-11-14-v0.4.0/performance-final.md>) · [只包重建](<精简/2026-11-14-v0.4.0/reconstruction.md>)。
 
 历史v0.3.0：[本版交付报告](<交付/2026-11-13/native-release/RELEASE-REPORT.md>) · [需求收口](<交付/2026-11-13/native-release/REQUIREMENTS-v0.3.0.md>) · [01–26映射](<交付/2026-11-13/native-release/ACCEPTANCE-01-26.md>) · [问题闭环](<交付/2026-11-13/native-release/FIX-CLOSURE.md>) · [release notes](<releases/v0.3.0.md>)。用户指定本机原生编译测试，不建设隔离环境；历史草案/阻塞不代表本版结论。
 

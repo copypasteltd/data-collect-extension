@@ -1,7 +1,9 @@
 import {
   FLOW_LIMITS, FLOW_CATEGORIES, createBudget, evaluateBudget, preflightContent,
-  knownByteLength, utf8ByteLength, stopBudget, byteCount, validateBudget,
+  knownByteLength, utf8ByteLength, stopBudget, byteCount, validateBudget, getBudgetLimits,
 } from "./flow-budget.js";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS, deriveFlowLimits, limitsForSession } from "./flow-config.js";
+import { sha256Blob } from "./flow-hash.js";
 
 export const FLOW_DB_NAME = "logic-recorder-flow-v1";
 export const FLOW_DB_VERSION = 1;
@@ -38,7 +40,7 @@ function deadline(options = {}) {
 // A bounded JSON writer, not JSON.stringify of an unbounded input followed by a
 // size check. No toJSON/getter execution, cycles, binary inline payloads or silent
 // truncation. Metadata is deliberately a small JSON tree; large values go in Blob.
-function boundedJSON(value, maximum = FLOW_LIMITS.eventBytes) {
+function boundedJSON(value, maximum = FLOW_LIMITS.eventBytes, maximumNodes = 8192) {
   const parts = [], ancestors = new Set();
   let size = 0, nodes = 0;
   function emit(text) {
@@ -48,7 +50,7 @@ function boundedJSON(value, maximum = FLOW_LIMITS.eventBytes) {
     parts.push(text);
   }
   function visit(item, depth) {
-    if (++nodes > 8192 || depth > 32) throw failure("event-metadata-limit");
+    if (++nodes > maximumNodes || depth > 32) throw failure("event-metadata-limit");
     if (item === null) { emit("null"); return; }
     if (typeof item === "string") {
       if (item.length > maximum - size) throw failure("event-metadata-limit");
@@ -82,7 +84,7 @@ function boundedJSON(value, maximum = FLOW_LIMITS.eventBytes) {
   visit(value, 0);
   return { json: parts.join(""), size };
 }
-function jsonClone(value, maximum) { return JSON.parse(boundedJSON(value, maximum).json); }
+function jsonClone(value, maximum, maximumNodes) { return JSON.parse(boundedJSON(value, maximum, maximumNodes).json); }
 function nextRevision(session) {
   byteCount(session.revision, "revision");
   if (session.revision >= Number.MAX_SAFE_INTEGER) throw failure("revision-limit");
@@ -93,6 +95,18 @@ function requireOwner(session, ownerToken) {
   validText(ownerToken, "ownerToken", 512);
   if (session.ownerToken !== ownerToken) throw failure("session-owner-mismatch");
   return session;
+}
+// Settings have two persisted copies so neither a caller default nor an arbitrary
+// declared limit can reinterpret an existing session. This never writes old rows.
+function sessionLimits(session) {
+  if (!session) throw failure("session-not-found");
+  validateBudget(session.budget);
+  const limits = limitsForSession(session), budgetLimits = getBudgetLimits(session.budget);
+  for (const key of Object.keys(limits.settings)) {
+    if (limits.settings[key] !== (session.budget.settings ?? LEGACY_FLOW_SETTINGS)[key]) throw failure("session-settings-mismatch");
+  }
+  if (limits.budget.totalBytes !== budgetLimits.totalBytes) throw failure("session-settings-mismatch");
+  return limits;
 }
 function terminal(session) { return session.writeGate === "sealed" || session.sealed || TERMINAL_STATUSES.has(session.status); }
 export function projectSession(session) {
@@ -211,13 +225,15 @@ export async function createSession(input) {
   if (!input || typeof input !== "object") throw new TypeError("Session required");
   const id = input.id === undefined ? crypto.randomUUID() : validText(input.id, "session id");
   const ownerToken = validText(input.ownerToken, "ownerToken", 512);
-  const producerVersion = input.producerVersion === undefined ? "0.4.0" : validText(input.producerVersion, "producerVersion", 64).trim();
+  const producerVersion = input.producerVersion === undefined ? "0.5.0" : validText(input.producerVersion, "producerVersion", 64).trim();
   if (!/^[0-9]{1,5}(\.[0-9]{1,5}){1,3}$/.test(producerVersion) || producerVersion.split(".").some((part) => Number(part) > 65535)) throw new TypeError("Invalid producerVersion");
   // Canonical create-only contract, never caller supplied or patchable. This is
   // bounded manifest metadata, not an extra raw-content ledger charge.
+  const limits = deriveFlowLimits(input.settings === undefined ? DEFAULT_FLOW_SETTINGS : input.settings);
   const capturePolicy = jsonClone({
     schemaVersion: 1, profile: "business-flow-v1", scope: "root-tab-and-attributed-child",
-    limits: FLOW_LIMITS,
+    settings: limits.settings, limits: limits.budget,
+    runtimeLimits: { background: limits.background, content: limits.content },
     notCollected: [
       "cookies", "storage", "indexedDB", "cacheStorage", "fullComputedStyles", "fontInventory",
       "canvasPixels", "fullPageScreenshots", "websocketPayloads", "eventSourcePayloads",
@@ -232,7 +248,7 @@ export async function createSession(input) {
     ...clean, id, ownerToken, profile: "business-flow-v1", producerVersion, capturePolicy, status,
     createdAt: Date.now(), startedAt: clean.startedAt ?? Date.now(), updatedAt: Date.now(),
     writeGate: "open", sealed: false, revision: 0, eventCount: 0, contentCount: 0, lastSeq: 0,
-    stopEventCount: 0, budget: createBudget(),
+    stopEventCount: 0, budget: createBudget(limits.settings),
   };
   return transaction(["sessions"], "readwrite", (tx, ctx) => {
     ctx.request(tx.objectStore("sessions").add(row)); ctx.result(row);
@@ -287,9 +303,9 @@ function rawEvent(id, seq, event, payload) {
   if (event.documentId !== undefined) row.documentId = validText(event.documentId, "documentId", 512);
   return row;
 }
-function descriptorsFor(contents) {
+function descriptorsFor(contents, maximum) {
   if (!Array.isArray(contents)) throw new TypeError("contents must be an array");
-  if (contents.length > 16) throw failure("capture-content-limit");
+  if (contents.length > maximum) throw failure("capture-content-limit");
   const fields = new Set();
   return contents.map((item) => {
     if (!item || typeof item !== "object") throw new TypeError("Invalid content");
@@ -301,32 +317,30 @@ function descriptorsFor(contents) {
     return { field, category: item.category, mime, source: item.bytes };
   });
 }
-function payloadWithoutContents(input, descriptors) {
+function payloadWithoutContents(input, descriptors, maximum, maximumNodes) {
   if (input === undefined) return {};
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Event payload must be an object");
   const omit = new Set(descriptors.map((item) => item.field)), object = {};
   let keys = 0;
   for (const key in input) if (has(input, key)) {
-    if (++keys > 8192 || key.length > FLOW_LIMITS.eventBytes) throw failure("event-metadata-limit");
+    if (++keys > maximumNodes || key.length > maximum) throw failure("event-metadata-limit");
     if (omit.has(key)) continue;
     if (["__proto__", "constructor", "prototype"].includes(key)) throw new TypeError("Unsafe payload key");
     const descriptor = Object.getOwnPropertyDescriptor(input, key);
     if (!has(descriptor, "value")) throw new TypeError("Payload accessors forbidden");
     object[key] = descriptor.value;
   }
-  return jsonClone(object);
+  return jsonClone(object, maximum, maximumNodes);
 }
 function reference(item, id, sha256) {
   return { contentId: id + ":" + sha256, sha256, size: item.size, mime: item.mime, category: item.category, status: "captured" };
 }
-async function hashContent(item) {
+async function hashContent(item, options) {
   // Blob takes an immutable snapshot before awaiting; Uint8Array byteOffset is
   // respected, strings are raw UTF-8 (never interpreted as base64).
   const blob = new Blob([item.source], { type: item.mime });
   if (blob.size !== item.size) throw failure("content-size-changed");
-  const bytes = await blob.arrayBuffer();
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  const sha256 = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const sha256 = await sha256Blob(blob, { signal: options.signal });
   return { ...item, source: undefined, blob, sha256 };
 }
 
@@ -336,6 +350,7 @@ async function hashContent(item) {
 export async function appendCapture(id, ownerToken, event, contents = [], options = {}) {
   validText(id, "session id");
   if (!event || !KINDS.has(event.kind)) throw failure("unknown-event-kind");
+  if (options.final !== undefined && typeof options.final !== "boolean") throw new TypeError("final must be boolean");
   const final = options.final === true;
   if (final && !FINAL_KINDS.has(event.kind)) throw failure("invalid-final-kind");
   if (!final && event.kind === "session.stop") throw failure("stop-requires-final");
@@ -344,6 +359,7 @@ export async function appendCapture(id, ownerToken, event, contents = [], option
   let early = await transaction(["sessions", "events"], "readonly", (tx, ctx) => {
     ctx.request(tx.objectStore("sessions").get(id), (session) => {
       requireOwner(session, ownerToken);
+      sessionLimits(session);
       const finish = (existing) => ctx.result({ session, existing, reason: existing ? undefined : gateReason(session, final) });
       if (captureKey !== undefined) ctx.request(tx.objectStore("events").index("sessionCaptureKey").get([id, captureKey]), finish);
       else finish();
@@ -351,13 +367,14 @@ export async function appendCapture(id, ownerToken, event, contents = [], option
   }, options);
   if (early.existing) return { accepted: 1, failed: 0, policyStopped: early.session.budget.policyStopped, event: projectEvent(early.existing), duplicate: true };
   if (early.reason) return rejected(early.session, early.reason);
+  const limits = sessionLimits(early.session);
   let descriptors = [], payload, policyReason;
   try {
-    descriptors = descriptorsFor(contents);
-    payload = payloadWithoutContents(event.payload, descriptors);
+    descriptors = descriptorsFor(contents, limits.content.maxContents);
+    payload = payloadWithoutContents(event.payload, descriptors, limits.budget.eventBytes, 8192 * limits.settings.samplingMultiplier);
     // Reject oversized metadata before scanning even a content string for its
     // UTF-8 length. Fields replaced by references are not traversed.
-    boundedJSON(rawEvent(id, early.session.lastSeq + 1, event, payload));
+    boundedJSON(rawEvent(id, early.session.lastSeq + 1, event, payload), limits.budget.eventBytes, 8192 * limits.settings.samplingMultiplier);
     const probe = { ...payload };
     for (const item of descriptors) {
       item.size = knownByteLength(item.source);
@@ -365,7 +382,7 @@ export async function appendCapture(id, ownerToken, event, contents = [], option
       if (!check.accepted) { policyReason = check.reason; break; }
       probe[item.field] = reference(item, id, "0".repeat(64));
     }
-    if (!policyReason) boundedJSON(rawEvent(id, early.session.lastSeq + 1, event, probe));
+    if (!policyReason) boundedJSON(rawEvent(id, early.session.lastSeq + 1, event, probe), limits.budget.eventBytes, 8192 * limits.settings.samplingMultiplier);
   } catch (error) {
     if (["event-metadata-limit", "capture-content-limit"].includes(error.code)) policyReason = error.code;
     else throw error;
@@ -373,12 +390,13 @@ export async function appendCapture(id, ownerToken, event, contents = [], option
   const prepared = [];
   if (!policyReason) {
     // Hashes and Blob reads must finish BEFORE opening any write transaction.
-    for (const descriptor of descriptors) prepared.push(await hashContent(descriptor));
+    for (const descriptor of descriptors) prepared.push(await hashContent(descriptor, options));
   }
   return transaction(["sessions", "events", "contents"], "readwrite", (tx, ctx) => {
     const sessions = tx.objectStore("sessions"), events = tx.objectStore("events"), contentStore = tx.objectStore("contents");
     ctx.request(sessions.get(id), (session) => {
       requireOwner(session, ownerToken);
+      sessionLimits(session);
       const continueWrite = (existing) => {
         if (existing) { ctx.result({ accepted: 1, failed: 0, policyStopped: session.budget.policyStopped, event: projectEvent(existing), duplicate: true }); return; }
         const reason = gateReason(session, final);
@@ -386,13 +404,14 @@ export async function appendCapture(id, ownerToken, event, contents = [], option
         if (policyReason) { rememberPolicy(tx, ctx, session, policyReason); return; }
         byteCount(session.lastSeq, "lastSeq");
         if (session.lastSeq >= Number.MAX_SAFE_INTEGER) { rememberPolicy(tx, ctx, session, "sequence-limit"); return; }
+        const currentLimits = sessionLimits(session);
         const seq = session.lastSeq + 1, rawPayload = { ...payload };
         for (const item of prepared) rawPayload[item.field] = reference(item, id, item.sha256);
         const raw = rawEvent(id, seq, event, rawPayload);
         let eventBytes;
-        try { eventBytes = boundedJSON(raw).size + 1; }
+        try { eventBytes = boundedJSON(raw, currentLimits.budget.eventBytes, 8192 * currentLimits.settings.samplingMultiplier).size + 1; }
         catch (error) { if (error.code !== "event-metadata-limit") throw error; rememberPolicy(tx, ctx, session, error.code); return; }
-        if (eventBytes > FLOW_LIMITS.eventBytes) { rememberPolicy(tx, ctx, session, "event-metadata-limit"); return; }
+        if (eventBytes > currentLimits.budget.eventBytes) { rememberPolicy(tx, ctx, session, "event-metadata-limit"); return; }
         const unique = new Map();
         for (const item of prepared) {
           let candidate = unique.get(item.sha256);
@@ -491,7 +510,7 @@ export function sealSession(id, ownerToken, options = {}) {
       const check = () => {
         if (--pending) return;
         if (eventCount !== session.eventCount || contentCount !== session.contentCount || stop?.kind !== "session.stop" || stop.seq !== session.lastSeq || stop.id !== session.stopEventId) throw failure("seal-store-count-mismatch");
-        validateBudget(session.budget);
+        sessionLimits(session);
         const seal = { lastSeq: session.lastSeq, eventCount, contentCount, sealedAt: Date.now(), revision: session.revision + 1 };
         const row = { ...session, ...metadata, sealed: true, seal, writeGate: "sealed", revision: nextRevision(session), updatedAt: Date.now(), stoppedAt: session.stoppedAt ?? Date.now() };
         boundedJSON(projectSession(row), 64 * 1024);
@@ -504,34 +523,105 @@ export function sealSession(id, ownerToken, options = {}) {
   });
 }
 
+function eventReadSize(row, id, lastSeq, limits) {
+  if (row.sessionId !== id || !Number.isSafeInteger(row.seq) || row.seq <= lastSeq) throw failure("flow-invalid-sequence");
+  const size = boundedJSON(row, limits.budget.eventBytes, 8192 * limits.settings.samplingMultiplier).size + 1;
+  if (size > limits.budget.eventBytes) throw failure("event-metadata-limit");
+  return size;
+}
+function contentReadSize(row, id) {
+  if (row.sessionId !== id || !(row.blob instanceof Blob) || row.blob.size !== row.size) throw failure("flow-invalid-content");
+  return byteCount(row.size);
+}
+function positiveReadCount(value, name, maximum) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) throw new TypeError("Invalid " + name);
+  return value;
+}
+
+// Compatibility full reads stay bounded by this session's immutable policy.
+// Archive export uses the page APIs below to avoid collecting all rows at once.
 export function readEvents(id, options = {}) {
   validText(id, "session id");
-  return transaction(["events"], "readonly", (tx, ctx) => {
-    const rows = []; let size = 0, lastSeq = 0;
-    const range = IDBKeyRange.bound([id, 1], [id, Number.MAX_SAFE_INTEGER]);
-    ctx.request(tx.objectStore("events").index("sessionSeq").openCursor(range), (cursor) => {
-      if (!cursor) { ctx.result(rows); return; }
-      const row = projectEvent(cursor.value);
-      if (row.sessionId !== id || !Number.isSafeInteger(row.seq) || row.seq <= lastSeq) throw failure("flow-invalid-sequence");
-      size += boundedJSON(row).size + 1;
-      if (size > FLOW_LIMITS.totalBytes) throw failure("flow-read-batch-limit");
-      lastSeq = row.seq; rows.push(row); cursor.continue();
+  return transaction(["sessions", "events"], "readonly", (tx, ctx) => {
+    ctx.request(tx.objectStore("sessions").get(id), (session) => {
+      const limits = sessionLimits(session), rows = []; let size = 0, lastSeq = 0;
+      const range = IDBKeyRange.bound([id, 1], [id, Number.MAX_SAFE_INTEGER]);
+      ctx.request(tx.objectStore("events").index("sessionSeq").openCursor(range), (cursor) => {
+        if (!cursor) { ctx.result(rows); return; }
+        const row = projectEvent(cursor.value);
+        size += eventReadSize(row, id, lastSeq, limits);
+        if (size > limits.budget.totalBytes) throw failure("flow-read-batch-limit");
+        lastSeq = row.seq; rows.push(row); cursor.continue();
+      });
     });
   }, options);
 }
 
 export function readContents(id, options = {}) {
   validText(id, "session id");
-  return transaction(["contents"], "readonly", (tx, ctx) => {
-    const rows = []; let size = 0;
-    ctx.request(tx.objectStore("contents").index("session").openCursor(IDBKeyRange.only(id)), (cursor) => {
-      if (!cursor) { ctx.result(rows); return; }
-      const row = cursor.value;
-      if (row.sessionId !== id || !(row.blob instanceof Blob) || row.blob.size !== row.size) throw failure("flow-invalid-content");
-      size += byteCount(row.size);
-      if (size > FLOW_LIMITS.totalBytes) throw failure("flow-read-batch-limit");
-      // Blob handles are lazy: never materialize every row as ArrayBuffer.
-      rows.push(row); cursor.continue();
+  return transaction(["sessions", "contents"], "readonly", (tx, ctx) => {
+    ctx.request(tx.objectStore("sessions").get(id), (session) => {
+      const limits = sessionLimits(session), rows = []; let size = 0;
+      ctx.request(tx.objectStore("contents").index("session").openCursor(IDBKeyRange.only(id)), (cursor) => {
+        if (!cursor) { ctx.result(rows); return; }
+        const row = cursor.value;
+        size += contentReadSize(row, id);
+        if (size > limits.budget.totalBytes) throw failure("flow-read-batch-limit");
+        // Blob handles are lazy: never materialize every row as ArrayBuffer.
+        rows.push(row); cursor.continue();
+      });
+    });
+  }, options);
+}
+
+export function flowEventPage(id, afterSeq = 0, options = {}) {
+  validText(id, "session id"); byteCount(afterSeq, "afterSeq");
+  const limit = positiveReadCount(options.limit ?? 500, "limit", 500);
+  const maxBytes = positiveReadCount(options.maxBytes ?? 8 * 1024 * 1024, "maxBytes", 8 * 1024 * 1024);
+  return transaction(["sessions", "events"], "readonly", (tx, ctx) => {
+    ctx.request(tx.objectStore("sessions").get(id), (session) => {
+      const limits = sessionLimits(session), events = []; let size = 0, nextSeq = afterSeq;
+      if (afterSeq === Number.MAX_SAFE_INTEGER) { ctx.result({ events, nextSeq, done: true }); return; }
+      const range = IDBKeyRange.bound([id, afterSeq + 1], [id, Number.MAX_SAFE_INTEGER]);
+      ctx.request(tx.objectStore("events").index("sessionSeq").openCursor(range), (cursor) => {
+        if (!cursor) { ctx.result({ events, nextSeq, done: true }); return; }
+        const row = projectEvent(cursor.value), bytes = eventReadSize(row, id, nextSeq, limits);
+        if (events.length >= limit || (events.length && size + bytes > maxBytes)) {
+          ctx.result({ events, nextSeq, done: false }); return;
+        }
+        // A single valid event may exceed a caller's smaller page byte target.
+        size += bytes; nextSeq = row.seq; events.push(row); cursor.continue();
+      });
+    });
+  }, options);
+}
+
+export function flowContentPage(id, afterId = "", options = {}) {
+  validText(id, "session id");
+  if (afterId !== "") {
+    validText(afterId, "afterId", 321);
+    if (!afterId.startsWith(id + ":") || afterId.length === id.length + 1) throw new TypeError("Invalid afterId");
+  }
+  const limit = positiveReadCount(options.limit ?? 50, "limit", 50);
+  return transaction(["sessions", "contents"], "readonly", (tx, ctx) => {
+    ctx.request(tx.objectStore("sessions").get(id), (session) => {
+      const limits = sessionLimits(session), contents = []; let nextId = afterId, size = 0;
+      // Content keys are sessionId:sha256. A primary-key range resumes directly;
+      // no earlier pages are rescanned and no database schema change is needed.
+      const range = IDBKeyRange.bound(afterId || id + ":", id + ":\uffff", afterId !== "");
+      ctx.request(tx.objectStore("contents").openCursor(range), (cursor) => {
+        if (!cursor) { ctx.result({ contents, nextId, done: true }); return; }
+        const row = cursor.value;
+        // A permitted session id may itself contain a colon and share this key
+        // prefix. Skip its rows instead of attributing them to this session.
+        if (row.sessionId !== id) { cursor.continue(); return; }
+        const bytes = contentReadSize(row, id);
+        if (typeof row.id !== "string" || row.id <= nextId) throw failure("flow-invalid-content");
+        if (contents.length >= limit) { ctx.result({ contents, nextId, done: false }); return; }
+        size += bytes;
+        if (size > limits.budget.totalBytes) throw failure("flow-read-batch-limit");
+        nextId = row.id; contents.push(row); cursor.continue();
+      });
     });
   }, options);
 }

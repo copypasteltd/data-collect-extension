@@ -1,12 +1,10 @@
 import * as flowStore from "./flow-store.js";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS, MAX_MULTIPLIER, deriveFlowLimits, limitsForSession, loadFlowSettings, saveFlowSettings, validateFlowSettings } from "./flow-config.js";
 
 // Deliberately independent of the legacy browser-wide recorder/import graph.
-export const FLOW_LIMITS = Object.freeze({
-  body: 2 * 1024 * 1024, resource: 8 * 1024 * 1024, screenshot: 4 * 1024 * 1024,
-  metadata: 32 * 1024, batchBytes: 4 * 1024 * 1024, queuedBytes: 8 * 1024 * 1024,
-  queue: 64, requests: 128, frames: 32, batch: 64, screenshotInterval: 1000,
-  flushMs: 3000, stopMs: 300, detachMs: 2000, commandMs: 2000,
-});
+export const FLOW_LIMITS = deriveFlowLimits(LEGACY_FLOW_SETTINGS).background;
+// Chrome serializes runtime messages as JSON. Framing is a protocol guard, not a capture setting.
+const CONTENT_PART_BYTES = 1024 * 1024, CONTENT_PART_CHARS = 131072;
 const PAGE_KINDS = new Set(["page.snapshot", "page.stylesheet", "page.resources", "page.navigation", "page.dialog", "ui.click", "ui.change", "ui.input", "ui.submit", "ui.key", "ui.scroll", "recorder.notice"]);
 const BODY_TYPES = new Set(["Fetch", "XHR", "Document"]);
 const RESOURCE_TYPES = new Set(["Image", "Stylesheet", "Font"]);
@@ -14,15 +12,15 @@ const textEncoder = new TextEncoder();
 const http = (url) => { try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u : null; } catch { return null; } };
 const bytesOf = (value) => typeof value === "string" ? textEncoder.encode(value).byteLength : value?.byteLength ?? value?.size ?? Infinity;
 const errorText = (error) => error?.message || "capture_failed";
-function boundedMetadata(value, limit) {
+function boundedMetadata(value, limit, sampling = 1) {
   let size = 0, nodes = 0;
   function walk(item, depth) {
-    if (++nodes > 2048 || depth > 10) return false;
+    if (++nodes > 2048 * sampling || depth > 10) return false;
     if (typeof item === "string") { if (item.length > limit) return false; size += bytesOf(item); }
     else if (item == null || typeof item === "boolean" || typeof item === "number" && Number.isFinite(item)) size += 16;
     else if (typeof item === "object") {
       let count = 0;
-      for (const key in item) { if (++count > 512 || key.length > 256) return false; if (item[key] === undefined) continue; size += key.length * 3; if (!walk(item[key], depth + 1)) return false; }
+      for (const key in item) { if (++count > 512 * sampling || key.length > 256) return false; if (item[key] === undefined) continue; size += key.length * 3; if (!walk(item[key], depth + 1)) return false; }
     } else return false;
     return size <= limit;
   }
@@ -44,9 +42,13 @@ const textual = (mime) => /^(text\/(?!event-stream)|application\/(?:[\w.+-]*json
 
 export function createFlowBackground({ chrome = globalThis.chrome, store = flowStore, now = Date.now,
   uuid = () => crypto.randomUUID(), setTimeout: delay = globalThis.setTimeout,
-  clearTimeout: cancel = globalThis.clearTimeout, limits = {} } = {}) {
-  const L = { ...FLOW_LIMITS, ...limits };
+  clearTimeout: cancel = globalThis.clearTimeout, limits = {}, settingsStorage = chrome?.storage?.local } = {}) {
   let active = null, starting = false, recovery = null;
+  // Internal factory overrides keep small deterministic tests; production derives solely from the batch.
+  const L = { ...FLOW_LIMITS, ...limits }; // Protocol time bounds never scale. Capacity bounds live on r.
+  const metadataSize = (r, value) => boundedMetadata(value, r.backgroundLimits.metadata, r.captureLimits.settings.samplingMultiplier);
+  const readSettings = async () => settingsStorage === undefined && !chrome?.storage ? DEFAULT_FLOW_SETTINGS : loadFlowSettings(settingsStorage);
+  const settingsReply = (settings) => ({ settings, defaults: DEFAULT_FLOW_SETTINGS, maximumMultiplier: MAX_MULTIPLIER, limits: deriveFlowLimits(settings) });
   const subscriptions = [];
   function deadline(promise, milliseconds, reason) {
     let timer;
@@ -76,10 +78,10 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
   }
   async function append(r, event, contents = [], { final = false, flushing = false } = {}) {
     if (!final && (!live(r) && !(flushing && r.flushing && !r.policyReason && !r.error))) return { accepted: 0, failed: 0, policyStopped: !!r.policyReason, reason: r.policyReason || "admission_closed" };
-    if (boundedMetadata(event, L.metadata) === Infinity) { if (!final) controlledStop(r, "event_metadata_limit"); throw new Error("event_metadata_limit"); }
+    if (metadataSize(r, event) === Infinity) { if (!final) controlledStop(r, "event_metadata_limit"); throw new Error("event_metadata_limit"); }
     event = JSON.parse(JSON.stringify(event)); // only the already-bounded JSON tree, never content bytes
-    const size = boundedMetadata(event, L.metadata) + contents.reduce((sum, content) => sum + bytesOf(content.bytes), 0);
-    if (!final && (size > L.queuedBytes || r.queueCount >= L.queue || r.queueBytes + size > L.queuedBytes)) {
+    const size = metadataSize(r, event) + contents.reduce((sum, content) => sum + bytesOf(content.bytes), 0);
+    if (!final && (size > r.backgroundLimits.queuedBytes || r.queueCount >= r.backgroundLimits.queue || r.queueBytes + r.transferBytes + size > r.backgroundLimits.queuedBytes)) {
       controlledStop(r, "producer_queue_limit");
       return { accepted: 0, failed: 0, policyStopped: true, reason: "producer_queue_limit" };
     }
@@ -98,7 +100,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
   }
   async function gap(r, reason, details = {}) {
     r.gaps.set(reason, (r.gaps.get(reason) || 0) + 1); r.session.hasNotice = true;
-    if (r.notices.has(reason) || r.notices.size >= 24 || !live(r)) return;
+    if (r.notices.has(reason) || r.notices.size >= r.backgroundLimits.notices || !live(r)) return;
     r.notices.add(reason);
     await append(r, { kind: "session.notice", payload: { reason, ...details } });
   }
@@ -109,8 +111,8 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     try {
       const session = await store.getSession(r.session.id), budget = session?.budget;
       if (!live(r) || !budget || budget.policyStopped) return null;
-      const categoryMax = { body: 24, resource: 8, screenshot: 12 }[category] * 1024 * 1024;
-      const remaining = Math.min(63 * 1024 * 1024 - budget.usedBytes - r.readBytes - 4096, categoryMax - (budget.byCategory[category] || 0) - (r.readCategories[category] || 0));
+      const policy = r.captureLimits.budget, categoryMax = policy.categoryBytes[category];
+      const remaining = Math.min(policy.normalBytes - budget.usedBytes - r.readBytes - 4096, categoryMax - (budget.byCategory[category] || 0) - (r.readCategories[category] || 0));
       const max = Math.min(maximum, remaining);
       if (max <= 0) { controlledStop(r, "capture_read_budget_limit"); return null; }
       if (known > max) return null;
@@ -132,7 +134,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     try {
       await deadline(attaching, L.detachMs, "attach_timeout"); t.attached = true;
       if (!live(r) || t.closed) { await detach(t); return; }
-      await cdp(t.id, "Network.enable", { maxTotalBufferSize: 16 * 1024 * 1024, maxResourceBufferSize: L.resource, maxPostDataSize: L.body });
+      await cdp(t.id, "Network.enable", { maxTotalBufferSize: r.captureLimits.budget.categoryBytes.resource * 2, maxResourceBufferSize: r.backgroundLimits.resource, maxPostDataSize: r.backgroundLimits.body });
       if (live(r)) await cdp(t.id, "Page.enable");
     } catch { if (live(r)) controlledStop(r, "debugger_attach_failed", true); }
     finally { t.attaching = false; }
@@ -145,13 +147,16 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
       if (!await permitted(t.url) || !live(r)) { await gap(r, "origin_permission_missing", { tabId: t.id }); return; }
       const frames = await deadline(chrome.webNavigation.getAllFrames({ tabId: t.id }), L.commandMs, "frames_timeout") || [];
       const present = new Set();
-      for (const f of frames.slice(0, L.frames)) {
+      for (const f of frames.slice(0, r.backgroundLimits.frames)) {
         if (!live(r)) return;
         present.add(f.frameId);
         const allowed = !!http(f.url) && await permitted(f.url);
         if (!live(r)) return;
         const previous = t.frames.get(f.frameId);
-        const frame = { ...f, documentId: f.documentId || (previous?.url === f.url ? previous.documentId : undefined), allowed };
+        const documentId = f.documentId || (previous?.url === f.url ? previous.documentId : undefined);
+        const sameDocument = previous?.url === f.url && previous?.documentId === documentId && previous?.allowed === allowed;
+        const frame = sameDocument ? previous : { ...f, documentId, allowed };
+        if (previous && !sameDocument) clearTransfers(r, t.id, f.frameId, "content_transfer_navigation");
         t.frames.set(f.frameId, frame);
         if (!allowed) { await gap(r, "frame_not_readable"); continue; }
         const identity = frame.documentId ? "doc:" + frame.documentId : "frame:" + frame.frameId + ":" + frame.url;
@@ -162,17 +167,17 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
           t.injected.set(f.frameId, identity);
         } catch { if (live(r)) await gap(r, "content_injection_unavailable", { tabId: t.id, frameId: f.frameId }); }
       }
-      for (const frameId of t.injected.keys()) if (!present.has(frameId)) t.injected.delete(frameId);
-      if (frames.length > L.frames) await gap(r, "frame_limit");
+      for (const frameId of t.frames.keys()) if (!present.has(frameId)) { clearTransfers(r, t.id, frameId, "content_transfer_navigation"); t.frames.delete(frameId); t.injected.delete(frameId); }
+      if (frames.length > r.backgroundLimits.frames) await gap(r, "frame_limit");
       if (live(r) && t.attached) {
         const tree = await cdp(t.id, "Page.getFrameTree");
         const queue = [tree.frameTree]; let seen = 0;
-        while (queue.length && seen++ < L.frames) {
+        while (queue.length && seen++ < r.backgroundLimits.frames) {
           const node = queue.shift(); if (!node?.frame) continue;
           const matches = [...t.frames.values()].filter((f) => f.allowed && f.url === node.frame.url);
           if (!node.frame.parentId) t.cdpFrames.set(node.frame.id, 0);
           else if (matches.length === 1) t.cdpFrames.set(node.frame.id, matches[0].frameId);
-          queue.push(...(node.childFrames || []).slice(0, L.frames - seen));
+          queue.push(...(node.childFrames || []).slice(0, r.backgroundLimits.frames - seen));
         }
       }
     } catch { if (live(r)) await gap(r, "content_injection_unavailable", { tabId: t.id }); }
@@ -204,10 +209,13 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
       const tab = await chrome.tabs.get(message.tab.id);
       if (!http(tab.url)) throw new Error("仅支持 HTTP(S) 业务标签页");
       if (!await permitted(tab.url)) throw new Error("根标签页来源未授权，请先授予当前来源访问权限");
-      const session = { id: uuid(), ownerToken: uuid(), profile: "business-flow-v1", producerVersion: chrome.runtime.getManifest?.().version ?? null, startedAt: now(), rootTabId: tab.id,
+      const savedSettings = validateFlowSettings(await readSettings()), captureLimits = deriveFlowLimits(savedSettings);
+      let session = { id: uuid(), ownerToken: uuid(), profile: "business-flow-v1", producerVersion: chrome.runtime.getManifest?.().version ?? null, startedAt: now(), rootTabId: tab.id,
         status: "preparing", scope: { rootTabId: tab.id, tabIds: [tab.id] }, hasNotice: false };
-      await store.createSession(session);
-      r = { session, tabs: new Map(), admission: true, flushing: false, tail: Promise.resolve(), queueCount: 0, queueBytes: 0,
+      const persisted = await store.createSession({ ...session, settings: savedSettings });
+      session = { ...session, ...persisted, capturePolicy: { ...persisted?.capturePolicy, settings: persisted?.capturePolicy?.settings ?? savedSettings } };
+      const batchLimits = persisted?.capturePolicy?.settings ? limitsForSession(persisted) : captureLimits;
+      r = { session, captureLimits: batchLimits, backgroundLimits: { ...batchLimits.background, ...limits }, transfers: new Map(), transferBytes: 0, tabs: new Map(), admission: true, flushing: false, tail: Promise.resolve(), queueCount: 0, queueBytes: 0,
         readBytes: 0, readCategories: {}, readers: 0, tasks: new Set(), gaps: new Map(), notices: new Set(), gestures: new Map(), batches: new Map(), screenshots: new Map(), lastScreenshot: -Infinity };
       active = r;
       const t = addTab(r, tab);
@@ -226,33 +234,94 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     const t = r.tabs.get(sender.tab.id), f = t.frames.get(sender.frameId);
     if (!f || !f.allowed || http(f.url)?.origin !== http(sender.url)?.origin || sender.origin && sender.origin !== http(sender.url).origin) return null;
     if (f.documentId && sender.documentId !== f.documentId) return null;
-    if (!await permitted(sender.url) || active !== r) return null;
+    if (!await permitted(sender.url) || active !== r || t.frames.get(sender.frameId) !== f) return null;
     if (sender.documentId) f.documentId = sender.documentId;
     return { t, f };
   }
-  function settings(r) { return { sessionId: r.session.id, ownerToken: r.session.ownerToken, profile: "business-flow-v1", maxBodyBytes: L.body, maxMetadataBytes: L.metadata, maxBatchEvents: L.batch }; }
+  function settings(r) { return { sessionId: r.session.id, ownerToken: r.session.ownerToken, profile: "business-flow-v1", maxBodyBytes: r.backgroundLimits.body, maxMetadataBytes: r.backgroundLimits.metadata, maxBatchEvents: r.backgroundLimits.batch, captureLimits: r.captureLimits }; }
+  const validContent = (c) => c && /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(c.field) && ["body", "dom", "resource", "meta"].includes(c.category) && typeof c.mime === "string" && c.mime.length <= 128;
+  const transferKey = (sender, id) => [sender.tab.id, sender.frameId, sender.documentId || "", id].join(":");
+  function releaseTransfer(r, key) {
+    const transfer = r.transfers.get(key); if (!transfer) return;
+    r.transferBytes -= transfer.byteLength; r.transfers.delete(key);
+  }
+  function clearTransfers(r, tabId, frameId, reason = "content_transfer_incomplete") {
+    let count = 0;
+    for (const [key, transfer] of r.transfers) {
+      if ((tabId === undefined || transfer.tabId === tabId) && (frameId === undefined || transfer.frameId === frameId)) { releaseTransfer(r, key); count++; }
+    }
+    if (count) { r.gaps.set(reason, (r.gaps.get(reason) || 0) + count); r.session.hasNotice = true; }
+  }
+  async function contentPart(r, message, sender, auth) {
+    if (!(live(r) || r.flushing && !r.policyReason && !r.error)) throw new Error("采集接纳已关闭");
+    const { text, ...header } = message;
+    if (!validContent(message) || boundedMetadata(header, 4096) === Infinity ||
+        typeof message.transferId !== "string" || !/^[a-zA-Z0-9:_-]{1,160}$/.test(message.transferId) ||
+        typeof text !== "string" || !text.length || text.length > CONTENT_PART_CHARS ||
+        !Number.isSafeInteger(message.index) || !Number.isSafeInteger(message.parts) || message.index < 0 || message.parts < 1 || message.index >= message.parts ||
+        !Number.isSafeInteger(message.byteLength) || message.byteLength < 1 || message.parts > message.byteLength || message.parts > Math.ceil(message.byteLength / (CONTENT_PART_CHARS - 1)) + 1 ||
+        message.byteLength > (message.category === "resource" ? r.backgroundLimits.resource : r.backgroundLimits.body)) throw new Error("无效内容传输分片");
+    const bytes = bytesOf(text);
+    if (bytesOf(JSON.stringify(message)) > CONTENT_PART_BYTES || bytes > CONTENT_PART_BYTES || message.index + 1 < message.parts && /[\uD800-\uDBFF]$/.test(text)) throw new Error("内容传输分片超限或截断字符");
+    const key = transferKey(sender, message.transferId);
+    let transfer = r.transfers.get(key);
+    if (!transfer) {
+      if (message.index !== 0) throw new Error("内容传输分片顺序无效");
+      if (r.transfers.size >= Math.max(r.backgroundLimits.batch, r.captureLimits.content.maxContents) || r.transferBytes + r.queueBytes + message.byteLength > r.backgroundLimits.queuedBytes) {
+        controlledStop(r, "content_transfer_queue_limit"); return { policyStopped: true, reason: "content_transfer_queue_limit" };
+      }
+      transfer = { tabId: sender.tab.id, frameId: sender.frameId, documentId: sender.documentId, frame: auth.f,
+        field: message.field, mime: message.mime, category: message.category, byteLength: message.byteLength, parts: message.parts, chunks: [], received: 0 };
+      r.transfers.set(key, transfer); r.transferBytes += transfer.byteLength;
+    }
+    if (transfer.frame !== auth.f || ["field", "mime", "category", "byteLength", "parts"].some((name) => transfer[name] !== message[name])) throw new Error("内容传输身份不一致");
+    if (message.index < transfer.chunks.length) {
+      if (await transfer.chunks[message.index].text() !== text) throw new Error("重复内容分片不一致");
+    } else {
+      if (message.index !== transfer.chunks.length || transfer.received + bytes > transfer.byteLength ||
+          message.index + 1 === transfer.parts && transfer.received + bytes !== transfer.byteLength) throw new Error("内容传输长度或顺序无效");
+      transfer.chunks.push(new Blob([text])); transfer.received += bytes;
+    }
+    if (r.transfers.get(key) !== transfer || active !== r || auth.t.frames.get(sender.frameId) !== auth.f) throw new Error("内容传输来源已过期");
+    return { transferId: message.transferId, index: message.index, receivedBytes: transfer.received, complete: transfer.chunks.length === transfer.parts };
+  }
   async function pageBatch(r, message, sender, auth) {
     if (!(live(r) || r.flushing && !r.policyReason && !r.error)) throw new Error("采集接纳已关闭");
-    if (typeof message.batchId !== "string" || !/^[a-zA-Z0-9:_-]{1,160}$/.test(message.batchId) || !Array.isArray(message.events) || message.events.length > L.batch) throw new Error("无效采集批次");
-    let total = 0;
-    for (const event of message.events) {
-      if (!PAGE_KINDS.has(event?.kind) || !Number.isFinite(event.time) || boundedMetadata(event.payload || {}, L.metadata) === Infinity) throw new Error("无效采集事件");
-      if (event.contents && (!Array.isArray(event.contents) || event.contents.length > 16)) throw new Error("无效采集内容");
-      for (const c of event.contents || []) {
-        if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(c.field) || !["body", "dom", "resource", "meta"].includes(c.category) || typeof c.mime !== "string" || c.mime.length > 128) throw new Error("无效内容引用");
-        const size = bytesOf(c.bytes); if (size > (c.category === "resource" ? L.resource : L.body)) throw new Error("采集内容超过单项限制"); total += size;
-      }
-      total += boundedMetadata(event.payload || {}, L.metadata);
-      if (total > L.batchBytes) { controlledStop(r, "page_batch_limit"); return { accepted: 0, failed: 0, policyStopped: true, reason: "page_batch_limit" }; }
-    }
+    if (typeof message.batchId !== "string" || !/^[a-zA-Z0-9:_-]{1,160}$/.test(message.batchId) || !Array.isArray(message.events) || message.events.length > r.backgroundLimits.batch) throw new Error("无效采集批次");
     const key = [sender.tab.id, sender.frameId, sender.documentId || "", message.batchId].join(":");
     if (r.batches.has(key)) return r.batches.get(key);
+    const inputs = [], consumed = new Set();
+    let total = 0;
+    for (const event of message.events) {
+      const contents = [], transferKeys = [];
+      if (!PAGE_KINDS.has(event?.kind) || !Number.isFinite(event.time) || metadataSize(r, event.payload || {}) === Infinity) throw new Error("无效采集事件");
+      if (event.contents && (!Array.isArray(event.contents) || event.contents.length > r.captureLimits.content.maxContents)) throw new Error("无效采集内容");
+      for (const c of event.contents || []) {
+        if (!validContent(c)) throw new Error("无效内容引用");
+        let bytes = c.bytes;
+        if (Object.hasOwn(c, "transferId")) {
+          const transferId = c.transferId;
+          if (typeof transferId !== "string" || !/^[a-zA-Z0-9:_-]{1,160}$/.test(transferId) || Object.hasOwn(c, "bytes")) throw new Error("无效内容传输引用");
+          const transferIdKey = transferKey(sender, transferId), transfer = r.transfers.get(transferIdKey);
+          if (!transfer || consumed.has(transferIdKey) || transfer.frame !== auth.f || transfer.received !== transfer.byteLength || transfer.chunks.length !== transfer.parts ||
+              ["field", "mime", "category"].some((name) => transfer[name] !== c[name])) throw new Error("内容传输未完成或来源无效");
+          bytes = new Blob(transfer.chunks, { type: c.mime }); consumed.add(transferIdKey); transferKeys.push(transferIdKey);
+        } else if (typeof bytes !== "string") throw new Error("无效直接采集内容");
+        const size = bytesOf(bytes); if (size > (c.category === "resource" ? r.backgroundLimits.resource : r.backgroundLimits.body)) throw new Error("采集内容超过单项限制"); total += size;
+        contents.push({ field: c.field, mime: c.mime, category: c.category, bytes });
+      }
+      total += metadataSize(r, event.payload || {});
+      if (total > r.backgroundLimits.batchBytes) { controlledStop(r, "page_batch_limit"); return { accepted: 0, failed: 0, policyStopped: true, reason: "page_batch_limit" }; }
+      inputs.push({ ...event, contents, transferKeys });
+    }
     const task = (async () => {
       let accepted = 0;
-      for (let index = 0; index < message.events.length; index++) {
-        const input = message.events[index];
+      for (let index = 0; index < inputs.length; index++) {
+        const input = inputs[index];
         const event = { kind: input.kind, time: input.time, payload: input.payload || {}, tabId: sender.tab.id,
           frameId: sender.frameId, documentId: sender.documentId, captureKey: key + ":" + index };
+        // No await between reservation release and append admission: remaining events stay reserved.
+        for (const transfer of input.transferKeys) releaseTransfer(r, transfer);
         const result = await append(r, event, input.contents || [], { flushing: true });
         accepted += result.accepted;
         if (result.policyStopped) return { accepted, failed: 0, policyStopped: true, reason: result.reason };
@@ -267,14 +336,14 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
             requestScreenshot(r, auth.t, { eventId: result.event?.id, time: input.time, frameId: sender.frameId, documentId: sender.documentId, reason: p.reason });
           }
           if (input.kind === "page.resources" && Array.isArray(p.urls)) {
-            for (const resource of p.urls.slice(0, 64)) { if (!live(r)) break; track(r, pageResource(r, auth.t, resource, sender, result.event)).catch(() => {}); }
+            for (const resource of p.urls.slice(0, r.captureLimits.content.resourceUrls)) { if (!live(r)) break; track(r, pageResource(r, auth.t, resource, sender, result.event)).catch(() => {}); }
           }
         }
       }
       return { accepted, failed: 0, policyStopped: false };
     })();
     r.batches.set(key, task);
-    if (r.batches.size > 256) r.batches.delete(r.batches.keys().next().value);
+    if (r.batches.size > r.backgroundLimits.batchHistory) r.batches.delete(r.batches.keys().next().value);
     try { return await task; } catch (error) { r.batches.delete(key); throw error; }
   }
   function requestScreenshot(r, t, association) {
@@ -282,12 +351,12 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     const entry = r.screenshots.get(t.id) || {};
     entry.association = association; r.screenshots.set(t.id, entry);
     if (entry.timer || entry.running) return;
-    const wait = Math.max(0, L.screenshotInterval - (now() - r.lastScreenshot));
+    const wait = Math.max(0, r.backgroundLimits.screenshotInterval - (now() - r.lastScreenshot));
     if (wait) { entry.timer = delay(() => { entry.timer = null; requestScreenshot(r, t, entry.association); }, wait); return; }
     entry.running = true; r.lastScreenshot = now(); const captured = entry.association; entry.association = null;
     track(r, (async () => {
       try {
-        const reservation = await reserveRead(r, "screenshot", L.screenshot);
+        const reservation = await reserveRead(r, "screenshot", r.backgroundLimits.screenshot);
         if (!reservation) { await gap(r, "screenshot_budget_preflight"); return; }
         try {
           const result = await cdp(t.id, "Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
@@ -303,13 +372,13 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
   async function pageResource(r, t, input, sender, event) {
     const p = input, url = http(p.url);
     if (!url || !["Image", "Stylesheet", "Font", "image", "stylesheet", "font"].includes(p.type) || t.resources.has(p.url)) return;
-    if (t.resources.size >= 128) { await gap(r, "resource_observation_limit"); return; }
+    if (t.resources.size >= r.backgroundLimits.resourceObservations) { await gap(r, "resource_observation_limit"); return; }
     t.resources.add(p.url);
     // Metadata from the collector identifies displayed CSS URLs. This is a cache
     // read through CDP, never an HTTP fallback and never an initial resource scan.
     const cdpFrameId = [...t.cdpFrames].find(([, f]) => f === sender.frameId)?.[0];
     if (!cdpFrameId || !live(r) || !t.attached) { await gap(r, "page_resource_unavailable"); return; }
-    const reservation = await reserveRead(r, "resource", L.resource, Number(p.size) || 0);
+    const reservation = await reserveRead(r, "resource", r.backgroundLimits.resource, Number(p.size) || 0);
     if (!reservation) { await gap(r, "resource_budget_preflight"); return; }
     try {
       const data = await cdp(t.id, "Page.getResourceContent", { frameId: cdpFrameId, url: p.url });
@@ -330,7 +399,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     if (!live(r) || ![...BODY_TYPES, ...RESOURCE_TYPES, "EventSource"].includes(p.type)) return;
     const old = t.requests.get(p.requestId);
     if (old && p.redirectResponse) { old.redirected = true; await finishResponse(r, t, old, { encodedDataLength: p.redirectResponse.encodedDataLength || 0 }, p.redirectResponse); }
-    if (t.requests.size >= L.requests && !old) { await gap(r, "request_metadata_limit"); return; }
+    if (t.requests.size >= r.backgroundLimits.requests && !old) { await gap(r, "request_metadata_limit"); return; }
     const request = p.request || {}, frameId = frameFor(t, p), f = t.frames.get(frameId);
     if (!f?.allowed || !http(request.url) || !await permitted(p.documentURL || f.url) || !live(r)) return;
     const q = { id: p.requestId, captureId: t.id + ":" + p.requestId + ":" + ((old?.hop || 0) + 1), hop: (old?.hop || 0) + 1,
@@ -340,10 +409,10 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
       cdpFrameId: p.frameId, sensitiveNote: "原 URL/query/headers 和正文可能含敏感数据" };
     const contents = [], declared = contentLength(request.headers);
     if (typeof request.postData === "string") {
-      if (declared > L.body || request.postData.length > L.body || bytesOf(request.postData) > L.body) payload.bodyStatus = { status: "not_collected_policy", reason: "request_body_limit" };
+      if (declared > r.backgroundLimits.body || request.postData.length > r.backgroundLimits.body || bytesOf(request.postData) > r.backgroundLimits.body) payload.bodyStatus = { status: "not_collected_policy", reason: "request_body_limit" };
       else contents.push({ field: "bodyText", category: "body", mime: "text/plain", bytes: request.postData });
     } else if (request.hasPostData) payload.bodyStatus = { status: "not_collected", reason: "post_data_unavailable_no_requery" };
-    if (boundedMetadata(payload, L.metadata) === Infinity) { await gap(r, "request_metadata_oversized"); t.requests.delete(p.requestId); return; }
+    if (metadataSize(r, payload) === Infinity) { await gap(r, "request_metadata_oversized"); t.requests.delete(p.requestId); return; }
     await append(r, { kind: "network.request", captureKey: q.captureId + ":request", time: q.time, tabId: t.id, frameId, documentId: f.documentId, payload }, contents);
   }
   async function finishResponse(r, t, q, p, response = q.response) {
@@ -353,7 +422,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     const mime = response.mimeType || "", resource = RESOURCE_TYPES.has(q.type), stream = q.type === "EventSource" || /text\/event-stream/i.test(mime);
     const payload = { requestId: q.captureId, url: response.url || q.request.url, status: response.status, headers: response.headers || {}, mime,
       encodedDataLength: Math.max(0, Number(p.encodedDataLength) || 0), sensitiveNote: "响应头及正文可能包含敏感数据" };
-    const max = resource ? L.resource : L.body, contents = [];
+    const max = resource ? r.backgroundLimits.resource : r.backgroundLimits.body, contents = [];
     let reason;
     if (stream) reason = "stream_summary_only";
     else if (q.type === "Document") reason = "document_dom_canonical";
@@ -361,7 +430,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     else if (!resource && !textual(mime)) reason = "non_text_response";
     else if (q.redirected) reason = "redirect_body_unavailable";
     else if (Math.max(contentLength(response.headers), payload.encodedDataLength, Number(response.encodedDataLength) || 0) > max) reason = "known_body_limit";
-    if (boundedMetadata(payload, L.metadata) === Infinity) { await gap(r, "response_metadata_oversized"); return; }
+    if (metadataSize(r, payload) === Infinity) { await gap(r, "response_metadata_oversized"); return; }
     if (!reason) {
       const reservation = await reserveRead(r, resource ? "resource" : "body", max, Math.max(contentLength(response.headers), payload.encodedDataLength));
       if (!reservation) reason = "body_budget_preflight";
@@ -387,7 +456,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
       return;
     }
     if (method === "Network.requestWillBeSent") {
-      if ((t.pendingRequests || 0) >= L.requests) { controlledStop(r, "network_queue_limit"); return; }
+      if ((t.pendingRequests || 0) >= r.backgroundLimits.requests) { controlledStop(r, "network_queue_limit"); return; }
       t.pendingRequests = (t.pendingRequests || 0) + 1;
       const prior = t.networkTail || Promise.resolve();
       // Only request metadata is serialized; body reads never block request entry.
@@ -396,7 +465,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     }
     if (method.startsWith("Network.webSocket")) {
       if (method === "Network.webSocketCreated") {
-        if (t.streams.size >= 32) { await gap(r, "realtime_connection_limit"); return; }
+        if (t.streams.size >= r.backgroundLimits.streams) { await gap(r, "realtime_connection_limit"); return; }
         const frameId = t.cdpFrames.get(p.initiator?.frameId), frame = t.frames.get(frameId);
         if (!frame?.allowed || !http(frame.url)) { await gap(r, "websocket_frame_unattributed"); return; }
         if (!await permitted(frame.url) || !live(r) || t.frames.get(frameId) !== frame) { await gap(r, "websocket_frame_not_readable"); return; }
@@ -422,11 +491,12 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     const r = active;
     if (r?.childCandidate?.tabId === p.tabId && p.frameId === 0 && http(p.url)) { r.childCandidate.url = p.url; r.childCandidate.resolve(); }
     const t = r?.tabs.get(p.tabId); if (!r || !t || !live(r)) return;
+    clearTransfers(r, t.id, p.frameId === 0 ? undefined : p.frameId, "content_transfer_navigation");
     if (p.frameId === 0) { t.url = p.url; t.frames.clear(); t.cdpFrames.clear(); }
     if (!p.documentId) t.injected.delete(p.frameId); // old Chrome has no stable document identity; collector guards same-owner restart
     const allowed = await permitted(p.url);
     if (!live(r)) return;
-    if (t.frames.size < L.frames || t.frames.has(p.frameId)) t.frames.set(p.frameId, { ...p, allowed });
+    if (t.frames.size < r.backgroundLimits.frames || t.frames.has(p.frameId)) t.frames.set(p.frameId, { ...p, allowed });
     if (!allowed) { await gap(r, "navigation_not_readable", { tabId: t.id, frameId: p.frameId }); if (p.frameId === 0) await detach(t); return; }
     await append(r, { kind: "page.navigation", time: p.timeStamp || now(), tabId: t.id, frameId: p.frameId, documentId: p.documentId,
       payload: { url: p.url, type: "committed", transitionType: p.transitionType } });
@@ -480,7 +550,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
           try { const result = await deadline(send("FLOW_FLUSH", target), L.flushMs, "flush_timeout"); if (result?.ok !== true || result?.value?.failed || result?.value?.pending || result?.value?.confirmed === false) throw new Error("flush_failed"); }
           catch { r.error ||= "collector_flush_unconfirmed"; failed = true; r.gaps.set("collector_flush_unconfirmed", (r.gaps.get("collector_flush_unconfirmed") || 0) + 1); }
         }));
-        r.flushing = false;
+        r.flushing = false; clearTransfers(r);
         await Promise.all(targets.map(async (target) => { try { await deadline(send("STOP_CAPTURE", target), L.stopMs, "collector_stop_timeout"); } catch { r.gaps.set("collector_stop_unconfirmed", 1); } }));
         const detached = await Promise.all([...r.tabs.values()].map(detach));
         if (detached.some((ok) => !ok)) { failed = true; r.error ||= "debugger_detach_unconfirmed"; }
@@ -504,7 +574,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
         active = null;
         return summary(saved);
       } catch (error) {
-        r.flushing = false; r.session.status = "interrupted"; r.session.storageError = true;
+        r.flushing = false; clearTransfers(r); r.session.status = "interrupted"; r.session.storageError = true;
         await Promise.all([...r.tabs.values()].map(detach));
         await store.updateSession(r.session.id, r.session.ownerToken, { error: "stop_persistence_failed", diagnostics: { notice: "stop_persistence_failed" } }).catch(() => {});
         active = null;
@@ -530,8 +600,11 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
     try {
       await ready();
       let value;
-      if (["START", "STOP", "GET_STATUS", "GET_STATE"].includes(message?.type)) {
+      if (["START", "STOP", "GET_STATUS", "GET_STATE", "GET_LIMIT_SETTINGS", "SAVE_LIMIT_SETTINGS", "RESET_LIMIT_SETTINGS"].includes(message?.type)) {
         if (sender.tab && !sender.url?.startsWith(chrome.runtime.getURL("")) || sender.id && sender.id !== chrome.runtime.id) throw new Error("仅扩展控制页可以操作录制批次");
+        if (message.type === "GET_LIMIT_SETTINGS") value = settingsReply(await readSettings());
+        if (message.type === "SAVE_LIMIT_SETTINGS") value = settingsReply(await saveFlowSettings(message.settings, settingsStorage));
+        if (message.type === "RESET_LIMIT_SETTINGS") value = settingsReply(await saveFlowSettings(DEFAULT_FLOW_SETTINGS, settingsStorage));
         if (message.type === "START") value = await start(message);
         if (message.type === "STOP") value = await stop(message.sessionId);
         if (message.type === "GET_STATUS" || message.type === "GET_STATE") {
@@ -544,6 +617,7 @@ export function createFlowBackground({ chrome = globalThis.chrome, store = flowS
         if (!auth) throw new Error("采集来源或所有权无效");
         if (message.type === "FLOW_SETTINGS") { if (!live(r)) throw new Error("采集接纳已关闭"); value = settings(r); }
         else if (message.type === "FLOW_READY") { if (!live(r)) throw new Error("采集接纳已关闭"); value = settings(r); if (sender.frameId === 0) requestScreenshot(r, auth.t, { time: now(), frameId: sender.frameId, documentId: sender.documentId, reason: "baseline" }); }
+        else if (message.type === "FLOW_CONTENT_PART") value = await track(r, contentPart(r, message, sender, auth));
         else if (message.type === "FLOW_EVENTS") value = await track(r, pageBatch(r, message, sender, auth));
         else if (message.type === "FLOW_POLICY_STOPPED") { controlledStop(r, /^content-[a-z-]{1,64}$/.test(message.reason) ? message.reason : "content_policy_limit"); value = { policyStopped: true }; }
         else throw new Error("未知录制消息");

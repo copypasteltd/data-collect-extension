@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "review": "settings-v0.5.0-independent-scoped-review",
+  "round": 1,
+  "initialVerdict": "needs_revision",
+  "verdict": "scoped_pass_source",
+  "openFindings": [],
+  "scope": "设置1..20、不可变批次限额、content分片、OPFS分页流式导出和reader策略；非广安全/旧重型审计",
+  "sourceState": "Owners froze the repaired components; independent closures apply only to the recorded final source hashes.",
+  "findings": [
+    {
+      "id": "S050-R1",
+      "severity": "high",
+      "status": "closed_source",
+      "title": "发送与接收分片字符上限不一致，合法3MiB ASCII首片被拒",
+      "locations": [
+        {
+          "path": "app/src/flow-content.js",
+          "line": 39
+        },
+        {
+          "path": "app/src/flow-content.js",
+          "line": 134
+        },
+        {
+          "path": "app/src/flow-background.js",
+          "line": 7
+        },
+        {
+          "path": "app/src/flow-background.js",
+          "line": 262
+        }
+      ],
+      "trigger": "20/20/20；ASCII3145728B按131072字符形成24片，后台原262144字符允许14片；合法首片JSON131281B被拒。",
+      "observed": {
+        "command": "node app/scripts/validation-probes/settings-v050-independent-review-proof.mjs",
+        "exitCode": 0,
+        "reply": {
+          "ok": false,
+          "error": "无效内容传输分片"
+        },
+        "parts": 24,
+        "receiverMaximumParts": 14,
+        "messageBytes": 131281
+      },
+      "impact": "预算内大ASCII DOM/输入值无法保存，采集端无效确认后detach。native72MiB store/directBlob证据不覆盖此路径。",
+      "requiredFix": "采集owner统一两端片数契约，保留消息<=1MiB、序号、总UTF-8字节、emoji边界及重复片一致检查。",
+      "discoverySourceHashes": {
+        "app/src/flow-background.js": "e25958e0ea2426d84f79bcfe95d1c4610cb338160d2b64414def0ceafcc89787",
+        "app/src/flow-content.js": "89d40d51bbe9c1ad4a4b662cf7e769baca5b5324dbae1122987c0ddf9547dbfc"
+      },
+      "repairObserved": {
+        "app/src/flow-background.js": "d3415a987ca96d00a0c8c5471fd05c779d695e11a6290eb3514e2b518dd12807",
+        "change": "owner changed CONTENT_PART_CHARS to131072; independently closed by actual handler integration"
+      }
+    },
+    {
+      "id": "S050-R2",
+      "severity": "medium",
+      "status": "closed_source",
+      "title": "reader未将派生eventBytes用于实际JSONL，超640KiB仍返回passed",
+      "locations": [
+        {
+          "path": "app/skills/extension-logic-clone/scripts/index_archive.py",
+          "line": 389
+        },
+        {
+          "path": "app/skills/extension-logic-clone/scripts/index_archive.py",
+          "line": 395
+        }
+      ],
+      "trigger": "严格合法20x settings/limits/runtimeLimits/budget，精确byteAccounting与byCategory，3事件最终session.stop和seal；首JSONL含LF660578B>派生655360B。",
+      "observed": {
+        "command": "python app/scripts/validation-probes/settings-v050-independent-reader-proof.py",
+        "exitCode": 0,
+        "readerExitCode": 0,
+        "verification": "passed",
+        "eventBytes": 660578,
+        "derivedEventCap": 655360,
+        "zipBytes": 4151,
+        "logicalBytes": 661526
+      },
+      "impact": "实际事件违反已记录settings但策略验证通过；通用40MB行保护没有落实派生批次上限。",
+      "requiredFix": "reader owner按derive eventBytes校验真实JSONL含LF字节；同根maxContents/引用body cap漏接一并修，不另起finding。保持v1/v2及旧v3无settings1x兼容。",
+      "discoverySourceHashes": {
+        "app/skills/extension-logic-clone/scripts/index_archive.py": "7ea79bd752c311903e1803fccc96561be5df765abf9c52ac323d83419b7f7610",
+        "app/skills/extension-logic-clone/scripts/read_content.py": "34d48ac1de8863ca32c1c8aa617ee6023758ea000f130a11daccc5922bf2458c"
+      },
+      "repairObserved": {
+        "sourceHashes": {
+          "app/skills/extension-logic-clone/scripts/index_archive.py": "01b0ab0a95548b6a4fe4fd9d7c8f137e058856981156a6ae197a2d5bbbf4193c",
+          "app/skills/extension-logic-clone/scripts/read_content.py": "87b54a93c30cf26ef68210d980f1f51b7344d0224ddf07b2a53253dea513ddf4"
+        },
+        "change": "v3 builds derive raw JSONL byte cap including LF; references receive derived maxContents and category/body cap; read_content passes the same policy, legacy v1/v2 retains generic cap"
+      }
+    }
+  ],
+  "reviewedSourceHashes": {
+    "app/src/flow-config.js": "622e3274a4010bdc2d8ab777254d20b7097d2eb911b84d6b941e5b0a0713f5b6",
+    "app/src/flow-budget.js": "495a1dba65b25114880b7036138a803e5652d6e72153257ffd5333815ee10a9d",
+    "app/src/flow-store.js": "f6c503a0e03b46fd5e11f11b521c4d097829ad8efc999c548416c1dc10f2f040",
+    "app/src/flow-archive.js": "45fab43ea59bd5c7822680aba5ac32b6d2aaa3418e97c1cb846e821600c1eefa",
+    "app/src/flow-zip64.js": "bd15b8ec0171dcf373128649910162fdbc9ac35664d7b083400b366830ccb2a1",
+    "app/src/flow-hash.js": "347d23919cce74c99ddc250e5555292ca9d8603694170cfb805f6e75bf96883f",
+    "app/src/panel-state.js": "3b2b0568606ff2b2989bf4743d616f27a80a6e915b6ea4878960e98040f24f4d",
+    "app/src/sidepanel.jsx": "617fd176896610eb24ea63722df6b86129bfb601b2d79e0a46b2ae7386365260",
+    "app/src/downloads.js": "6ffcf97b76d943d32565b6602dbac2aed892c048340ed83de721e4d778beea40"
+  },
+  "staticScopeResults": [
+    {
+      "area": "settings",
+      "result": "GET/SAVE/RESET控制页分支、storage await及错误传播、START读取savedSettings一次和captureLimits均追踪；无新增确认finding"
+    },
+    {
+      "area": "batch-policy",
+      "result": "createSession生成capturePolicy.settings/limits/runtimeLimits+budget.settings；updateSession META_FIELDS保护；旧批无settings用LEGACY1；无新增确认finding"
+    },
+    {
+      "area": "scaled-limits",
+      "result": "整数1..20及20x总1280/提醒960/普通1260/预留20MiB匹配；时间、深度、根+1可信子页scope未见本次扩大；无新增确认finding"
+    },
+    {
+      "area": "store-export",
+      "result": "事件/内容分页游标、lazyBlob、流式SHA/CRC、seal水位及raw+uniquecontent账本复核、OPFS写入/abort清理、128MiB memory fallback已读；下载await终态后cleanup；无新增确认finding"
+    },
+    {
+      "area": "UI",
+      "result": "settings busy/dirty独立Stop；非法draft不允许SAVE并阻止Start；只读源码，无native操作"
+    }
+  ],
+  "limitations": [
+    "未实测1.25GiB全负载，不声明最大容量实际通过",
+    "未操作realprofile/browser/installed，不改prod source，不delegate/Team/publish",
+    "父提供72MiB store/directBlob accepted、OPFSZIP75511309B/4804ms/Pythonv3pass未在本轮重跑，不覆盖contentJSONtransport",
+    "nativeUI由另一owner负责；不保证真实性或完整捕获",
+    "只对两项已确认根因closure，不扩大范围"
+  ],
+  "closures": [
+    {
+      "id": "S050-R1",
+      "verdict": "pass",
+      "scope": "source-only",
+      "sourceHashes": {
+        "app/src/flow-background.js": "d3415a987ca96d00a0c8c5471fd05c779d695e11a6290eb3514e2b518dd12807",
+        "app/src/flow-content.js": "89d40d51bbe9c1ad4a4b662cf7e769baca5b5324dbae1122987c0ddf9547dbfc"
+      },
+      "command": "node app/scripts/validation-probes/settings-v050-independent-transport-closure.mjs",
+      "exitCode": 0,
+      "cases": [
+        {
+          "name": "ASCII3MiB",
+          "bytes": 3145728,
+          "parts": 24,
+          "messageMaximumBytes": 131280,
+          "accepted": 1,
+          "sha256": "6f850bc94ae6f7de14297c01616c36d712d22864497b28a63b81d776b035e656"
+        },
+        {
+          "name": "emoji-cross-boundary",
+          "bytes": 2228227,
+          "parts": 18,
+          "messageMaximumBytes": 131293,
+          "accepted": 1,
+          "sha256": "d6cf7e55c6f2f5f78bf5cc4bceaddd13df97ada82c2e8859536f0d2f8ce494d7"
+        }
+      ],
+      "guards": "重复首片回执稳定，冲突duplicate和乱序index2都拒绝，所有接收累计字节/最终Blob大小及SHA256逐案匹配"
+    },
+    {
+      "id": "S050-R2",
+      "verdict": "pass",
+      "scope": "source-only-independent-original-counterexample",
+      "sourceHashes": {
+        "app/skills/extension-logic-clone/scripts/index_archive.py": "01b0ab0a95548b6a4fe4fd9d7c8f137e058856981156a6ae197a2d5bbbf4193c",
+        "app/skills/extension-logic-clone/scripts/read_content.py": "87b54a93c30cf26ef68210d980f1f51b7344d0224ddf07b2a53253dea513ddf4"
+      },
+      "command": "python app/scripts/validation-probes/settings-v050-independent-reader-closure.py",
+      "exitCode": 0,
+      "originalCounterexample": {
+        "eventBytes": 660578,
+        "derivedEventCap": 655360,
+        "logicalBytes": 661526,
+        "zipBytes": 4151
+      },
+      "actualReaderExitCode": 1,
+      "stderr": "Indexing failed: event line exceeds limit: timeline/events-00001.jsonl:1",
+      "indexCleaned": true,
+      "sourceWiring": {
+        "index_archive.py:353": "limits = validate_flow_policy(manifest) if flow else None",
+        "index_archive.py:354": "max_event_bytes uses derived eventBytes for v3, generic MAX_EVENT_BYTES for v1/v2",
+        "index_archive.py:400": "readline(max_event_bytes +1)",
+        "index_archive.py:406": "actual raw line length check including LF",
+        "index_archive.py:440": "content_references(payload,contents,limits)",
+        "index_archive.py:331-335": "derived maxContents and actual reference category/body cap",
+        "read_content.py:46-56": "recorded_event uses the same derived line cap"
+      }
+    }
+  ],
+  "finalSourceHashes": {
+    "app/src/flow-config.js": "622e3274a4010bdc2d8ab777254d20b7097d2eb911b84d6b941e5b0a0713f5b6",
+    "app/src/flow-budget.js": "495a1dba65b25114880b7036138a803e5652d6e72153257ffd5333815ee10a9d",
+    "app/src/flow-store.js": "f6c503a0e03b46fd5e11f11b521c4d097829ad8efc999c548416c1dc10f2f040",
+    "app/src/flow-archive.js": "45fab43ea59bd5c7822680aba5ac32b6d2aaa3418e97c1cb846e821600c1eefa",
+    "app/src/flow-zip64.js": "bd15b8ec0171dcf373128649910162fdbc9ac35664d7b083400b366830ccb2a1",
+    "app/src/flow-hash.js": "347d23919cce74c99ddc250e5555292ca9d8603694170cfb805f6e75bf96883f",
+    "app/src/panel-state.js": "3b2b0568606ff2b2989bf4743d616f27a80a6e915b6ea4878960e98040f24f4d",
+    "app/src/sidepanel.jsx": "617fd176896610eb24ea63722df6b86129bfb601b2d79e0a46b2ae7386365260",
+    "app/src/downloads.js": "6ffcf97b76d943d32565b6602dbac2aed892c048340ed83de721e4d778beea40",
+    "app/src/flow-background.js": "d3415a987ca96d00a0c8c5471fd05c779d695e11a6290eb3514e2b518dd12807",
+    "app/src/flow-content.js": "89d40d51bbe9c1ad4a4b662cf7e769baca5b5324dbae1122987c0ddf9547dbfc",
+    "app/skills/extension-logic-clone/scripts/index_archive.py": "01b0ab0a95548b6a4fe4fd9d7c8f137e058856981156a6ae197a2d5bbbf4193c",
+    "app/skills/extension-logic-clone/scripts/read_content.py": "87b54a93c30cf26ef68210d980f1f51b7344d0224ddf07b2a53253dea513ddf4"
+  }
+}

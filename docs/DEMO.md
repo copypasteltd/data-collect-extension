@@ -1,6 +1,10 @@
 # 界面与演示素材
 
-## v0.4.0 当前轻量版
+## v0.5.0 当前设置页
+
+[真实设置页截图](<media/v0.5.0-01-settings.png>)由[原生设置测试](<../app/tests/flow-settings.e2e.mjs>)生成，扩展真实HTML页面、320px无横向溢出；三倍率20、实际预算和仅下一批生效可见。使用合成数据和己有Chrome，不等于原生drawer或权限提示已认证。
+
+## v0.4.0 历史轻量版
 
 [准备](<media/v0.4.0-01-ready.png>) · [录制](<media/v0.4.0-02-recording.png>) · [批次](<media/v0.4.0-03-history.png>) · [样本页面](<media/v0.4.0-sample-site.png>)。由[轻量版截图脚本](<../app/scripts/capture-flow-ui.mjs>)生成，真实己有Chrome+合成数据，含根业务范围、64MiB及旧批次不迁移披露。临时副本预授权限不代表原生弹窗已验；下方旧版素材保留历史，不覆盖当前范围/验证。
 

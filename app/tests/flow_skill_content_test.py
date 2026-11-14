@@ -158,6 +158,60 @@ class ContentReaderTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(before, {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in before})
 
+    def test_configured_body_above_legacy_limit_streams_exact_bytes(self):
+        raw = b"synthetic-body-" * 230000
+        manifest, events, bins = self.fixture.fixture([b"synthetic-dom", raw])
+        fixtures.configured(manifest)
+        self.fixture.write_archive(manifest, events, bins)
+        result = self.fixture.run_index()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_read("--event-id", "e2", "--field", "body")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.output.stat().st_size, len(raw))
+        self.assertEqual(hashlib.sha256(self.output.read_bytes()).digest(), hashlib.sha256(raw).digest())
+        self.fixture.index.unlink()
+        manifest, events, bins = self.fixture.fixture([b"synthetic-dom", raw])
+        self.fixture.write_archive(manifest, events, bins)
+        self.fixture.assert_rejected()
+
+    def test_reader_default_limits_allow_maximum_batch_without_allocating_it(self):
+        import importlib.util
+        from unittest import mock
+        spec = importlib.util.spec_from_file_location("flow_content_reader", READ)
+        module = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(sys.modules, {"index_archive": fixtures.READER}):
+            spec.loader.exec_module(module)
+        captured = []
+        with (mock.patch.object(module, "extract", side_effect=lambda args: captured.append(args) or {}),
+              mock.patch.object(sys, "argv", [str(READ), "synthetic.zip", "synthetic.sqlite3",
+                                             "--content-id", "synthetic", "--output", "synthetic.bin"]),
+              mock.patch("builtins.print")):
+            module.main()
+        args = captured[0]
+        self.assertEqual(args.max_bytes, 1280 * 1024 * 1024)
+        self.assertEqual((args.max_expanded_bytes, args.max_archive_bytes), (1400 * 1024 * 1024,) * 2)
+
+    def test_previously_accepted_oversized_event_index_cannot_bypass_read_policy(self):
+        from unittest import mock
+        def oversized(event):
+            value = dict(event)
+            if value["seq"] == 1:
+                value["payload"] = dict(value["payload"], padding="A" * 660000)
+            return fixtures.encoded(value)
+        manifest, events, bins = self.fixture.current_fixture(oversized)
+        fixtures.configured(manifest)
+        self.fixture.write_archive(manifest, events, bins, event_encode=oversized)
+        raw_zip = self.fixture.archive.read_bytes()
+        identity = {"schemaVersion": 1, "sha256": hashlib.sha256(raw_zip).hexdigest(), "size": len(raw_zip)}
+        old_limits = fixtures.READER.derive_flow_limits(manifest["capturePolicy"]["settings"])
+        old_limits["budget"]["eventBytes"] = fixtures.READER.MAX_EVENT_BYTES
+        with zipfile.ZipFile(self.fixture.archive) as zf:
+            checked_manifest, chunks, checked = fixtures.READER.validate(zf, 512000000, 8192000000)
+            with mock.patch.object(fixtures.READER, "validate_flow_policy", return_value=old_limits):
+                fixtures.READER.build_index(zf, checked_manifest, chunks, checked, self.fixture.index, archive_identity=identity)
+        result = self.rejected("--event-id", "e1", "--field", "dom/标题~")
+        self.assertIn("Event line exceeds reader limit", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

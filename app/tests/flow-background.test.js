@@ -1,7 +1,9 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { createFlowBackground, FLOW_LIMITS } from "../src/flow-background.js";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS, MAX_MULTIPLIER, FLOW_SETTINGS_KEY, deriveFlowLimits } from "../src/flow-config.js";
 
 const clone = (value) => structuredClone(value);
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -59,7 +61,8 @@ function harness(options = {}) {
         return {};
       } },
   };
-  const bg = createFlowBackground({ chrome, store, now: () => clock, uuid: () => "id-" + ++serial, limits: { commandMs: 30, detachMs: 30, stopMs: 15, flushMs: 30, ...options.limits } });
+  const settingsStorage = options.settingsStorage ?? { async get() { return { [FLOW_SETTINGS_KEY]: LEGACY_FLOW_SETTINGS }; } };
+  const bg = createFlowBackground({ chrome, store, settingsStorage, now: () => clock, uuid: () => "id-" + ++serial, limits: { commandMs: 30, detachMs: 30, stopMs: 15, flushMs: 30, ...options.limits } });
   const sender = (tabId = 7, extra = {}) => ({ id: chrome.runtime.id, tab: { id: tabId }, frameId: 0, documentId: "doc-" + tabId, url: tabs.get(tabId)?.url, origin: new URL(tabs.get(tabId)?.url || root.url).origin, ...extra });
   const start = () => bg.handle({ type: "START", tab: { id: 7, url: "https://forged.test/" } });
   const settings = async (s = sender()) => (await bg.handle({ type: "FLOW_SETTINGS" }, s)).value;
@@ -350,7 +353,144 @@ it("new-worker recovery seals only active flow sessions, missing-read failure ca
 });
 it("source import graph contains no legacy browser-wide recorder or forbidden read commands", async () => {
   const source = await readFile(new URL("../src/flow-background.js", import.meta.url), "utf8");
-  assert.deepEqual([...source.matchAll(/^import .*from "([^"]+)"/gm)].map((match) => match[1]), ["./flow-store.js"]);
+  assert.deepEqual([...source.matchAll(/^import .*from "([^"]+)"/gm)].map((match) => match[1]), ["./flow-store.js", "./flow-config.js"]);
   for (const forbidden of ["registerContentScripts", "getRequestPostData", "getCookies", "getResourceTree", "captureVisibleTab", "Storage.", "IndexedDB.", "CacheStorage.", "tabs.query", "fetch("]) assert.equal(source.includes(forbidden), false, forbidden);
   assert.ok(source.split("\n").length <= 1000);
+});
+
+function memorySettings(initial) {
+  let saved = initial === undefined ? {} : { [FLOW_SETTINGS_KEY]: clone(initial) };
+  const calls = { gets: 0, sets: 0 };
+  return { calls, async get() { calls.gets++; return clone(saved); }, async set(value) { calls.sets++; saved = clone(value); } };
+}
+const tokens = (settings) => ({ sessionId: settings.sessionId, ownerToken: settings.ownerToken });
+const partMessage = (settings, overrides = {}) => ({ type: "FLOW_CONTENT_PART", ...tokens(settings), transferId: "synthetic-transfer", field: "sourceHtml", category: "dom", mime: "text/html", index: 0, parts: 2, byteLength: 2, text: "a", ...overrides });
+const transferEvent = (h, transferId = "synthetic-transfer") => ({ ...event(h, "page.snapshot", { reason: "checkpoint" }), contents: [{ field: "sourceHtml", category: "dom", mime: "text/html", transferId }] });
+
+it("GET/SAVE/RESET persist only exact settings and reject page or foreign controls", async () => {
+  const storage = memorySettings(), h = harness({ settingsStorage: storage });
+  const first = await h.bg.handle({ type: "GET_LIMIT_SETTINGS" });
+  assert.equal(first.ok, true); assert.deepEqual(first.value.settings, DEFAULT_FLOW_SETTINGS); assert.equal(first.value.maximumMultiplier, 20);
+  assert.equal(first.value.limits.budget.totalBytes, 1280 * 1024 * 1024);
+  for (const settings of [null, {}, { ...DEFAULT_FLOW_SETTINGS, schemaVersion: 2 }, { ...DEFAULT_FLOW_SETTINGS, budgetMultiplier: 0 },
+    { ...DEFAULT_FLOW_SETTINGS, queueMultiplier: 21 }, { ...DEFAULT_FLOW_SETTINGS, samplingMultiplier: 1.5 },
+    { ...DEFAULT_FLOW_SETTINGS, queueMultiplier: "2" }, { ...DEFAULT_FLOW_SETTINGS, extra: 1 }]) {
+    assert.equal((await h.bg.handle({ type: "SAVE_LIMIT_SETTINGS", settings })).ok, false);
+  }
+  assert.equal(storage.calls.sets, 0);
+  for (const type of ["GET_LIMIT_SETTINGS", "SAVE_LIMIT_SETTINGS", "RESET_LIMIT_SETTINGS"]) {
+    assert.equal((await h.bg.handle({ type, settings: LEGACY_FLOW_SETTINGS }, h.sender())).ok, false);
+    assert.equal((await h.bg.handle({ type, settings: LEGACY_FLOW_SETTINGS }, { id: "another-extension", url: h.chrome.runtime.getURL("panel.html") })).ok, false);
+  }
+  assert.equal(storage.calls.sets, 0);
+  const control = { id: h.chrome.runtime.id, tab: { id: 99 }, url: h.chrome.runtime.getURL("sidepanel.html") };
+  assert.equal((await h.bg.handle({ type: "SAVE_LIMIT_SETTINGS", settings: LEGACY_FLOW_SETTINGS }, control)).ok, true);
+  assert.deepEqual((await h.bg.handle({ type: "GET_LIMIT_SETTINGS" })).value.settings, LEGACY_FLOW_SETTINGS);
+  assert.deepEqual((await h.bg.handle({ type: "RESET_LIMIT_SETTINGS" })).value.settings, DEFAULT_FLOW_SETTINGS);
+  assert.equal(storage.calls.sets, 2); assert.equal(h.sessions.size, 0);
+});
+
+it("START reads once, freezes capture limits through live save and restarts with persisted settings", async () => {
+  const storage = memorySettings(), h = harness({ settingsStorage: storage });
+  const started = await h.start(); assert.equal(started.ok, true); assert.equal(storage.calls.gets, 1);
+  assert.deepEqual(started.value.capturePolicy.settings, DEFAULT_FLOW_SETTINGS);
+  assert.deepEqual(h.sessions.get(started.value.id).settings, DEFAULT_FLOW_SETTINGS);
+  const before = await h.settings();
+  assert.equal(before.captureLimits.background.body, 40 * 1024 * 1024);
+  await h.bg.handle({ type: "SAVE_LIMIT_SETTINGS", settings: LEGACY_FLOW_SETTINGS });
+  assert.deepEqual((await h.bg.handle({ type: "GET_LIMIT_SETTINGS" })).value.settings, LEGACY_FLOW_SETTINGS);
+  assert.deepEqual((await h.settings()).captureLimits, before.captureLimits);
+  assert.deepEqual((await h.bg.handle({ type: "FLOW_READY", ...tokens(before) }, h.sender())).value.captureLimits, before.captureLimits);
+  await h.stop();
+  let serial = 0;
+  const restarted = createFlowBackground({ chrome: h.chrome, store: h.store, settingsStorage: storage, uuid: () => "restart-" + ++serial });
+  const second = await restarted.handle({ type: "START", tab: { id: 7 } });
+  assert.deepEqual(second.value.capturePolicy.settings, LEGACY_FLOW_SETTINGS);
+  const current = (await restarted.handle({ type: "FLOW_SETTINGS" }, h.sender())).value;
+  assert.equal(current.captureLimits.background.body, 2 * 1024 * 1024);
+  await restarted.handle({ type: "STOP", sessionId: second.value.id });
+  assert.equal(h.calls.filter((call) => call.type === "patch").some((call) => call.patch.settings || call.patch.capturePolicy || call.patch.budget), false);
+});
+
+it("settings storage failures are surfaced and missing mock storage alone may use defaults", async () => {
+  const h = harness(), storage = { async get() { throw new Error("settings-read-failed"); }, async set() { throw new Error("settings-write-failed"); } };
+  const failed = createFlowBackground({ chrome: { ...h.chrome, storage: { local: storage } }, store: h.store });
+  assert.match((await failed.handle({ type: "GET_LIMIT_SETTINGS" })).error, /settings-read-failed/);
+  assert.match((await failed.handle({ type: "START", tab: { id: 7 } })).error, /settings-read-failed/); assert.equal(h.sessions.size, 0);
+  assert.match((await failed.handle({ type: "SAVE_LIMIT_SETTINGS", settings: LEGACY_FLOW_SETTINGS })).error, /settings-write-failed/);
+  assert.match((await failed.handle({ type: "RESET_LIMIT_SETTINGS" })).error, /settings-write-failed/);
+  const malformed = createFlowBackground({ chrome: { ...h.chrome, storage: {} }, store: h.store });
+  assert.equal((await malformed.handle({ type: "GET_LIMIT_SETTINGS" })).ok, false);
+  const mock = createFlowBackground({ chrome: h.chrome, store: h.store });
+  assert.deepEqual((await mock.handle({ type: "GET_LIMIT_SETTINGS" })).value.settings, DEFAULT_FLOW_SETTINGS);
+});
+
+it("accepts a CDP body over 2 MiB at 20x while 1x skips it before reading", async () => {
+  const body = "x".repeat(3 * 1024 * 1024);
+  for (const settings of [LEGACY_FLOW_SETTINGS, DEFAULT_FLOW_SETTINGS]) {
+    const h = harness({ settingsStorage: memorySettings(settings), command: (_tab, method) => method === "Network.getResponseBody" ? { body, base64Encoded: false } : undefined });
+    await h.start(); await h.request(7, "large"); await h.response(7, "large", { headers: { "content-length": String(body.length) } }, { encodedDataLength: body.length });
+    const response = h.events.find((entry) => entry.kind === "network.response");
+    assert.equal(h.contents.some((content) => content.bytes === body), settings.budgetMultiplier === 20);
+    assert.equal(h.calls.some((call) => call.method === "Network.getResponseBody"), settings.budgetMultiplier === 20);
+    if (settings.budgetMultiplier === 1) assert.equal(response.payload.bodyStatus.reason, "known_body_limit");
+    await h.stop();
+  }
+});
+
+it("assembles ASCII and UTF-8 content using the content script chunk size, confirming Blob hashes and exact retries", async () => {
+  const contentSource = await readFile(new URL("../src/flow-content.js", import.meta.url), "utf8");
+  const partChars = Number(contentSource.match(/PART_CHARS = (\d+)/)[1]); assert.equal(partChars, 131072);
+  for (const raw of ["x".repeat(3 * 1024 * 1024), "x".repeat(partChars - 1) + "💆" + "中".repeat(1000000)]) {
+    const h = harness({ settingsStorage: memorySettings(DEFAULT_FLOW_SETTINGS) }); await h.start(); const settings = await h.settings(), pieces = [];
+    for (let offset = 0; offset < raw.length;) { let end = Math.min(raw.length, offset + partChars); if (end < raw.length && /[\uD800-\uDBFF]/.test(raw[end - 1])) end--; pieces.push(raw.slice(offset, end)); offset = end; }
+    let receivedBytes = 0;
+    for (let index = 0; index < pieces.length; index++) {
+      const part = partMessage(settings, { index, parts: pieces.length, byteLength: Buffer.byteLength(raw), text: pieces[index] });
+      const reply = await h.bg.handle(part, h.sender()); receivedBytes += Buffer.byteLength(pieces[index]);
+      assert.deepEqual(reply, { ok: true, value: { transferId: part.transferId, index, receivedBytes, complete: index + 1 === pieces.length } });
+      assert.deepEqual(await h.bg.handle(part, h.sender()), reply); assert.equal(h.contents.length, 0);
+    }
+    const list = [transferEvent(h)], final = await h.batch(h.sender(), settings, list, "transfer-batch");
+    assert.equal(final.value.accepted, 1); assert.equal(h.contents.length, 1);
+    assert.ok(h.contents[0].bytes instanceof Blob); assert.equal(await h.contents[0].bytes.text(), raw);
+    assert.equal(createHash("sha256").update(Buffer.from(await h.contents[0].bytes.arrayBuffer())).digest("hex"), createHash("sha256").update(raw).digest("hex"));
+    assert.deepEqual(await h.batch(h.sender(), settings, list, "transfer-batch"), final); assert.equal(h.contents.length, 1);
+    assert.equal((await h.batch(h.sender(), settings, list, "reused-transfer")).ok, false); await h.stop();
+  }
+});
+
+it("rejects malformed, reordered, foreign and incomplete part references; navigation and Stop clear incomplete transfers", async () => {
+  const h = harness(); await h.start(); const settings = await h.settings(), part = partMessage(settings);
+  assert.equal((await h.bg.handle({ ...part, index: 1 }, h.sender())).ok, false);
+  assert.equal((await h.bg.handle({ ...part, ownerToken: "stale" }, h.sender())).ok, false);
+  assert.equal((await h.bg.handle({ ...part, parts: 999999 }, h.sender())).ok, false);
+  assert.equal((await h.bg.handle({ ...part, byteLength: 2 * 1024 * 1024 + 1 }, h.sender())).ok, false);
+  assert.equal((await h.bg.handle(part, h.sender())).ok, true);
+  assert.equal((await h.bg.handle({ ...part, text: "b" }, h.sender())).ok, false);
+  assert.equal((await h.batch(h.sender(), settings, [transferEvent(h)])).ok, false);
+  const oversized = partMessage(settings, { transferId: "oversized", text: "x".repeat(262145), byteLength: 262146 });
+  assert.equal((await h.bg.handle(oversized, h.sender())).ok, false);
+  h.frames.set(7, [{ frameId: 0, url: h.tabs.get(7).url, documentId: "doc-next" }]);
+  await h.bg.committed({ tabId: 7, frameId: 0, url: h.tabs.get(7).url, documentId: "doc-next" });
+  assert.equal((await h.bg.handle({ ...part, index: 1, text: "b" }, h.sender())).ok, false);
+  const current = h.sender(7, { documentId: "doc-next" });
+  assert.equal((await h.bg.handle({ ...part, index: 1, text: "b" }, current)).ok, false);
+  assert.equal((await h.batch(current, settings, [transferEvent(h)], "after-navigation")).ok, false);
+  assert.equal((await h.bg.handle(part, current)).ok, true);
+  const stopped = await h.stop(); assert.equal(stopped.value.status, "ready");
+  assert.equal(stopped.value.coverage.reasons.content_transfer_navigation, 1); assert.equal(stopped.value.coverage.reasons.content_transfer_incomplete, 1);
+  assert.equal(h.contents.length, 0);
+});
+
+it("preflights declared 40 MiB transfers without allocating them and atomically bounds concurrent reservations", async () => {
+  const h = harness({ settingsStorage: memorySettings(DEFAULT_FLOW_SETTINGS) }); await h.start(); const settings = await h.settings();
+  const max = deriveFlowLimits(DEFAULT_FLOW_SETTINGS).background.body;
+  for (let n = 0; n < 4; n++) {
+    const result = await h.bg.handle(partMessage(settings, { transferId: "reserved-" + n, byteLength: max, parts: Math.ceil(max / 131072) }), h.sender());
+    assert.equal(result.ok, true);
+  }
+  const overflow = await h.bg.handle(partMessage(settings, { transferId: "overflow", byteLength: max, parts: Math.ceil(max / 131072) }), h.sender());
+  assert.equal(overflow.value.policyStopped, true);
+  const stopped = await h.stop(); assert.equal(stopped.value.stopOutcome.reason, "content_transfer_queue_limit"); assert.equal(h.contents.length, 0);
 });

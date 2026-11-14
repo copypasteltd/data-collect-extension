@@ -19,6 +19,8 @@ MAX_EVENTS = 1000000
 MAX_SAFE_INTEGER = 9007199254740991
 CONTENT_FIELDS = {"contentId", "sha256", "size", "mime", "category", "status"}
 CONTENT_CATEGORIES = {"body", "dom", "resource", "screenshot", "meta"}
+MIB = 1024 * 1024
+LEGACY_FLOW_SETTINGS = {"schemaVersion": 1, "budgetMultiplier": 1, "queueMultiplier": 1, "samplingMultiplier": 1}
 
 
 def fail(message):
@@ -146,6 +148,74 @@ def validate(zf, max_entry, max_total):
     return manifest, chunks, checked
 
 
+def validate_flow_settings(value):
+    if (not isinstance(value, dict) or set(value) != set(LEGACY_FLOW_SETTINGS)
+            or type(value.get("schemaVersion")) is not int or value["schemaVersion"] != 1
+            or any(not safe_integer(value[key], 1) or value[key] > 20
+                   for key in ("budgetMultiplier", "queueMultiplier", "samplingMultiplier"))):
+        fail("invalid flow settings; multipliers must be integers from 1 to 20")
+    return value
+
+
+def derive_flow_limits(settings):
+    # Mirrors app/src/flow-config.js; a record cannot authorize arbitrary limits.
+    validate_flow_settings(settings)
+    b, q, s = (settings[key] for key in ("budgetMultiplier", "queueMultiplier", "samplingMultiplier"))
+    budget = {"totalBytes": 64 * MIB * b, "warningBytes": 48 * MIB * b, "reserveBytes": MIB * b,
+              "normalBytes": 63 * MIB * b, "eventBytes": 32 * 1024 * b, "singleBodyBytes": 2 * MIB * b,
+              "maxBodyBytes": 2 * MIB * b, "normalMetaBytes": 3 * MIB * b,
+              "categoryBytes": {key: value * MIB * b for key, value in
+                                (("body", 24), ("dom", 16), ("resource", 8), ("screenshot", 12), ("meta", 4))}}
+    background = {"body": 2 * MIB * b, "resource": 8 * MIB * b, "screenshot": 4 * MIB * b,
+                  "metadata": 32 * 1024 * b, "batchBytes": 4 * MIB * q, "queuedBytes": 8 * MIB * q,
+                  "queue": 64 * q, "requests": 128 * q, "frames": 32 * s, "batch": 64 * q,
+                  "streams": 32 * s, "resourceObservations": 128 * s, "notices": 24 * s, "batchHistory": 256 * q,
+                  "screenshotInterval": 1000, "flushMs": 3000, "stopMs": 300, "detachMs": 2000, "commandMs": 2000}
+    content = {"maxBytes": 2 * MIB * b, "metadataBytes": 30 * 1024 * b, "queueEvents": 32 * q,
+               "queueBytes": 6 * MIB * q, "batchEvents": 8 * q, "pendingInputs": 32 * q,
+               "domNodes": 12000 * s, "shadowHosts": 16 * s, "shadowNodes": 2000 * s, "formCount": 128 * s,
+               "formMetadataBytes": 16000 * b, "formMetadataSoftBytes": 14000 * b, "maxContents": 16 * s,
+               "stylesheetCount": 32 * s, "stylesheetRulesPerSheet": 2000 * s, "stylesheetRules": 8000 * s,
+               "stylesheetHashes": 256 * s, "resourceUrls": 128 * s, "resourceHashes": 256 * s,
+               "resourceMetadataBytes": 14000 * b, "stylesheetMetadataBytes": 6000 * b, "transientNodes": 8 * s,
+               "transientBytes": 8192 * b, "transientTextBytes": 7000 * b, "transientTextNodes": 128 * s,
+               "mutationRecords": 64 * s, "mutationChildren": 8 * s, "domDepth": 64, "transientDepth": 8,
+               "ancestorDepth": 5, "attributeCount": 64}
+    return {"settings": settings, "budget": budget, "background": background, "content": content}
+
+
+def matches_limits(value, expected):
+    if isinstance(expected, dict):
+        return (isinstance(value, dict) and set(value) == set(expected)
+                and all(matches_limits(value[key], item) for key, item in expected.items()))
+    return safe_integer(value) and value == expected
+
+
+def validate_flow_policy(manifest):
+    policy, budget, session = manifest["capturePolicy"], manifest["budget"], manifest["session"]
+    settings = validate_flow_settings(policy["settings"]) if "settings" in policy else LEGACY_FLOW_SETTINGS
+    derived = derive_flow_limits(settings)
+    if "settings" in budget and validate_flow_settings(budget["settings"]) != settings:
+        fail("budget settings do not match capture policy")
+    if "capturePolicy" in session and (not isinstance(session["capturePolicy"], dict)
+            or json.dumps(session["capturePolicy"], sort_keys=True) != json.dumps(policy, sort_keys=True)):
+        fail("session capture policy does not match manifest")
+    for key, expected in (("limits", derived["budget"]),
+                          ("runtimeLimits", {key: derived[key] for key in ("background", "content")})):
+        if key in policy and not matches_limits(policy[key], expected):
+            fail("capture policy limits do not match settings")
+    limits = derived["budget"]
+    for key, expected in (("limitBytes", limits["totalBytes"]), ("reserveBytes", limits["reserveBytes"])):
+        if key in budget and budget[key] != expected:
+            fail("budget limits do not match settings")
+    if budget.get("usedBytes", 0) > limits["totalBytes"]:
+        fail("budget exceeds configured total")
+    for key, value in budget.get("byCategory", {}).items():
+        if key not in limits["categoryBytes"] or value > limits["categoryBytes"][key]:
+            fail("category budget exceeds configured limit")
+    return derived
+
+
 def validate_flow_manifest(manifest, chunks, checked):
     session = manifest["session"]
     if (manifest.get("profile") != "business-flow-v1" or manifest.get("derivations") != "none"
@@ -190,6 +260,7 @@ def validate_flow_manifest(manifest, chunks, checked):
         if (not isinstance(ledger, dict) or any(not safe_integer(ledger.get(key)) for key in
                 ("eventJsonlBytes", "uniqueContentBytes", "storedLogicalBytes"))):
             fail("invalid byte accounting")
+    derived = validate_flow_policy(manifest)
     expected_chunks = [f"timeline/events-{index:05d}.jsonl" for index in range(1, len(chunks) + 1)]
     if chunks != expected_chunks or {name for name in checked if name.startswith("timeline/")} != set(chunks):
         fail("event chunks are unordered, nonconsecutive, or unlisted")
@@ -209,13 +280,18 @@ def validate_flow_manifest(manifest, chunks, checked):
                 or content_id != f"{session['id']}:{sha256}"
                 or path != f"contents/{sha256}.bin" or content_id in content_ids or path in paths):
             fail("invalid or duplicate manifest content")
+        if size > derived["budget"]["categoryBytes"][category] or (category == "body" and size > derived["budget"]["singleBodyBytes"]):
+            fail("content exceeds configured category or single body limit")
         if path not in checked or checked[path] != (size, sha256):
             fail("manifest content does not match verified ZIP entry")
         content_ids.add(content_id)
         paths.add(path)
     if {name for name in checked if name.startswith("contents/")} != paths:
         fail("unlisted or missing content entry")
-    verify_byte_accounting(manifest, sum(checked[name][0] for name in chunks))
+    event_bytes = sum(checked[name][0] for name in chunks)
+    if event_bytes + sum(content["size"] for content in contents) > derived["budget"]["totalBytes"]:
+        fail("verified raw bytes exceed configured total")
+    verify_byte_accounting(manifest, event_bytes)
 
 
 def verify_byte_accounting(manifest, event_bytes):
@@ -231,9 +307,10 @@ def verify_byte_accounting(manifest, event_bytes):
         fail("budget usedBytes does not match byte accounting")
 
 
-def content_references(payload, contents):
+def content_references(payload, contents, limits=None):
     # Only store-assigned top-level captured references are schema markers.
     # Do not recurse into arbitrary business objects or infer references from an id alone.
+    count = 0
     for field, value in payload.items():
         if not isinstance(value, dict) or value.get("status") != "captured" or "contentId" not in value:
             continue
@@ -248,6 +325,14 @@ def content_references(payload, contents):
         content = contents[content_id]
         if value["sha256"] != content["sha256"] or value["size"] != content["size"]:
             fail("captured content reference size or checksum mismatch")
+        count += 1
+        if limits is not None:
+            budget = limits["budget"]
+            if count > limits["content"]["maxContents"]:
+                fail("event content reference count exceeds configured limit")
+            if (value["size"] > budget["categoryBytes"][value["category"]]
+                    or (value["category"] == "body" and value["size"] > budget["singleBodyBytes"])):
+                fail("content reference exceeds configured category or single body limit")
         # A later observation may use a different MIME/category for the same stored bytes.
         yield field, content_id, value["mime"], value["category"]
 
@@ -265,6 +350,8 @@ def scalar(value):
 def build_index(zf, manifest, chunks, checked, target, archive_identity=None):
     flow = manifest["version"] == 3
     contents = {entry["contentId"]: entry for entry in manifest["contents"]} if flow else {}
+    limits = validate_flow_policy(manifest) if flow else None
+    max_event_bytes = limits["budget"]["eventBytes"] if flow else MAX_EVENT_BYTES
     fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     os.close(fd)
     db = None
@@ -310,13 +397,13 @@ def build_index(zf, manifest, chunks, checked, target, archive_identity=None):
             with zf.open(name) as stream:
                 line_number = 0
                 while True:
-                    line = stream.readline(MAX_EVENT_BYTES + 1)
+                    line = stream.readline(max_event_bytes + 1)
                     if not line:
                         break
                     chunk_digest.update(line)
                     chunk_size += len(line)
                     line_number += 1
-                    if len(line) > MAX_EVENT_BYTES:
+                    if len(line) > max_event_bytes:
                         fail(f"event line exceeds limit: {name}:{line_number}")
                     if not line.strip():
                         continue
@@ -350,7 +437,7 @@ def build_index(zf, manifest, chunks, checked, target, archive_identity=None):
                     if flow:
                         db.executemany("INSERT INTO content_refs VALUES (?,?,?,?,?)", (
                             (event_id, field, content_id, mime, category)
-                            for field, content_id, mime, category in content_references(payload, contents)))
+                            for field, content_id, mime, category in content_references(payload, contents, limits)))
                     kinds[kind] += 1
                     last_kind, last_id = kind, event_id
             event_bytes += chunk_size
@@ -385,6 +472,7 @@ def build_index(zf, manifest, chunks, checked, target, archive_identity=None):
         return {"verification": "passed", "version": manifest["version"], "events": count,
                 "files": len(checked), "contentCount": len(contents), "event_types": dict(sorted(kinds.items())),
                 "profile": "business-flow-v1" if flow else None, "partial": manifest.get("partial") if flow else None,
+                "settings": dict(manifest["capturePolicy"].get("settings", LEGACY_FLOW_SETTINGS)) if flow else None,
                 "recordedCoverage": recorded_coverage,
                 "policyStopped": manifest["budget"].get("policyStopped") if flow else None,
                 "byteAccountingVerification": "performed" if flow and "byteAccounting" in manifest else "not_performed",

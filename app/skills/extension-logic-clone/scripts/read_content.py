@@ -35,7 +35,7 @@ def query_manifest(db):
     return reader.decode_json(row[0].encode("utf-8"))
 
 
-def recorded_event(zf, db, event_id, chunks, checked):
+def recorded_event(zf, db, event_id, chunks, checked, limits=None):
     row = db.execute("SELECT chunk,line,event_json FROM events WHERE id=?", (event_id,)).fetchone()
     if row is None:
         raise ValueError("Requested event is absent")
@@ -43,15 +43,16 @@ def recorded_event(zf, db, event_id, chunks, checked):
     if chunk not in chunks or chunk not in checked or not reader.safe_integer(number, 1):
         raise ValueError("Invalid indexed event location")
     selected = None
+    max_event_bytes = limits["budget"]["eventBytes"] if limits is not None else reader.MAX_EVENT_BYTES
     digest = hashlib.sha256()
     size = 0
     with zf.open(chunk) as stream:
         line_number = 0
         while True:
-            line = stream.readline(reader.MAX_EVENT_BYTES + 1)
+            line = stream.readline(max_event_bytes + 1)
             if not line:
                 break
-            if len(line) > reader.MAX_EVENT_BYTES:
+            if len(line) > max_event_bytes:
                 raise ValueError("Event line exceeds reader limit")
             line_number += 1
             digest.update(line)
@@ -103,14 +104,15 @@ def extract(args):
                     raise ValueError("read_content.py requires v3; use the documented legacy route for v1/v2")
                 if query_manifest(db) != manifest:
                     raise ValueError("Indexed manifest differs from source ZIP")
+                limits = reader.validate_flow_policy(manifest)
                 contents = {item["contentId"]: item for item in manifest["contents"]}
                 event = chunk = line = field = None
                 reference = None
                 if args.event_id:
-                    event, chunk, line = recorded_event(zf, db, args.event_id, chunks, checked)
+                    event, chunk, line = recorded_event(zf, db, args.event_id, chunks, checked, limits)
                     field = args.field
                     refs = {name: (cid, mime, category) for name, cid, mime, category
-                            in reader.content_references(event["payload"], contents)}
+                            in reader.content_references(event["payload"], contents, limits)}
                     if field not in refs:
                         raise ValueError("Field is not a captured top-level content reference")
                     content_id, mime, category = refs[field]
@@ -172,9 +174,9 @@ def main():
     selection.add_argument("--content-id")
     parser.add_argument("--field", help="literal payload key, not JSON Pointer; for example sourceHtml or formValue2")
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024)
-    parser.add_argument("--max-expanded-bytes", type=int, default=72 * 1024 * 1024)
-    parser.add_argument("--max-archive-bytes", type=int, default=128 * 1024 * 1024)
+    parser.add_argument("--max-bytes", type=int, default=1280 * 1024 * 1024)
+    parser.add_argument("--max-expanded-bytes", type=int, default=1400 * 1024 * 1024)
+    parser.add_argument("--max-archive-bytes", type=int, default=1400 * 1024 * 1024)
     result = extract(parser.parse_args())
     print(json.dumps(result, ensure_ascii=True))
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS, deriveFlowLimits } from "../src/flow-config.js";
 
 const source = await readFile(new URL("../src/flow-content.js", import.meta.url), "utf8");
 class Events {
@@ -25,9 +26,9 @@ function element(tag, attrs = {}, children = []) {
 }
 const text = (data) => ({ nodeType: 3, data, length: data.length });
 const input = (value = "old") => Object.assign(element("input", { id: "customer", type: "text" }), { value, checked: false, disabled: false });
-function harness({ body = element("body", {}, [input()]), sheets = [], reply, settings, crypto = webcrypto } = {}) {
+function harness({ body = element("body", {}, [input()]), sheets = [], reply, settings, partReply, captureLimits, crypto = webcrypto } = {}) {
   let now = 10000, counter = 0;
-  const jobs = new Map(), messages = [], listeners = new Set(), observers = [], acknowledgements = new Set();
+  const transfers = new Map(), jobs = new Map(), messages = [], listeners = new Set(), observers = [], acknowledgements = new Set();
   const document = Object.assign(new Events(), { documentElement: element("html", {}, [body]), baseURI: "https://sample.test/order", title: "Synthetic order", styleSheets: sheets });
   const window = new Events(), location = { href: document.baseURI };
   class DateMock extends Date { static now() { return now; } }
@@ -36,7 +37,14 @@ function harness({ body = element("body", {}, [input()]), sheets = [], reply, se
     onMessage: { addListener(fn) { listeners.add(fn); }, removeListener(fn) { listeners.delete(fn); } },
     sendMessage(message) {
       messages.push(message);
-      if (message.type === "FLOW_SETTINGS") return settings ? settings(message) : Promise.resolve({ ok: true, value: { sessionId: "s1", ownerToken: "t1", profile: "business-flow-v1" } });
+      if (message.type === "FLOW_SETTINGS") return settings ? settings(message) : Promise.resolve({ ok: true, value: { sessionId: "s1", ownerToken: "t1", profile: "business-flow-v1", ...(captureLimits ? { captureLimits } : {}) } });
+      if (message.type === "FLOW_CONTENT_PART") {
+        let transfer = transfers.get(message.transferId);
+        if (!transfer) { transfer = []; transfers.set(message.transferId, transfer); }
+        transfer[message.index] = message.text;
+        return Promise.resolve(partReply ? partReply(message) : { ok: true, value: { transferId: message.transferId, index: message.index,
+          receivedBytes: Buffer.byteLength(transfer.join("")), complete: transfer.filter((part) => part !== undefined).length === message.parts } });
+      }
       if (message.type === "FLOW_EVENTS") {
         const result = reply ? reply(message) : { ok: true, value: { accepted: message.events.length, failed: 0, policyStopped: false } };
         return Promise.resolve(result).then((ack) => { acknowledgements.add(message.batchId); return ack; });
@@ -69,7 +77,8 @@ function harness({ body = element("body", {}, [input()]), sheets = [], reply, se
   const run = () => vm.runInContext(source, context, { timeout: 2000 }); run();
   return { context, document, window, location, messages, observers, listeners, advance, until, request, mutate, run,
     allAcknowledged: () => messages.filter((m) => m.type === "FLOW_EVENTS").every((m) => acknowledgements.has(m.batchId)),
-    events: () => messages.filter((m) => m.type === "FLOW_EVENTS").flatMap((m) => m.events),
+    events: () => messages.filter((m) => m.type === "FLOW_EVENTS").flatMap((m) => m.events).map((event) => ({ ...event, ...(event.contents ? { contents: event.contents.map((content) => content.transferId ? { ...content, bytes: transfers.get(content.transferId)?.join("") } : content) } : {}) })),
+    transfers,
     dispose: () => context.__logicRecorderFlowV1.dispose() };
 }
 const snapshots = (h) => h.events().filter((e) => e.kind === "page.snapshot");
@@ -299,4 +308,77 @@ test("reinjection replaces only confirmed new ownership and old token cannot sto
   assert.equal(h.listeners.size, 1);
   const result = await h.request("STOP_CAPTURE"); assert.equal(result.ok, false); assert.ok(h.document.count());
   assert.equal((await h.request("STOP_CAPTURE", { ownerToken: "t2" })).ok, true); assert.equal(h.document.count(), 0); h.dispose();
+});
+
+test("controller-provided 20x limits capture DOM over 2 MiB and input via small acknowledged surrogate-safe messages", async () => {
+  const raw = "x".repeat(131071) + "💆" + "中".repeat(1000000), field = input("old");
+  const h = harness({ body: element("body", {}, [element("p", {}, [text(raw)]), field]), captureLimits: deriveFlowLimits(DEFAULT_FLOW_SETTINGS) });
+  await h.until(() => snapshots(h).length === 1 && h.allAcknowledged(), "large DOM and part acknowledgements");
+  assert.ok(html(snapshots(h)[0]).includes(raw));
+  assert.ok(!snapshots(h)[0].payload.policies.includes("text-size-limit"));
+  field.value = raw; h.document.dispatch("change", field);
+  await h.until(() => h.events().some((event) => event.kind === "ui.change") && h.allAcknowledged(), "large input acknowledgements");
+  assert.equal(h.events().find((event) => event.kind === "ui.change").contents.find((content) => content.field === "value").bytes, raw);
+  const parts = h.messages.filter((message) => message.type === "FLOW_CONTENT_PART"); assert.ok(parts.length > 2);
+  assert.ok(parts.some((part) => part.text.includes("💆")));
+  for (const part of parts) {
+    assert.ok(part.text.length <= 262144); assert.ok(Buffer.byteLength(JSON.stringify(part)) <= 1024 * 1024);
+    if (part.index + 1 < part.parts) assert.doesNotMatch(part.text, /[\uD800-\uDBFF]$/);
+  }
+  for (const message of h.messages.filter((message) => message.type === "FLOW_EVENTS")) {
+    assert.ok(Buffer.byteLength(JSON.stringify(message)) < 4 * 1024 * 1024);
+    for (const event of message.events) for (const content of event.contents || []) {
+      if (content.transferId) assert.equal(Object.hasOwn(content, "bytes"), false);
+      else assert.ok(Buffer.byteLength(content.bytes) <= 1024 * 1024);
+    }
+  }
+  h.dispose();
+});
+
+test("sampling policy expands node, stylesheet and content counts while depth and checkpoint throttle stay fixed", async () => {
+  const children = Array.from({ length: 13000 }, () => element("p", {}, [text("x")]));
+  children.push(...Array.from({ length: 20 }, () => input("原".repeat(2000))));
+  let deep = element("p", {}, [text("deep")]); for (let i = 0; i < 70; i++) deep = element("section", {}, [deep]); children.push(deep);
+  const sheets = Array.from({ length: 40 }, (_, n) => ({ href: "https://sample.test/" + n + ".css", cssRules: [{ cssText: ".item" + n + "{color:red}" }] }));
+  const h = harness({ body: element("body", {}, children), sheets, captureLimits: deriveFlowLimits(DEFAULT_FLOW_SETTINGS) });
+  await h.until(() => snapshots(h).length === 1 && h.allAcknowledged(), "expanded bounded sampling");
+  const snapshot = snapshots(h)[0]; assert.ok(snapshot.payload.nodes > 12000); assert.ok(snapshot.payload.nodes <= 240000);
+  assert.ok(!snapshot.payload.policies.includes("dom-scan-limit")); assert.ok(snapshot.payload.policies.includes("dom-depth-limit"));
+  assert.equal(snapshot.payload.stylesheets.length, 40); assert.equal(snapshot.contents.length, 21);
+  assert.equal(h.events().filter((event) => event.kind === "page.stylesheet").length, 40);
+  h.document.dispatch("click", children[0]); await h.advance(600);
+  await h.until(() => snapshots(h).length === 2 && h.allAcknowledged(), "expanded second snapshot acknowledgement");
+  assert.ok(snapshots(h)[1].time - snapshot.time >= 500); h.dispose();
+});
+
+test("20x queue admits more than 32 events while legacy collector reports the same queue boundary", async () => {
+  for (const settings of [LEGACY_FLOW_SETTINGS, DEFAULT_FLOW_SETTINGS]) {
+    let hold = false;
+    const field = input(), h = harness({ body: element("body", {}, [field]), captureLimits: deriveFlowLimits(settings), reply: (message) => hold ? new Promise(() => {}) : { ok: true, value: { accepted: message.events.length, failed: 0, policyStopped: false } } });
+    await h.advance(); hold = true;
+    for (let i = 0; i < 40; i++) { field.value = "queued-" + i; h.document.dispatch("change", field); }
+    await h.advance();
+    assert.equal(h.messages.some((message) => message.type === "FLOW_POLICY_STOPPED" && message.reason === "content-queue-limit"), settings.queueMultiplier === 1);
+    h.dispose();
+  }
+});
+
+test("part ACKs must be exact and final events wait for confirmed bytes", async () => {
+  let release, hold = true;
+  const raw = "x".repeat(1200000), h = harness({ body: element("body", {}, [text(raw)]), captureLimits: deriveFlowLimits(DEFAULT_FLOW_SETTINGS),
+    partReply: (message) => hold ? new Promise((resolve) => { release = () => resolve({ ok: true, value: { transferId: message.transferId, index: message.index, receivedBytes: Buffer.byteLength(message.text), complete: false } }); }) :
+      { ok: true, value: { transferId: message.transferId, index: message.index, receivedBytes: -1, complete: false } } });
+  await h.until(() => !!release, "first pending part acknowledgement");
+  assert.equal(h.messages.filter((message) => message.type === "FLOW_EVENTS").length, 0);
+  hold = false; release(); await h.advance();
+  assert.equal(h.messages.filter((message) => message.type === "FLOW_EVENTS").length, 0);
+  const pending = h.request("FLOW_FLUSH"); await h.advance(600); const flushed = await pending;
+  assert.equal(flushed.ok, false); assert.ok(flushed.value.failed > 0); assert.equal(flushed.value.confirmed, false); h.dispose();
+});
+
+test("legacy settings fallback applies only when captureLimits is absent; malformed policy never starts", async () => {
+  const raw = "x".repeat(3 * 1024 * 1024), old = harness({ body: element("body", {}, [text(raw)]) }); await old.advance();
+  assert.ok(snapshots(old)[0].payload.policies.includes("text-size-limit")); old.dispose();
+  const malformed = harness({ captureLimits: { content: { maxBytes: 99999999 } } }); await malformed.advance();
+  assert.equal(malformed.document.count(), 0); assert.equal(malformed.events().length, 0);
 });

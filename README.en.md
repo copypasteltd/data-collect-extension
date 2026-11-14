@@ -1,10 +1,18 @@
 # Logic Recorder
 
-**v0.4.0 lightweight business-flow recorder.** Capture an explicitly selected workflow's key actions, page states and API samples, then export locally. Not a browser-wide backup or an automatic theme/schema analysis engine.
+**v0.5.0 configurable-limit business-flow recorder.** Capture an explicitly selected workflow's key actions, page states and API samples, then export locally. Not a browser-wide backup or an automatic theme/schema analysis engine.
 
-[中文](<README.md>) · [Install/use](<docs/精简/2026-11-14-v0.4.0/INSTALL.md>) · [Actual verification](<docs/精简/2026-11-14-v0.4.0/REPORT.md>) · [Contract](<docs/精简/2026-11-14-v0.4.0/CONTRACT.md>)
+[中文](<README.md>) · [Install/use](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [Actual verification](<docs/设置/2026-11-14-v0.5.0/REPORT.md>) · [Contract](<docs/设置/2026-11-14-v0.5.0/CONTRACT.md>)
 
-## Deliverables
+## Latest local delivery v0.5.0
+
+[Complete bundle](<app/release/logic-recorder-release-v0.5.0.zip>) · [Extension](<app/release/v0.5.0/logic-recorder-chrome-v0.5.0.zip>) · [Reader0.5.0](<app/release/v0.5.0/extension-logic-clone-v0.5.0.zip>). The panel now saves capacity, queue and sampling multipliers1–20, default/max20. Saved changes affect the next batch; active/old batch policies stay immutable. Default1280MiB/1.25GiB total,960MiB warning and40MiB single body. [Install](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [Actual verification](<docs/设置/2026-11-14-v0.5.0/REPORT.md>). The original installation files are backed up and updated; reload that extension to activate. No new public v0.5.0 Release is created in this task.
+
+500 JS /58 Python tests pass. Native1x/20x batches, settings persistence and snapshot, invalid values, Stop availability, long Unicode values and3MiB DOM/body are verified;130 transport parts max327997B. Actual72MiB storage exported as75511309B OPFS-backed ZIP in about4.9s. Full1.25GiB payload was not stress tested. Streaming STORE may produce a larger ZIP than prior deflate.
+
+![v0.5.0 settings](<docs/media/v0.5.0-01-settings.png>)
+
+## Published stable v0.4.0 (historical)
 
 Official stable [GitHub Release v0.4.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.4.0>) is published with Chrome extension0.4.0 and reading skill0.4.0.1.
 
@@ -25,11 +33,11 @@ Removed from the default product: browser-wide capture, full computed-style/pseu
 
 ## Enforced budgets
 
-One batch accepts at most64MiB logical saved content/metadata, warns at48MiB, ends normal intake by63MiB and reserves1MiB for finalization. Categories share the cap: body24MiB, DOM16MiB, necessary resources8MiB, screenshots12MiB, metadata4MiB. Single bodies are capped at2MiB. Cross-category reuse still charges each relevant category. Policy stop retains the saved partial batch; it does not delete or circularly overwrite data. These are saved-byte limits, not hard Chrome memory bounds.
+Capacity/queue/sampling multipliers are saved as integers1–20. Default20x accepts1280MiB logical saved content/metadata, warns at960MiB, ends normal intake by1260MiB and reserves20MiB for finalization. Categories share the cap: body480MiB, DOM320MiB, resources160MiB, screenshots240MiB, metadata80MiB. Single body40MiB. Changing settings affects only subsequent batches; old sessions without settings remain1x. Cross-category reuse still charges each relevant category. Policy stop retains the saved partial batch; it does not delete or circularly overwrite data. These are saved-byte limits, not hard Chrome memory bounds.
 
 Export only packages persisted events, content and compact manifests/hashes. No per-element theme/field expansion occurs during primary export. Unknown-length CDP reads have explicitly disclosed physical streaming limitations; rejected content is never marked captured.
 
-## Actual reference workload
+## Historical v0.4.0 reference workload
 
 Windows native Chrome157, synthetic workflow with20 unrelated tabs,5000 CSS variables/animation, authorized frame/attributed child, form before/after, required validation, modal/select, PUT save, POST debit201 and rejected409, frame navigation followed by new root input, and a200ms alert.
 
@@ -71,6 +79,8 @@ npm ci
 npm run build
 npm test
 npm run test:flow
+npm run test:settings
+npm run test:large-export
 npm run test:skill
 npm run test:flow-skill
 $env:CHROME_BIN='C:/Program Files/Google/Chrome/Application/chrome.exe'

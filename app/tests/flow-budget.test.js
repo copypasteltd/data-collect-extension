@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   FLOW_LIMITS as L, FLOW_CATEGORIES, MiB, byteCount, utf8ByteLength,
-  knownByteLength, createBudget, preflightContent, evaluateBudget, stopBudget,
+  knownByteLength, createBudget, getBudgetLimits, validateBudget, preflightContent, evaluateBudget, stopBudget,
 } from "../src/flow-budget.js";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS } from "../src/flow-config.js";
 
 // No dependency is added. A reproducible seeded generator exercises mathematical
 // policy invariants against a separately expressed BigInt accounting oracle.
@@ -126,6 +127,107 @@ test("512 seeds x 160 state transitions preserve caps, immutability and BigInt o
     }
   }
   assert.ok(accepted > 1000 && rejected > 1000 && finalAccepted > 100, "generators must not be vacuous");
+});
+
+test("settings snapshots select20x limits while legacy books stay1x and immutable", () => {
+  const input = { ...DEFAULT_FLOW_SETTINGS }, budget = createBudget(input), limits = getBudgetLimits(budget);
+  input.budgetMultiplier = 1;
+  assert.equal(budget.settings.budgetMultiplier, 20); assert.ok(Object.isFrozen(budget.settings));
+  assert.equal(limits.totalBytes, 1342177280); assert.equal(limits.normalBytes, 1321205760);
+  assert.equal(limits.warningBytes, 1006632960); assert.equal(limits.reserveBytes, 20971520);
+  assert.equal(limits.eventBytes, 655360); assert.equal(limits.singleBodyBytes, 41943040);
+  assert.deepEqual(limits.categoryBytes, { body: 503316480, dom: 335544320, resource: 167772160, screenshot: 251658240, meta: 83886080 });
+  const old = createBudget(); delete old.settings; const before = json(old);
+  assert.deepEqual(getBudgetLimits(old), L); validateBudget(old); assert.equal(json(old), before);
+  const operation = { eventBytes: 40000, contents: [{ category: "body", size: 3 * MiB }] };
+  assert.equal(evaluateBudget(budget, operation).accepted, true);
+  assert.equal(evaluateBudget(old, operation).reason, "event-metadata-limit");
+  assert.equal(preflightContent(old, { category: "body", knownBytes: 3 * MiB }).reason, "body-single-limit");
+  assert.equal(preflightContent(budget, { category: "body", knownBytes: 40 * MiB }).accepted, true);
+  assert.equal(preflightContent(budget, { category: "body", knownBytes: 40 * MiB + 1 }).reason, "body-single-limit");
+  assert.equal(json(old), before);
+  const stopped = stopBudget(budget, "total-limit");
+  assert.deepEqual(stopped.settings, DEFAULT_FLOW_SETTINGS); assert.ok(Object.isFrozen(stopped.settings));
+});
+
+test("limits are derived from valid settings; declared caps and false-like flags cannot authorize bytes", () => {
+  for (const settings of [null, {}, [], { ...DEFAULT_FLOW_SETTINGS, schemaVersion: 2 }, { ...DEFAULT_FLOW_SETTINGS, extra: 1 }]) {
+    assert.throws(() => createBudget(settings));
+  }
+  for (const key of ["budgetMultiplier", "queueMultiplier", "samplingMultiplier"]) {
+    for (const value of [0, 21, -1, 1.1, "20", true, false, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      const settings = { ...DEFAULT_FLOW_SETTINGS, [key]: value };
+      assert.throws(() => createBudget(settings));
+      assert.throws(() => validateBudget({ ...createBudget(), settings }));
+    }
+  }
+  for (const patch of [{ limitBytes: L.totalBytes * 20 }, { reserveBytes: 0 }, { limitBytes: "67108864" },
+    { usedBytes: Number.MAX_SAFE_INTEGER }, { warning: 0 }, { policyStopped: "false" }, { rejectedCount: true }]) {
+    assert.throws(() => validateBudget({ ...createBudget(), ...patch }));
+  }
+  for (const category of FLOW_CATEGORIES) {
+    const budget = createBudget(DEFAULT_FLOW_SETTINGS);
+    budget.byCategory[category] = getBudgetLimits(budget).categoryBytes[category] + 1;
+    assert.throws(() => validateBudget(budget), /Corrupt category budget/);
+  }
+  for (const value of [0, 1, "false", "true", null]) {
+    assert.throws(() => evaluateBudget(createBudget(), { final: value }), /boolean/);
+    assert.throws(() => preflightContent(createBudget(), { category: "body", knownBytes: 0 }, { final: value }), /boolean/);
+    for (const key of ["isNew", "chargeCategory"]) {
+      assert.throws(() => evaluateBudget(createBudget(), { contents: [{ category: "body", size: 1, [key]: value }] }), /boolean/);
+    }
+  }
+  for (const value of [true, false]) assert.throws(() => byteCount(value), TypeError);
+});
+
+test("all1..20 multipliers x128 transitions match an independent BigInt ledger oracle", () => {
+  const categories = ["body", "dom", "resource", "screenshot", "meta"];
+  const baseMiB = [24n, 16n, 8n, 12n, 4n], mib = 1048576n;
+  let accepted = 0, rejected = 0, finalAccepted = 0;
+  for (let multiplier = 1; multiplier <= 20; multiplier++) {
+    const scale = BigInt(multiplier), caps = Object.fromEntries(categories.map((key, i) => [key, baseMiB[i] * mib * scale]));
+    for (let seed = 1; seed <= 16; seed++) {
+      const random = rng(multiplier * 65537 + seed);
+      let budget = createBudget({ schemaVersion: 1, budgetMultiplier: multiplier, queueMultiplier: 21 - multiplier, samplingMultiplier: random(20) + 1 });
+      for (let step = 0; step < 128; step++) {
+        const final = step >= 112, eventLimit = 32768 * multiplier, bodyLimit = 2097152 * multiplier;
+        const eventBytes = [0, 1, eventLimit, eventLimit + 1, random(eventLimit + 1)][random(5)];
+        const contents = Array.from({ length: random(4) }, () => {
+          const category = categories[random(5)], cap = Number(caps[category]);
+          const size = [0, 1, bodyLimit, bodyLimit + 1, cap, cap + 1, random(cap + 1)][random(7)];
+          return { category, size, isNew: Boolean(random(2)), chargeCategory: Boolean(random(2)) };
+        });
+        const delta = contents.reduce((sum, item) => sum + (item.isNew ? BigInt(item.size) : 0n), BigInt(eventBytes));
+        const charges = Object.fromEntries(categories.map((category) => [category, contents.filter((item) => item.category === category && item.chargeCategory).reduce((sum, item) => sum + BigInt(item.size), category === "meta" ? BigInt(eventBytes) : 0n)]));
+        const oracle = BigInt(eventBytes) <= 32768n * scale && (!budget.policyStopped || final)
+          && contents.every((item) => BigInt(item.size) <= caps[item.category] && (item.category !== "body" || BigInt(item.size) <= 2n * mib * scale))
+          && BigInt(budget.usedBytes) + delta <= (final ? 64n : 63n) * mib * scale
+          && categories.every((category) => BigInt(budget.byCategory[category]) + charges[category] <= (category === "meta" && !final ? 3n * mib * scale : caps[category]));
+        const before = json(budget), operation = { eventBytes, contents, final }, savedOperation = json(operation);
+        const result = evaluateBudget(budget, operation);
+        assert.equal(result.accepted, oracle, "multiplier=" + multiplier + " seed=" + seed + " step=" + step);
+        assert.equal(json(budget), before); assert.equal(json(operation), savedOperation);
+        if (result.accepted) {
+          accepted++; if (final) finalAccepted++;
+          assert.equal(BigInt(result.budget.usedBytes), BigInt(budget.usedBytes) + delta);
+          for (const category of categories) assert.equal(BigInt(result.budget.byCategory[category]), BigInt(budget.byCategory[category]) + charges[category]);
+          assert.deepEqual(result.budget.settings, budget.settings); assert.ok(Object.isFrozen(result.budget.settings));
+          assert.equal(result.budget.warning, budget.warning || BigInt(result.budget.usedBytes) >= 48n * mib * scale);
+          budget = result.budget;
+        } else { rejected++; if (random(8) === 0) budget = stopBudget(budget, result.reason); }
+      }
+    }
+    // Explicit exact normal/final boundary witnesses at every scale, including20.
+    const edge = createBudget({ ...LEGACY_FLOW_SETTINGS, budgetMultiplier: multiplier });
+    edge.usedBytes = Number(63n * mib * scale - 1n);
+    const normal = evaluateBudget(edge, { eventBytes: 1 });
+    assert.equal(normal.accepted, true); assert.equal(normal.budget.policyStopped, true);
+    assert.equal(evaluateBudget(normal.budget, { eventBytes: 1 }).reason, "total-limit");
+    const full = { ...normal.budget, usedBytes: Number(64n * mib * scale - 1n) };
+    assert.equal(evaluateBudget(full, { eventBytes: 1, final: true }).budget.usedBytes, Number(64n * mib * scale));
+    assert.equal(evaluateBudget(full, { eventBytes: 2, final: true }).reason, "total-limit");
+  }
+  assert.ok(accepted > 500 && rejected > 500 && finalAccepted > 50, "domain generators must exercise both decisions");
 });
 
 test("policy diagnostics are bounded and never accumulate attacker reason strings", () => {

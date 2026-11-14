@@ -9,7 +9,7 @@ body { margin: 0; }
 button, input { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
-button:focus-visible, input:focus-visible { outline: 3px solid #82c8b6; outline-offset: 2px; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #82c8b6; outline-offset: 2px; }
 .panel { min-width: 280px; max-width: 520px; margin: auto; padding: 22px 18px; }
 .top { display: flex; align-items: center; gap: 10px; }
 .top strong, .top small { display: block; }
@@ -23,7 +23,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #82c8b6; outline-
 .status.active { color: #a83e36; }
 .status.active i { background: #d4544a; }
 h1 { margin: 16px 0 18px; font-size: 21px; }
-.primary, .export { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 5px; font-weight: 650; }
+.primary, .export { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 5px; font-weight: 650; }
 .primary { border: 0; color: white; background: #246b58; }
 .primary.stop { background: #a83e36; }
 .export { margin-top: 16px; color: #1f604e; background: white; border: 1px solid #9abcb0; }
@@ -43,3 +43,22 @@ h2 { margin: 0 0 10px; font-size: 14px; }
 .batch-info strong { font-size: 13px; }
 .batch-info small { margin-top: 4px; color: #788683; font-size: 11px; }
 .empty { padding: 20px 2px; color: #899692; font-size: 12px; border-top: 1px solid #dfe8e4; }
+.limit-settings { margin-top: 20px; border-block: 1px solid #d1dfd7; min-width: 0; }
+.limit-settings summary { min-height: 44px; padding: 12px 0; color: #244f45; font-size: 13px; font-weight: 650; cursor: pointer; overflow-wrap: anywhere; }
+.limit-settings summary span { margin-left: 8px; color: #4f625c; font-size: 12px; font-weight: 400; }
+.limit-settings form { padding-bottom: 16px; min-width: 0; }
+.limit-field { display: grid; grid-template-columns: minmax(0, 1fr) 88px; column-gap: 12px; row-gap: 4px; align-items: center; margin-top: 16px; }
+.limit-field label { font-size: 13px; color: #304f44; }
+.limit-field input { width: 100%; min-width: 0; min-height: 44px; padding: 9px; border: 1px solid #9abcb0; border-radius: 5px; background: white; color: #1c2826; }
+.limit-field input[aria-invalid="true"] { border-color: #a83e36; }
+.limit-field small { grid-column: 1 / -1; font-size: 12px; color: #4f625c; overflow-wrap: anywhere; }
+.field-error { grid-column: 1 / -1; margin: 2px 0 0; color: #8e3c31; font-size: 12px; line-height: 1.5; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.settings-button { flex: 1 1 120px; min-width: 0; min-height: 44px; border: 1px solid #9abcb0; border-radius: 5px; padding: 9px 10px; background: white; color: #1f604e; font-size: 12px; overflow-wrap: anywhere; }
+.settings-button.save { background: #246b58; color: white; border-color: #246b58; }
+.settings-button:hover:not(:disabled) { filter: brightness(.94); }
+.preview-label { margin: 20px 0 8px; color: #244f45; font-weight: 650; font-size: 12px; }
+.limit-preview { margin: 0; font-size: 12px; line-height: 1.6; }
+.limit-preview > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; padding: 7px 0; border-bottom: 1px solid #dfe8e4; }
+.limit-preview dt { color: #4f625c; overflow-wrap: anywhere; }
+.limit-preview dd { margin: 0; text-align: right; color: #1c2826; overflow-wrap: anywhere; }

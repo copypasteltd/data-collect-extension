@@ -2,12 +2,12 @@
 name: extension-logic-clone
 description: 读取逻辑记录 Chrome 扩展的记录 ZIP，校验 v3 轻量业务格式及历史 v1/v2，提取已验证的原始内容，按证据分析页面、操作、接口样本和状态，并在用户要求时重建已观察到的业务流程。
 metadata:
-  version: "0.4.0.1"
+  version: "0.5.0"
 ---
 
 # 逻辑记录包读取与复建
 
-当前重点是插件 v0.4.0 的记录格式 **v3 / business-flow-v1**。产品版本与记录格式版本不同；以包内 manifest 为准，不能凭文件名选解析路线。先确认用户给的是记录包，而不是扩展安装／release ZIP。只分析时不建应用，也不连接真实网站。
+当前重点是插件 v0.5.0 及 v0.4.0 的记录格式 **v3 / business-flow-v1**。产品版本与记录格式版本不同；以包内 manifest 为准，不能凭文件名选解析路线。先确认用户给的是记录包，而不是扩展安装／release ZIP。只分析时不建应用，也不连接真实网站。
 
 ## 1. 校验后再读
 
@@ -22,6 +22,8 @@ python <skill-directory>/scripts/index_archive.py <recording.zip> --output <new-
 ## 2. 先解释范围与缺口
 
 先查 manifest 的 profile、session.producerVersion/scope/coverage/stopOutcome/seal，以及 capturePolicy、budget、partial。新版最多是根业务标签、必要授权框架及一个明确归属子页；未纳入页面不能被推断为没有业务。ready、partial:false 或 seal 不能盖过 coverage、policy、bodyStatus、快照 policies 与缺失正文。容量停止属于部分证据，不当作传输失败；按策略不采也不能通过旧版通道自动补采。
+
+v0.5.0 每批固化 capturePolicy.settings 的容量、队列、采样三组整数倍率（各 1–20），新默认及上限为 20；缺少设置的旧批次始终按 1 倍、64 MiB 解释。20 倍保存上限是 1280 MiB（1.25 GiB），960 MiB 提醒，单正文最多 40 MiB；保存预算不是运行内存上限，也不扩大授权页面范围。读取器核对提供的策略/运行时快照和预算，不把包内设置当任意限额授权。
 
 按 seq 保留接纳顺序，结合 time 看采样时间；按 tabId/frameId/documentId 区分页面实例，同 URL 不合并文档。先梳理关键业务步骤，再按需取内容，不把所有大正文和截图一次塞进上下文。
 

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, webcrypto } from "node:crypto";
 import { FLOW_LIMITS as L, createBudget, MiB } from "../src/flow-budget.js";
+import { DEFAULT_FLOW_SETTINGS, LEGACY_FLOW_SETTINGS, deriveFlowLimits, loadFlowSettings, saveFlowSettings } from "../src/flow-config.js";
 
 // Executable in-memory IDB transaction VM: requests execute against transaction
 // snapshots; request/commit faults roll back; a shared FIFO serializes connections.
@@ -23,7 +24,7 @@ function transactionVM() {
     return a === b ? 0 : a < b ? -1 : 1;
   }
   const matches = (key, query) => query?.only !== undefined ? compare(key, query.only) === 0
-    : query?.lower !== undefined ? compare(key, query.lower) >= 0 && compare(key, query.upper) <= 0
+    : query?.lower !== undefined ? (query.lowerOpen ? compare(key, query.lower) > 0 : compare(key, query.lower) >= 0) && (query.upperOpen ? compare(key, query.upper) < 0 : compare(key, query.upper) <= 0)
       : compare(key, query) === 0;
   function dispatch() {
     if (busy || !queue.length) return;
@@ -159,7 +160,7 @@ function transactionVM() {
       },
       deleteDatabase() { throw new Error("Must never delete any database"); },
     },
-    IDBKeyRange: { only: (only) => ({ only }), bound: (lower, upper) => ({ lower, upper }) },
+    IDBKeyRange: { only: (only) => ({ only }), bound: (lower, upper, lowerOpen = false, upperOpen = false) => ({ lower, upper, lowerOpen, upperOpen }) },
     row(store, id) { return clone(stores.get(store)?.get(keyOf(id))); },
     mutate(store, id, change) { const row = this.row(store, id); change(row); stores.get(store).set(keyOf(id), row); },
     remove(store, id) { stores.get(store).delete(keyOf(id)); },
@@ -179,7 +180,7 @@ async function withVM(exercise) {
     for (const [key, descriptor] of descriptors) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
   }
 }
-const session = (id = "one") => ({ id, ownerToken: "synthetic-owner-" + id, title: "Synthetic flow", rootTabId: 3 });
+const session = (id = "one") => ({ id, ownerToken: "synthetic-owner-" + id, title: "Synthetic flow", rootTabId: 3, settings: LEGACY_FLOW_SETTINGS });
 const event = (value = "x") => ({ kind: "ui.input", time: 1234, payload: { value, trusted: true }, tabId: 3, frameId: 0 });
 const content = (bytes, category = "body", field = "body") => ({ field, category, mime: "text/plain;charset=utf-8", bytes });
 const byteSize = (raw) => new TextEncoder().encode(JSON.stringify(raw) + "\n").length;
@@ -199,7 +200,7 @@ test("only opens independent v1 schema; legacy DB is never opened/deleted/migrat
 
 test("capturePolicy and producerVersion are canonical immutable create metadata, projected but not raw charged", async () => withVM(async (api) => {
   const created = await api.createSession({ ...session(), capturePolicy: { profile: "untrusted", limits: {} } });
-  assert.equal(created.producerVersion, "0.4.0");
+  assert.equal(created.producerVersion, "0.5.0");
   assert.equal(created.capturePolicy.schemaVersion, 1);
   assert.equal(created.capturePolicy.profile, "business-flow-v1");
   assert.equal(created.capturePolicy.scope, "root-tab-and-attributed-child");
@@ -208,7 +209,7 @@ test("capturePolicy and producerVersion are canonical immutable create metadata,
   assert.ok(created.capturePolicy.notCollected.includes("indexedDB"));
   assert.equal(created.budget.usedBytes, 0);
   const projection = api.projectSession(created);
-  assert.deepEqual(projection.capturePolicy, created.capturePolicy); assert.equal(projection.producerVersion, "0.4.0");
+  assert.deepEqual(projection.capturePolicy, created.capturePolicy); assert.equal(projection.producerVersion, "0.5.0");
   assert.equal(projection.ownerToken, undefined);
   for (const patch of [{ capturePolicy: {} }, { producerVersion: "9.9.9" }]) await assert.rejects(async () => api.updateSession("one", session().ownerToken, patch), /protected-session-field/);
   created.capturePolicy.limits.totalBytes = 1;
@@ -474,4 +475,204 @@ test("readContents is lazy Blob, bounded to64MiB and never arrayBuffers all rows
     vm.stores.get("contents").set(JSON.stringify(large.id), large);
   }
   await assert.rejects(api.readContents("one"), /flow-read-batch-limit/);
+}));
+
+test("new sessions default20x and save changes only the next immutable session", async () => withVM(async (api, vm, load) => {
+  const storage = { value: undefined, async get(key) { return this.value === undefined ? {} : { [key]: structuredClone(this.value) }; }, async set(record) { this.value = structuredClone(Object.values(record)[0]); } };
+  const input = { ...session("current"), settings: await loadFlowSettings(storage) };
+  const current = await api.createSession(input), limits = deriveFlowLimits(DEFAULT_FLOW_SETTINGS);
+  assert.equal(current.producerVersion, "0.5.0");
+  assert.deepEqual(current.capturePolicy.settings, DEFAULT_FLOW_SETTINGS);
+  assert.deepEqual(current.budget.settings, DEFAULT_FLOW_SETTINGS);
+  assert.deepEqual(current.capturePolicy.limits, limits.budget);
+  assert.deepEqual(current.capturePolicy.runtimeLimits, { background: limits.background, content: limits.content });
+  assert.equal(current.budget.limitBytes, 1280 * MiB); assert.equal(current.budget.reserveBytes, 20 * MiB);
+  const defaultInput = { ...session("default"), capturePolicy: { settings: LEGACY_FLOW_SETTINGS, limits: L } }; delete defaultInput.settings;
+  assert.deepEqual((await api.createSession(defaultInput)).capturePolicy.settings, DEFAULT_FLOW_SETTINGS);
+  const nextSettings = { schemaVersion: 1, budgetMultiplier: 2, queueMultiplier: 3, samplingMultiplier: 4 };
+  await saveFlowSettings(nextSettings, storage);
+  const afterSave = await api.getSession("current"); assert.deepEqual(afterSave, current);
+  const restarted = await load();
+  assert.deepEqual((await restarted.getSession("current")).capturePolicy, current.capturePolicy);
+  const next = await restarted.createSession({ ...session("next"), settings: await loadFlowSettings(storage) });
+  assert.deepEqual(next.capturePolicy.settings, nextSettings); assert.equal(next.budget.limitBytes, 128 * MiB);
+  nextSettings.budgetMultiplier = 20;
+  current.capturePolicy.settings.budgetMultiplier = 1; current.budget.settings = LEGACY_FLOW_SETTINGS;
+  assert.equal((await api.getSession("current")).capturePolicy.settings.budgetMultiplier, 20);
+  assert.equal((await api.getSession("next")).capturePolicy.settings.budgetMultiplier, 2);
+  for (const patch of [{ settings: LEGACY_FLOW_SETTINGS }, { capturePolicy: {} }, { runtimeLimits: {} }, { budget: createBudget() }]) {
+    await assert.rejects(async () => api.updateSession("current", input.ownerToken, patch), /protected-session-field/);
+  }
+}));
+
+test("legacy rows with no settings retain1x policy and reads never rewrite their book", async () => withVM(async (api, vm, load) => {
+  await api.createSession(session());
+  await api.appendCapture("one", session().ownerToken, event(), [content("legacy")]);
+  await api.closeSessionWrites("one", session().ownerToken);
+  const stop = await api.appendCapture("one", session().ownerToken, { kind: "session.stop", payload: {} }, [], { final: true });
+  await api.sealSession("one", session().ownerToken, { expectedSeq: stop.event.seq });
+  vm.mutate("sessions", "one", (row) => { delete row.capturePolicy.settings; delete row.capturePolicy.runtimeLimits; delete row.budget.settings; row.producerVersion = "0.4.0"; });
+  const before = vm.row("sessions", "one"), reopened = await load();
+  await reopened.getSession("one"); await reopened.listSessions();
+  assert.equal((await reopened.readEvents("one")).length, 2);
+  assert.equal((await reopened.readContents("one")).length, 1);
+  assert.equal((await reopened.flowEventPage("one")).events.length, 2);
+  assert.equal((await reopened.flowContentPage("one")).contents.length, 1);
+  assert.deepEqual(vm.row("sessions", "one"), before);
+  assert.equal(before.budget.limitBytes, 64 * MiB); assert.equal(before.capturePolicy.settings, undefined);
+  const fresh = { ...session("fresh") }; delete fresh.settings;
+  assert.equal((await reopened.createSession(fresh)).budget.limitBytes, 1280 * MiB);
+  assert.deepEqual(vm.row("sessions", "one"), before);
+}));
+
+test("invalid settings fail before session persistence and budget-policy mismatches reject", async () => withVM(async (api, vm) => {
+  const invalidSettings = [null, {}, [], { ...DEFAULT_FLOW_SETTINGS, schemaVersion: 2 }, { ...DEFAULT_FLOW_SETTINGS, extra: 1 }];
+  for (const key of ["budgetMultiplier", "queueMultiplier", "samplingMultiplier"]) {
+    for (const value of [0, 21, -1, 1.5, "20", true, false, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1]) invalidSettings.push({ ...DEFAULT_FLOW_SETTINGS, [key]: value });
+  }
+  for (const settings of invalidSettings) await assert.rejects(api.createSession({ ...session(), settings }));
+  assert.equal(vm.opens.length, 0);
+  await api.createSession(session());
+  for (const value of [0, 1, "false", null]) await assert.rejects(api.appendCapture("one", session().ownerToken, event(), [], { final: value }), /boolean/);
+  assert.equal((await api.getSession("one")).eventCount, 0);
+  vm.mutate("sessions", "one", (row) => { row.budget.limitBytes = 1280 * MiB; });
+  await assert.rejects(api.appendCapture("one", session().ownerToken, event()), /Corrupt budget limits/);
+  vm.mutate("sessions", "one", (row) => { row.budget = createBudget(DEFAULT_FLOW_SETTINGS); });
+  await assert.rejects(api.readEvents("one"), /session-settings-mismatch/);
+  await assert.rejects(api.flowContentPage("one"), /session-settings-mismatch/);
+}));
+
+test("20x accepts actual >2MiB body with streamed immutable hashing, legacy1 rejects", async () => withVM(async (api) => {
+  const fresh = { ...session("large") }; delete fresh.settings; await api.createSession(fresh);
+  await api.createSession(session("small"));
+  const bytes = new Uint8Array(3 * MiB + 7); bytes[0] = 65; bytes[bytes.length - 1] = 90;
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const rejected = await api.appendCapture("small", session("small").ownerToken, event(), [content(new Blob([bytes]))]);
+  assert.equal(rejected.reason, "body-single-limit");
+  const original = Blob.prototype.arrayBuffer; let largestBuffer = 0;
+  Blob.prototype.arrayBuffer = function () { largestBuffer = Math.max(largestBuffer, this.size); return original.call(this); };
+  let result;
+  try { result = await api.appendCapture("large", fresh.ownerToken, event(), [content(bytes)]); }
+  finally { Blob.prototype.arrayBuffer = original; }
+  bytes.fill(0);
+  assert.equal(result.accepted, 1); assert.equal(result.event.payload.body.sha256, hash);
+  // Node's Blob.stream may allocate internally; production hash never requests an entire Blob buffer.
+  assert.ok(largestBuffer <= 1024 * 1024, "hash API must consume bounded blocks");
+  const rows = await api.readContents("large"); assert.equal(rows[0].blob.size, 3 * MiB + 7);
+  assert.equal(new Uint8Array(await rows[0].blob.slice(0, 1).arrayBuffer())[0], 65);
+  assert.equal((await api.getSession("large")).budget.usedBytes, rows[0].size + byteSize(result.event));
+}));
+
+test("20x metadata uses640KiB and scaled nodes; depth and protocol IDs remain bounded", async () => withVM(async (api) => {
+  const fresh = { ...session("wide") }; delete fresh.settings; await api.createSession(fresh);
+  const value = "x".repeat(600 * 1024);
+  const result = await api.appendCapture("wide", fresh.ownerToken, event(value));
+  assert.equal(result.accepted, 1); assert.equal(result.event.payload.value, value);
+  const many = Array.from({ length: 2560 }, (_, index) => ({ index, value: "field", type: "input", checked: false }));
+  assert.equal((await api.appendCapture("wide", fresh.ownerToken, { kind: "page.snapshot", payload: { fields: many } })).accepted, 1);
+  assert.equal((await api.readEvents("wide")).length, 2);
+  let deep = {}; for (let i = 0; i < 33; i++) deep = { child: deep };
+  const denied = await api.appendCapture("wide", fresh.ownerToken, { kind: "ui.input", payload: deep });
+  assert.equal(denied.reason, "event-metadata-limit");
+  const another = { ...session("bounded") }; delete another.settings; await api.createSession(another);
+  await assert.rejects(api.appendCapture("bounded", another.ownerToken, { ...event(), documentId: "d".repeat(513) }), /Invalid documentId/);
+  assert.equal((await api.appendCapture("bounded", another.ownerToken, event("x".repeat(640 * 1024)))).reason, "event-metadata-limit");
+}));
+
+test("per-event content descriptors scale16x sampling setting and keep dedup category accounting", async () => withVM(async (api) => {
+  const fresh = { ...session("fields"), settings: { ...LEGACY_FLOW_SETTINGS, budgetMultiplier: 20, samplingMultiplier: 20 } }; await api.createSession(fresh);
+  const values = Array.from({ length: 320 }, (_, index) => content("one physical blob", index % 2 ? "dom" : "body", "field" + index));
+  assert.equal((await api.appendCapture("fields", fresh.ownerToken, event(), values)).accepted, 1);
+  const saved = await api.getSession("fields"); assert.equal(saved.contentCount, 1);
+  assert.equal(saved.budget.byCategory.body, 17); assert.equal(saved.budget.byCategory.dom, 17);
+  assert.equal((await api.appendCapture("fields", fresh.ownerToken, event(), [...values, content("extra", "body", "field320")])).reason, "capture-content-limit");
+}));
+
+test("event pages preserve order byte targets and oversized first record without missing rows", async () => withVM(async (api, vm) => {
+  const fresh = { ...session("paged") }; delete fresh.settings; await api.createSession(fresh);
+  for (const [index, value] of ["a", "b".repeat(200 * 1024), "c", "d", "e"].entries()) await api.appendCapture("paged", fresh.ownerToken, event(value), [], { captureKey: "private:" + index });
+  const events = await api.readEvents("paged"); assert.equal(events.length, 5);
+  const collected = []; let after = 0, pages = 0;
+  for (;;) {
+    const count = vm.transactions.length, page = await api.flowEventPage("paged", after, { limit: 2, maxBytes: 512 });
+    assert.equal(vm.transactions.length, count + 1); assert.equal(vm.transactions.at(-1).mode, "readonly");
+    assert.ok(page.events.length <= 2); assert.ok(page.events.every((row) => row.captureKey === undefined));
+    if (page.events.reduce((sum, row) => sum + byteSize(row), 0) > 512) assert.equal(page.events.length, 1);
+    collected.push(...page.events); pages++; assert.ok(pages < 10);
+    if (page.done) break;
+    assert.ok(page.nextSeq > after); after = page.nextSeq;
+  }
+  assert.deepEqual(collected, events); assert.ok(pages >= 2);
+  assert.deepEqual(await api.flowEventPage("paged", Number.MAX_SAFE_INTEGER), { events: [], nextSeq: Number.MAX_SAFE_INTEGER, done: true });
+  for (const options of [{ limit: 0 }, { limit: 501 }, { limit: 1.5 }, { limit: true }, { maxBytes: 0 }, { maxBytes: 8 * MiB + 1 }]) assert.throws(() => api.flowEventPage("paged", 0, options), /Invalid/);
+  assert.throws(() => api.flowEventPage("paged", -1), /safe integer/);
+}));
+
+test("content pages resume by id use lazy Blob handles and ignore other sessions", async () => withVM(async (api, vm) => {
+  await api.createSession(session()); await api.createSession(session("two")); await api.createSession(session("one:child"));
+  await api.appendCapture("one:child", session("one:child").ownerToken, event(), [content("prefix collision")]);
+  for (let index = 0; index < 5; index++) await api.appendCapture("one", session().ownerToken, event(), [content("unique" + index)]);
+  await api.appendCapture("two", session("two").ownerToken, event(), [content("other")]);
+  const expected = await api.readContents("one"), original = Blob.prototype.arrayBuffer;
+  Blob.prototype.arrayBuffer = () => { throw new Error("page must not materialize Blob"); };
+  const rows = []; let after = "", pages = 0;
+  try {
+    for (;;) {
+      const page = await api.flowContentPage("one", after, { limit: 2 });
+      assert.equal(vm.transactions.at(-1).mode, "readonly"); assert.ok(page.contents.length <= 2);
+      rows.push(...page.contents); pages++; assert.ok(pages < 5);
+      if (page.done) break;
+      assert.ok(page.nextId > after); after = page.nextId;
+    }
+  } finally { Blob.prototype.arrayBuffer = original; }
+  assert.deepEqual(rows, expected); assert.equal(pages, 3); assert.equal(new Set(rows.map((row) => row.id)).size, 5);
+  for (const options of [{ limit: 0 }, { limit: 51 }, { limit: false }]) assert.throws(() => api.flowContentPage("one", "", options), /Invalid/);
+  assert.throws(() => api.flowContentPage("one", "two:any"), /Invalid afterId/);
+}));
+
+test("page cancellation, read fault and deadline reject all partial data", async () => withVM(async (api, vm) => {
+  await api.createSession(session()); await api.appendCapture("one", session().ownerToken, event(), [content("one")]);
+  for (const name of ["flowEventPage", "flowContentPage"]) {
+    vm.control.abortCursorOnce = true; await assert.rejects(api[name]("one"), /flow-transaction-aborted/);
+    vm.control.fault = { store: name === "flowEventPage" ? "events" : "contents", method: "cursor", error: new Error("page-read-error") };
+    await assert.rejects(api[name]("one"), /page-read-error/);
+    vm.control.stallReads = true;
+    await assert.rejects(api[name]("one", name === "flowEventPage" ? 0 : "", { timeoutMs: 10 }), /flow-transaction-timeout/);
+    const controller = new AbortController(), pending = api[name]("one", name === "flowEventPage" ? 0 : "", { signal: controller.signal });
+    setImmediate(() => controller.abort()); await assert.rejects(pending, /flow-operation-cancelled/);
+    vm.control.stallReads = false;
+  }
+}));
+
+
+test("20x compatibility reads cross64MiB using the persisted policy, not the old global cap", async () => withVM(async (api, vm) => {
+  const fresh = { ...session("largeread") }; delete fresh.settings; await api.createSession(fresh);
+  // Synthetic valid-sized rows isolate read bounds; this is not a native quota or full-load claim.
+  const metadata = "m".repeat(600 * 1024), blob = new Blob([new Uint8Array(16 * MiB)]);
+  let eventBytes = 0;
+  for (let seq = 1; seq <= 112; seq++) {
+    const row = { id: "largeread:event:" + seq, sessionId: "largeread", seq, kind: "session.notice", time: 1234, payload: { metadata } };
+    eventBytes += byteSize(row); vm.stores.get("events").set(JSON.stringify(row.id), row);
+  }
+  for (let index = 0; index < 5; index++) {
+    const hash = index.toString(16).padStart(64, "0"), id = "largeread:" + hash;
+    vm.stores.get("contents").set(JSON.stringify(id), { id, sessionId: "largeread", sha256: hash, size: blob.size, blob, mime: "text/plain", category: "dom", categories: ["dom"] });
+  }
+  vm.mutate("sessions", "largeread", (row) => {
+    row.eventCount = row.lastSeq = 112; row.contentCount = 5;
+    row.budget.usedBytes = eventBytes + 80 * MiB;
+    row.budget.byCategory.meta = eventBytes; row.budget.byCategory.dom = 80 * MiB;
+  });
+  const before = vm.row("sessions", "largeread"); assert.ok(eventBytes > 64 * MiB);
+  const original = Blob.prototype.arrayBuffer;
+  Blob.prototype.arrayBuffer = () => { throw new Error("compatibility reads must be lazy"); };
+  try {
+    assert.equal((await api.readEvents("largeread")).length, 112);
+    assert.equal((await api.readContents("largeread")).reduce((sum, row) => sum + row.size, 0), 80 * MiB);
+    const page = await api.flowEventPage("largeread");
+    assert.equal(page.done, false); assert.ok(page.events.length < 112);
+    assert.ok(page.events.reduce((sum, row) => sum + byteSize(row), 0) <= 8 * MiB);
+    assert.equal((await api.flowContentPage("largeread")).contents.length, 5);
+  } finally { Blob.prototype.arrayBuffer = original; }
+  assert.deepEqual(vm.row("sessions", "largeread"), before);
 }));

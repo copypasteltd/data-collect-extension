@@ -1,0 +1,367 @@
+{
+  "schema": 1,
+  "status": "pass",
+  "generatedAt": "2026-11-14T12:45:36.439Z",
+  "runRoot": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-settings-sOgpzK",
+  "nativePermissionTest": false,
+  "syntheticOnly": true,
+  "profile": "fresh-owned",
+  "hostPregrant": "temporary dist-copy localhost only",
+  "rows": [
+    {
+      "multiplier": 1,
+      "status": "pass",
+      "rootTabId": 1703168716,
+      "sessionId": "49a1c88f-cfad-4d36-8b72-b7dc3fae754c",
+      "stopMs": 1985,
+      "seal": {
+        "lastSeq": 18,
+        "eventCount": 18,
+        "contentCount": 7,
+        "sealedAt": 1794660345636,
+        "revision": 22
+      },
+      "opfsBefore": [],
+      "exportMs": 2125,
+      "opfsAfter": [],
+      "oracle": {
+        "writes": 1,
+        "reads": 1,
+        "noteBytes": 14,
+        "noteSha256": "dd6998f64986273c7035215020d99dbfe303d5b0ed11589db6ed87002cbe48b3"
+      },
+      "zipVerification": {
+        "events": 18,
+        "contents": 7,
+        "logicalBytes": 41981,
+        "budgetLimitBytes": 67108864,
+        "body": "not_collected_policy",
+        "standardZipfile": true,
+        "settings": {
+          "schemaVersion": 1,
+          "budgetMultiplier": 1,
+          "queueMultiplier": 1,
+          "samplingMultiplier": 1
+        }
+      },
+      "pythonIndex": {
+        "verification": "passed",
+        "version": 3,
+        "events": 18,
+        "files": 9,
+        "contentCount": 7,
+        "event_types": {
+          "network.request": 2,
+          "network.response": 2,
+          "page.snapshot": 3,
+          "page.stylesheet": 1,
+          "screenshot": 3,
+          "session.notice": 2,
+          "session.start": 1,
+          "session.stop": 1,
+          "ui.change": 1,
+          "ui.click": 2
+        },
+        "profile": "business-flow-v1",
+        "partial": false,
+        "settings": {
+          "schemaVersion": 1,
+          "budgetMultiplier": 1,
+          "queueMultiplier": 1,
+          "samplingMultiplier": 1
+        },
+        "recordedCoverage": {
+          "declared": true,
+          "version": 1,
+          "policyGaps": 1,
+          "physicalCdpStreamLimit": false
+        },
+        "policyStopped": false,
+        "byteAccountingVerification": "performed",
+        "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+      },
+      "archive": {
+        "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-settings-sOgpzK\\batch-1.zip",
+        "bytes": 56831,
+        "sha256": "73f69391b587d9f67d8a46b5945a2a86f26773285893f495d96c6373b77b62ce"
+      },
+      "wire": {
+        "events": 6,
+        "fields": {},
+        "maxEventsJson": 2358,
+        "maxPartJson": 0,
+        "parts": 0,
+        "surrogateSplits": 0
+      }
+    },
+    {
+      "multiplier": 20,
+      "status": "pass",
+      "rootTabId": 1703168719,
+      "sessionId": "4022692a-2bd9-458b-aa90-94f73bb645f7",
+      "longInput": "synthetic DOM beforeinput/value/input/change;not trusted typing",
+      "stopMs": 1389,
+      "seal": {
+        "lastSeq": 18,
+        "eventCount": 18,
+        "contentCount": 9,
+        "sealedAt": 1794660354917,
+        "revision": 22
+      },
+      "opfsBefore": [],
+      "exportMs": 1497,
+      "opfsAfter": [],
+      "oracle": {
+        "writes": 1,
+        "reads": 1,
+        "noteBytes": 1162148,
+        "noteSha256": "1fcdca765fb1a5ab2a0b0bfa8b4d1a21e485f7cf7bc8d76221cb47a032948687"
+      },
+      "zipVerification": {
+        "events": 18,
+        "contents": 9,
+        "logicalBytes": 12954181,
+        "budgetLimitBytes": 1342177280,
+        "body": "captured",
+        "standardZipfile": true,
+        "settings": {
+          "schemaVersion": 1,
+          "budgetMultiplier": 20,
+          "queueMultiplier": 20,
+          "samplingMultiplier": 20
+        }
+      },
+      "pythonIndex": {
+        "verification": "passed",
+        "version": 3,
+        "events": 18,
+        "files": 11,
+        "contentCount": 9,
+        "event_types": {
+          "network.request": 2,
+          "network.response": 2,
+          "page.snapshot": 4,
+          "page.stylesheet": 1,
+          "screenshot": 2,
+          "session.notice": 2,
+          "session.start": 1,
+          "session.stop": 1,
+          "ui.change": 1,
+          "ui.click": 2
+        },
+        "profile": "business-flow-v1",
+        "partial": false,
+        "settings": {
+          "schemaVersion": 1,
+          "budgetMultiplier": 20,
+          "queueMultiplier": 20,
+          "samplingMultiplier": 20
+        },
+        "recordedCoverage": {
+          "declared": true,
+          "version": 1,
+          "policyGaps": 1,
+          "physicalCdpStreamLimit": false
+        },
+        "policyStopped": false,
+        "byteAccountingVerification": "performed",
+        "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+      },
+      "archive": {
+        "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-settings-sOgpzK\\batch-20.zip",
+        "bytes": 12970969,
+        "sha256": "37712a80d1837d760a491d98bd97fdf3cc8120f6db9f54b5004a4d1301c9cf25"
+      },
+      "wire": {
+        "events": 7,
+        "fields": {
+          "beforeValue": 5,
+          "formValue0": 20,
+          "sourceHtml": 100,
+          "value": 5
+        },
+        "maxEventsJson": 1475,
+        "maxPartJson": 327997,
+        "parts": 130,
+        "surrogateSplits": 0
+      }
+    }
+  ],
+  "gates": [
+    "default three20 and1.25GiB preview;21/fraction/empty inline errors with no SAVE",
+    "UI saves1 and new panel reloads persisted1",
+    "save20 during1x recording keeps active1x/64MiB snapshot",
+    "owned-profile invalid stored schema shows real GET error while Stop remains enabled;restored20",
+    "two native business batches;1x body policy skip;20x exact3MiB body;longUnicode before/after+forms+3MiB DOM;small parts",
+    "root-only with3existing+1new unrelated pages",
+    "UI ZIP downloads;standard zipfile+skill index;ledger and settings snapshot;OPFS cleanup",
+    "actual extension page at320px has no horizontal overflow;full-page settings screenshot"
+  ],
+  "limitations": [
+    "1.25GiB full payload not exercised",
+    ">64MiB real export is parent-owned separate acceptance",
+    "optional-host permission prompt not exercised",
+    "Stop settings loading/save I/O failure covered separately by UI source-VM owner"
+  ],
+  "candidate": {
+    "sha256": "dc6535813fa7b29eadbdd9cee6c02342d6362089938d72844ffa5614c544a984",
+    "files": [
+      {
+        "path": "assets/flow-store-Owo5AMgP.js",
+        "size": 30755,
+        "sha256": "9cdbc69e906e43d2d324a05a07b120d49eda9228695d484ff852a75c4e7b7a70"
+      },
+      {
+        "path": "assets/sidepanel-4Eo5PAj8.css",
+        "size": 4208,
+        "sha256": "b169a221e9653780f8567e08f59b1df3942f52bf87796f28149b3d13994e3b1d"
+      },
+      {
+        "path": "assets/sidepanel-BWt2dNK5.js",
+        "size": 184569,
+        "sha256": "b9e8e0a1184fc0e327e89319d624f2d4591125650369d97207d723485a57818b"
+      },
+      {
+        "path": "background.js",
+        "size": 34232,
+        "sha256": "b79e8fe770a3bb7450ea732cd6e77fc07627b938a0dc316a4afabba2160a429e"
+      },
+      {
+        "path": "content.js",
+        "size": 18544,
+        "sha256": "3eb38dce48c506adbc907467c58f9174d9bacc871325c5f8c22201ff634498dc"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 959,
+        "sha256": "8f4452d03fdbb40c0797e0a6f079edfd5be9e5c69f55f2929cc45749efcf6c68"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "72b3ba0e476865274c4cc1891a86bb29f002c4abf5f6c95a85a240fbad63a305"
+      }
+    ]
+  },
+  "loadedCandidate": {
+    "sha256": "d9a1f1bc379a886394c66c1d247904d011704f0e711f0dbd2df69243751c9e1b",
+    "files": [
+      {
+        "path": "assets/flow-store-Owo5AMgP.js",
+        "size": 30755,
+        "sha256": "9cdbc69e906e43d2d324a05a07b120d49eda9228695d484ff852a75c4e7b7a70"
+      },
+      {
+        "path": "assets/sidepanel-4Eo5PAj8.css",
+        "size": 4208,
+        "sha256": "b169a221e9653780f8567e08f59b1df3942f52bf87796f28149b3d13994e3b1d"
+      },
+      {
+        "path": "assets/sidepanel-BWt2dNK5.js",
+        "size": 184569,
+        "sha256": "b9e8e0a1184fc0e327e89319d624f2d4591125650369d97207d723485a57818b"
+      },
+      {
+        "path": "background.js",
+        "size": 34232,
+        "sha256": "b79e8fe770a3bb7450ea732cd6e77fc07627b938a0dc316a4afabba2160a429e"
+      },
+      {
+        "path": "content.js",
+        "size": 18544,
+        "sha256": "3eb38dce48c506adbc907467c58f9174d9bacc871325c5f8c22201ff634498dc"
+      },
+      {
+        "path": "icons/icon-128.png",
+        "size": 1488,
+        "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+      },
+      {
+        "path": "icons/icon-16.png",
+        "size": 305,
+        "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+      },
+      {
+        "path": "icons/icon-32.png",
+        "size": 500,
+        "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+      },
+      {
+        "path": "icons/icon-48.png",
+        "size": 654,
+        "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+      },
+      {
+        "path": "manifest.json",
+        "size": 838,
+        "sha256": "593039d36d8f1530a004bebf00c463536f121098049c31211c478407b168a5e3"
+      },
+      {
+        "path": "sidepanel.html",
+        "size": 775,
+        "sha256": "72b3ba0e476865274c4cc1891a86bb29f002c4abf5f6c95a85a240fbad63a305"
+      }
+    ]
+  },
+  "versions": {
+    "node": "v24.22.1",
+    "extension": "0.5.0",
+    "package": "0.5.0",
+    "python": "Python 3.13.1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36"
+  },
+  "test": {
+    "path": "tests/flow-settings.e2e.mjs",
+    "sha256": "39a9323163804d256fc59da52ac69f15bd5787fe1610805cc072f2fc67866a69"
+  },
+  "indexScript": {
+    "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\skills\\extension-logic-clone\\scripts\\index_archive.py",
+    "sha256": "01b0ab0a95548b6a4fe4fd9d7c8f137e058856981156a6ae197a2d5bbbf4193c"
+  },
+  "wire": {
+    "events": 7,
+    "fields": {
+      "beforeValue": 5,
+      "formValue0": 20,
+      "sourceHtml": 100,
+      "value": 5
+    },
+    "maxEventsJson": 1475,
+    "maxPartJson": 327997,
+    "parts": 130,
+    "surrogateSplits": 0
+  },
+  "screenshot": {
+    "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\docs\\media\\v0.5.0-01-settings.png",
+    "sha256": "d24ff5feb42b4f3e094e9ed144860c971a2858975ab84c24aaedbdc43876654c",
+    "layout": {
+      "viewport": 320,
+      "width": 305
+    },
+    "actualExtensionPage": true,
+    "fullPage": true
+  },
+  "cleanup": "owned-browser-closed",
+  "profileCleanup": "removed",
+  "finishedAt": "2026-11-14T12:45:58.414Z"
+}

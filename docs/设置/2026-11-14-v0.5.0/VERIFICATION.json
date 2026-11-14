@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "version": "0.5.0",
+  "skillVersion": "0.5.0",
+  "status": "settings-native-validation-passed",
+  "recordingFormat": {
+    "version": 3,
+    "profile": "business-flow-v1"
+  },
+  "maximumMultiplier": 20,
+  "defaults": {
+    "schemaVersion": 1,
+    "budgetMultiplier": 20,
+    "queueMultiplier": 20,
+    "samplingMultiplier": 20
+  },
+  "limits": {
+    "totalBytes": 1342177280,
+    "warningBytes": 1006632960,
+    "normalBytes": 1321205760,
+    "reserveBytes": 20971520,
+    "singleBodyBytes": 41943040
+  },
+  "tests": {
+    "javascript": {
+      "passed": 500,
+      "failed": 0,
+      "skipped": 0
+    },
+    "python": {
+      "passed": 58,
+      "failed": 0
+    },
+    "flowTargeted": {
+      "passed": 127
+    },
+    "nativeSettings": {
+      "passed": true,
+      "candidate": {
+        "sha256": "dc6535813fa7b29eadbdd9cee6c02342d6362089938d72844ffa5614c544a984",
+        "files": [
+          {
+            "path": "assets/flow-store-Owo5AMgP.js",
+            "size": 30755,
+            "sha256": "9cdbc69e906e43d2d324a05a07b120d49eda9228695d484ff852a75c4e7b7a70"
+          },
+          {
+            "path": "assets/sidepanel-4Eo5PAj8.css",
+            "size": 4208,
+            "sha256": "b169a221e9653780f8567e08f59b1df3942f52bf87796f28149b3d13994e3b1d"
+          },
+          {
+            "path": "assets/sidepanel-BWt2dNK5.js",
+            "size": 184569,
+            "sha256": "b9e8e0a1184fc0e327e89319d624f2d4591125650369d97207d723485a57818b"
+          },
+          {
+            "path": "background.js",
+            "size": 34232,
+            "sha256": "b79e8fe770a3bb7450ea732cd6e77fc07627b938a0dc316a4afabba2160a429e"
+          },
+          {
+            "path": "content.js",
+            "size": 18544,
+            "sha256": "3eb38dce48c506adbc907467c58f9174d9bacc871325c5f8c22201ff634498dc"
+          },
+          {
+            "path": "icons/icon-128.png",
+            "size": 1488,
+            "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+          },
+          {
+            "path": "icons/icon-16.png",
+            "size": 305,
+            "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+          },
+          {
+            "path": "icons/icon-32.png",
+            "size": 500,
+            "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+          },
+          {
+            "path": "icons/icon-48.png",
+            "size": 654,
+            "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+          },
+          {
+            "path": "manifest.json",
+            "size": 959,
+            "sha256": "8f4452d03fdbb40c0797e0a6f079edfd5be9e5c69f55f2929cc45749efcf6c68"
+          },
+          {
+            "path": "sidepanel.html",
+            "size": 775,
+            "sha256": "72b3ba0e476865274c4cc1891a86bb29f002c4abf5f6c95a85a240fbad63a305"
+          }
+        ]
+      },
+      "rows": [
+        {
+          "multiplier": 1,
+          "stopMs": 1985,
+          "exportMs": 2125,
+          "zip": {
+            "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-settings-sOgpzK\\batch-1.zip",
+            "bytes": 56831,
+            "sha256": "73f69391b587d9f67d8a46b5945a2a86f26773285893f495d96c6373b77b62ce"
+          },
+          "verification": {
+            "events": 18,
+            "contents": 7,
+            "logicalBytes": 41981,
+            "budgetLimitBytes": 67108864,
+            "body": "not_collected_policy",
+            "standardZipfile": true,
+            "settings": {
+              "schemaVersion": 1,
+              "budgetMultiplier": 1,
+              "queueMultiplier": 1,
+              "samplingMultiplier": 1
+            }
+          }
+        },
+        {
+          "multiplier": 20,
+          "stopMs": 1389,
+          "exportMs": 1497,
+          "zip": {
+            "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\app\\test-flow-settings-sOgpzK\\batch-20.zip",
+            "bytes": 12970969,
+            "sha256": "37712a80d1837d760a491d98bd97fdf3cc8120f6db9f54b5004a4d1301c9cf25"
+          },
+          "verification": {
+            "events": 18,
+            "contents": 9,
+            "logicalBytes": 12954181,
+            "budgetLimitBytes": 1342177280,
+            "body": "captured",
+            "standardZipfile": true,
+            "settings": {
+              "schemaVersion": 1,
+              "budgetMultiplier": 20,
+              "queueMultiplier": 20,
+              "samplingMultiplier": 20
+            }
+          }
+        }
+      ],
+      "gates": [
+        "default three20 and1.25GiB preview;21/fraction/empty inline errors with no SAVE",
+        "UI saves1 and new panel reloads persisted1",
+        "save20 during1x recording keeps active1x/64MiB snapshot",
+        "owned-profile invalid stored schema shows real GET error while Stop remains enabled;restored20",
+        "two native business batches;1x body policy skip;20x exact3MiB body;longUnicode before/after+forms+3MiB DOM;small parts",
+        "root-only with3existing+1new unrelated pages",
+        "UI ZIP downloads;standard zipfile+skill index;ledger and settings snapshot;OPFS cleanup",
+        "actual extension page at320px has no horizontal overflow;full-page settings screenshot"
+      ],
+      "wire": {
+        "events": 7,
+        "fields": {
+          "beforeValue": 5,
+          "formValue0": 20,
+          "sourceHtml": 100,
+          "value": 5
+        },
+        "maxEventsJson": 1475,
+        "maxPartJson": 327997,
+        "parts": 130,
+        "surrogateSplits": 0
+      },
+      "cleanup": "owned-browser-closed",
+      "screenshot": {
+        "path": "E:\\dev\\copypaste\\美容ERP\\逻辑记录插件\\docs\\media\\v0.5.0-01-settings.png",
+        "sha256": "d24ff5feb42b4f3e094e9ed144860c971a2858975ab84c24aaedbdc43876654c",
+        "layout": {
+          "viewport": 320,
+          "width": 305
+        },
+        "actualExtensionPage": true,
+        "fullPage": true
+      }
+    },
+    "nativeLargeExport": {
+      "passed": true,
+      "storedBytes": 75499309,
+      "contentBytes": 75497472,
+      "zipBytes": 75511309,
+      "metrics": {
+        "expandedBytes": 75509919,
+        "storedLogicalBytes": 75499309,
+        "metadataOverheadBytes": 10610,
+        "zipBytes": 75511309,
+        "eventCount": 5,
+        "contentCount": 4,
+        "outputStorage": "opfs",
+        "storageMode": "opfs",
+        "elapsedMs": 4909,
+        "fileBacked": true
+      },
+      "reader": {
+        "verification": "passed",
+        "version": 3,
+        "events": 5,
+        "files": 6,
+        "contentCount": 4,
+        "event_types": {
+          "page.resource": 4,
+          "session.stop": 1
+        },
+        "profile": "business-flow-v1",
+        "partial": false,
+        "settings": {
+          "schemaVersion": 1,
+          "budgetMultiplier": 20,
+          "queueMultiplier": 20,
+          "samplingMultiplier": 20
+        },
+        "recordedCoverage": {
+          "declared": true
+        },
+        "policyStopped": false,
+        "byteAccountingVerification": "performed",
+        "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity"
+      },
+      "cleanup": "confirmed"
+    },
+    "independentReview": {
+      "verdict": "scoped_pass_source",
+      "findings": [
+        {
+          "id": "S050-R1",
+          "status": "closed_source"
+        },
+        {
+          "id": "S050-R2",
+          "status": "closed_source"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Maximum1.25GiB full payload was not stress tested",
+    "Synthetic local pages on native Windows Chrome, not arbitrary site/performance certification",
+    "Programmatic large-value setup was used for long-input transport; ordinary1x input and business buttons used real browser input",
+    "Native optional-host permission dialog, minimumChrome125 and macOS not tested",
+    "Policy caps do not guarantee physical disk or process memory capacity",
+    "Streaming STORE ZIP may be larger than compressed older archives",
+    "ZIP64 high-word tests and small actual ZIP64 parsing do not prove real>4GiB export"
+  ],
+  "oldBatches": {
+    "settingsAbsentUsesLegacy1": true,
+    "rewritten": false,
+    "oldHeavyDatabaseOpened": false
+  },
+  "publication": {
+    "localDelivery": true,
+    "newGithubReleaseCreated": false
+  },
+  "createdAt": "2026-11-14T13:25:51.805Z"
+}

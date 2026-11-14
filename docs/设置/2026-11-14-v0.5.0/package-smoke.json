@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "version": "0.5.0",
+  "startedAt": "2026-11-14T13:27:18.582Z",
+  "status": "passed",
+  "environment": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.22.1",
+    "mode": "native-host; no OS isolation environment"
+  },
+  "scope": "Exact packaged extension loaded without modifying its manifest; optional packaged Python CLI reads only a local synthetic recording",
+  "checks": [
+    "release files/checksums/entry sizes and hashes match current dist and skill source",
+    "exact unmodified extension ZIP extracts and loads in actual Chrome with JS/CSS/icons and expected idle controls",
+    "extracted packaged Python indexer verifies synthetic ERP recording integrity and event count"
+  ],
+  "artifacts": [
+    {
+      "path": "logic-recorder-chrome-v0.5.0.zip",
+      "size": 100955,
+      "sha256": "e0a9a7332208c1a90c974948973a1ba0108503784b4b2f1fa27845d44bc7b594",
+      "entriesVerified": 11
+    },
+    {
+      "path": "extension-logic-clone-v0.5.0.zip",
+      "size": 41998,
+      "sha256": "00159da993821c993b98d4ac59c564f9647ff50d6812c8bb563b5be4d1368dd0",
+      "entriesVerified": 10
+    }
+  ],
+  "limitations": [
+    "No native permission-dialog acceptance/denial test",
+    "No macOS or minimum Chrome125 execution",
+    "Hashes are consistency evidence, not publisher signatures"
+  ],
+  "browser": {
+    "extensionVersion": "0.5.0",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "pageErrors": 0
+  },
+  "consumer": {
+    "verification": "passed",
+    "version": 3,
+    "events": 18,
+    "files": 11,
+    "contentCount": 9,
+    "event_types": {
+      "network.request": 2,
+      "network.response": 2,
+      "page.snapshot": 4,
+      "page.stylesheet": 1,
+      "screenshot": 2,
+      "session.notice": 2,
+      "session.start": 1,
+      "session.stop": 1,
+      "ui.change": 1,
+      "ui.click": 2
+    },
+    "profile": "business-flow-v1",
+    "partial": false,
+    "settings": {
+      "schemaVersion": 1,
+      "budgetMultiplier": 20,
+      "queueMultiplier": 20,
+      "samplingMultiplier": 20
+    },
+    "recordedCoverage": {
+      "declared": true,
+      "version": 1,
+      "policyGaps": 1,
+      "physicalCdpStreamLimit": false
+    },
+    "policyStopped": false,
+    "byteAccountingVerification": "performed",
+    "coverageCaveat": "partial=false, ready status, and hashes do not prove full capture or authenticity",
+    "recordingSha256": "37712a80d1837d760a491d98bd97fdf3cc8120f6db9f54b5004a4d1301c9cf25",
+    "indexCreated": true
+  },
+  "chromeCleanup": "confirmed",
+  "profileCleanup": "removed",
+  "finishedAt": "2026-11-14T13:27:21.800Z"
+}

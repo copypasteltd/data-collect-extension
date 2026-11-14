@@ -1,6 +1,7 @@
 """Standard-library v3 reader tests; every archive is synthetic and temporary."""
 import copy
 import hashlib
+import importlib.util
 import json
 import os
 import random
@@ -18,6 +19,21 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills" / "extension-logic-clone" / "scripts" / "index_archive.py"
 SESSION = "synthetic-flow"
 CHUNKS = ["timeline/events-00001.jsonl", "timeline/events-00002.jsonl"]
+SPEC = importlib.util.spec_from_file_location("flow_index_reader", SCRIPT)
+READER = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(READER)
+
+
+def configured(manifest, budget=20, queue=20, sampling=20):
+    settings = {"schemaVersion": 1, "budgetMultiplier": budget, "queueMultiplier": queue, "samplingMultiplier": sampling}
+    limits = READER.derive_flow_limits(settings)
+    manifest["capturePolicy"].update(settings=settings, limits=limits["budget"],
+                                     runtimeLimits={key: limits[key] for key in ("background", "content")})
+    manifest["budget"].update(settings=settings, limitBytes=limits["budget"]["totalBytes"],
+                              reserveBytes=limits["budget"]["reserveBytes"])
+    manifest["session"]["capturePolicy"] = copy.deepcopy(manifest["capturePolicy"])
+    manifest["session"]["budget"] = copy.deepcopy(manifest["budget"])
+    return manifest
 
 
 def encoded(value):
@@ -447,6 +463,161 @@ class FlowArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "archive changed"):
                 indexer.main()
         self.assertFalse(self.index.exists())
+
+    def test_settings_snapshots_legacy_and_independent_1_to_20_ranges(self):
+        for multipliers in ((1, 1, 1), (20, 20, 20), (1, 20, 7), (20, 1, 3)):
+            manifest, events, bins = self.current_fixture()
+            configured(manifest, *multipliers)
+            self.write_archive(manifest, events, bins)
+            result = self.run_index()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["settings"], manifest["capturePolicy"]["settings"])
+            self.index.unlink()
+        manifest, events, bins = self.fixture()
+        self.write_archive(manifest, events, bins)
+        result = self.run_index()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["settings"], READER.LEGACY_FLOW_SETTINGS)
+        limits = READER.derive_flow_limits({"schemaVersion": 1, "budgetMultiplier": 20, "queueMultiplier": 1, "samplingMultiplier": 3})
+        self.assertEqual((limits["budget"]["totalBytes"], limits["budget"]["warningBytes"],
+                          limits["budget"]["singleBodyBytes"]), (1280 * READER.MIB, 960 * READER.MIB, 40 * READER.MIB))
+        self.assertEqual((limits["background"]["queue"], limits["content"]["formCount"], limits["content"]["domDepth"]), (64, 384, 64))
+
+    def test_invalid_settings_cannot_authorize_21_or_200_multiplier(self):
+        for key in READER.LEGACY_FLOW_SETTINGS:
+            for value in (None, True, 0, -1, 1.0, 21, 200, 9007199254740992):
+                settings = dict(READER.LEGACY_FLOW_SETTINGS, **{key: value})
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    READER.validate_flow_settings(settings)
+            settings = dict(READER.LEGACY_FLOW_SETTINGS)
+            del settings[key]
+            with self.assertRaises(ValueError):
+                READER.validate_flow_settings(settings)
+        with self.assertRaises(ValueError):
+            READER.validate_flow_settings(dict(READER.LEGACY_FLOW_SETTINGS, arbitraryLimit=1))
+        manifest, events, bins = self.current_fixture()
+        configured(manifest)
+        manifest["capturePolicy"]["settings"]["budgetMultiplier"] = 200
+        self.write_archive(manifest, events, bins)
+        self.assert_rejected()
+
+    def test_snapshot_limits_and_budget_must_derive_from_recorded_settings(self):
+        for field in ("limitBytes", "reserveBytes", "usedBytes", "byCategory", "settings", "limits", "runtimeLimits", "capturePolicy"):
+            manifest, _, _ = self.current_fixture()
+            configured(manifest)
+            if field == "usedBytes":
+                manifest["budget"][field] = 1280 * READER.MIB + 1
+            elif field == "byCategory":
+                manifest["budget"][field]["body"] = 480 * READER.MIB + 1
+            elif field == "settings":
+                manifest["budget"][field] = dict(READER.LEGACY_FLOW_SETTINGS)
+            elif field == "limits":
+                manifest["capturePolicy"][field]["eventBytes"] = True
+            elif field == "runtimeLimits":
+                manifest["capturePolicy"][field]["content"]["domDepth"] = 1280
+            elif field == "capturePolicy":
+                manifest["session"][field]["settings"]["queueMultiplier"] = 1
+            else:
+                manifest["budget"][field] += 1
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                READER.validate_flow_policy(manifest)
+        manifest, _, _ = self.fixture()
+        manifest["budget"]["settings"] = {"schemaVersion": 1, "budgetMultiplier": 20, "queueMultiplier": 20, "samplingMultiplier": 20}
+        with self.assertRaises(ValueError):
+            READER.validate_flow_policy(manifest)
+
+    def test_declared_40_mib_body_boundary_without_allocating_payload(self):
+        manifest, _, _ = self.fixture()
+        configured(manifest)
+        content = manifest["contents"][1]
+        content["size"] = 40 * READER.MIB
+        checked = {item["path"]: (item["size"], item["sha256"]) for item in manifest["contents"]}
+        checked.update({chunk: (0, "0" * 64) for chunk in CHUNKS})
+        READER.validate_flow_manifest(manifest, CHUNKS, checked)
+        content["size"] += 1
+        checked[content["path"]] = (content["size"], content["sha256"])
+        with self.assertRaisesRegex(ValueError, "single body limit"):
+            READER.validate_flow_manifest(manifest, CHUNKS, checked)
+
+    def test_small_zip64_entries_are_supported(self):
+        manifest, events, bins = self.current_fixture()
+        configured(manifest)
+        self.write_archive(manifest, events, bins)
+        with zipfile.ZipFile(self.archive) as source:
+            files = {info.filename: source.read(info) for info in source.infolist()}
+        with zipfile.ZipFile(self.archive, "w", zipfile.ZIP_STORED) as target:
+            for name, data in files.items():
+                with target.open(name, "w", force_zip64=True) as stream:
+                    stream.write(data)
+        result = self.run_index()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_event_line_policy_boundary_counts_real_utf8_and_lf(self):
+        for multiplier in (1, 20):
+            cap = 32768 * multiplier
+            for extra in (0, 1):
+                def utf8(event):
+                    value = copy.deepcopy(event)
+                    if value["seq"] == 1:
+                        value["payload"]["padding"] = "合成😀"
+                        raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                        value["payload"]["padding"] += "A" * (cap + extra - len(raw) - 1)
+                    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                manifest, events, bins = self.current_fixture(utf8)
+                configured(manifest, multiplier, 1, 1)
+                self.assertEqual(len(utf8(events[0])) + 1, cap + extra)
+                self.write_archive(manifest, events, bins, event_encode=utf8)
+                with self.subTest(multiplier=multiplier, extra=extra):
+                    if extra:
+                        self.assertIn("event line exceeds limit", self.assert_rejected().stderr)
+                    else:
+                        result = self.run_index()
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.index.unlink()
+
+    def test_legacy_v3_event_cap_is_1x_not_reader_40mb(self):
+        def event_bytes(event):
+            value = copy.deepcopy(event)
+            if value["seq"] == 1:
+                value["payload"]["padding"] = "A" * 33000
+            return encoded(value)
+        manifest, events, bins = self.current_fixture(event_bytes)
+        self.write_archive(manifest, events, bins, event_encode=event_bytes)
+        self.assertIn("event line exceeds limit", self.assert_rejected().stderr)
+
+    def test_event_content_count_follows_sampling_multiplier(self):
+        for multiplier in (1, 20):
+            for extra in (0, 1):
+                manifest, events, bins = self.fixture()
+                configured(manifest, 20, 1, multiplier)
+                ref = events[0]["payload"]["dom/标题~"]
+                events[0]["payload"] = {f"field{index}": copy.deepcopy(ref) for index in range(16 * multiplier + extra)}
+                self.write_archive(manifest, events, bins)
+                with self.subTest(multiplier=multiplier, extra=extra):
+                    if extra:
+                        self.assertIn("reference count", self.assert_rejected().stderr)
+                    else:
+                        result = self.run_index()
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.index.unlink()
+
+    def test_body_reference_cannot_bypass_limit_via_resource_manifest_category(self):
+        for multiplier in (1, 20):
+            limits = READER.derive_flow_limits(dict(READER.LEGACY_FLOW_SETTINGS, budgetMultiplier=multiplier))
+            manifest, events, _ = self.fixture()
+            content = manifest["contents"][0]
+            content["category"] = "resource"
+            for extra in (0, 1):
+                content["size"] = 2 * READER.MIB * multiplier + extra
+                reference = {key: content[key] for key in ("contentId", "sha256", "size", "mime")}
+                reference.update(category="body", status="captured")
+                contents = {content["contentId"]: content}
+                with self.subTest(multiplier=multiplier, extra=extra):
+                    if extra:
+                        with self.assertRaisesRegex(ValueError, "single body limit"):
+                            list(READER.content_references({"body": reference}, contents, limits))
+                    else:
+                        self.assertEqual(len(list(READER.content_references({"body": reference}, contents, limits))), 1)
 
 
 if __name__ == "__main__":

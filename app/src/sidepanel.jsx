@@ -4,7 +4,8 @@ import { AlertTriangle, Circle, Download, Square } from "lucide-react";
 import { createArchive } from "./flow-archive.js";
 import { exportProgressPhase, exportProgressDetail } from "./export-progress.js";
 import { downloadBlob } from "./downloads.js";
-import { canStartRecording, canStopRecording, canExportRecording, recordingNotice, batchStatusLabel, exportPhaseLabel } from "./panel-state.js";
+import { canStartRecording, canStopRecording, canExportRecording, recordingNotice, batchStatusLabel, exportPhaseLabel, formatBudgetBytes } from "./panel-state.js";
+import { DEFAULT_FLOW_SETTINGS, MAX_MULTIPLIER, validateFlowSettings, deriveFlowLimits } from "./flow-config.js";
 import "./style.css";
 
 function withTimeout(promise, milliseconds) {
@@ -22,9 +23,97 @@ async function call(type, data = {}) {
   return result.value;
 }
 
+const LIMIT_FIELDS = [["budgetMultiplier", "容量倍率"], ["queueMultiplier", "待处理队列倍率"], ["samplingMultiplier", "页面采样倍率"]];
+
+function LimitPreview({ limits }) {
+  const { budget: b, background: bg, content: c } = limits;
+  const count = (n) => n.toLocaleString("zh-CN");
+  const rows = [
+    ["单批总量", formatBudgetBytes(b.totalBytes)], ["提醒阈值", formatBudgetBytes(b.warningBytes)],
+    ["普通采集 / 收尾预留", `${formatBudgetBytes(b.normalBytes)} / ${formatBudgetBytes(b.reserveBytes)}`],
+    ["单份接口正文", formatBudgetBytes(b.singleBodyBytes)], ["单条记录说明", formatBudgetBytes(b.eventBytes)],
+    ...Object.entries({ body: "接口正文合计", dom: "页面快照合计", resource: "资源合计", screenshot: "截图合计", meta: "记录说明合计" }).map(([key, label]) => [label, formatBudgetBytes(b.categoryBytes[key])]),
+    ["后台待处理", `${count(bg.queue)} 项 / ${formatBudgetBytes(bg.queuedBytes)}`], ["待处理请求", `${count(bg.requests)} 项`],
+    ["页面待处理", `${count(c.queueEvents)} 项 / ${formatBudgetBytes(c.queueBytes)}`],
+    ["每次提交", `页面 ${count(c.batchEvents)} 项；后台 ${count(bg.batch)} 项 / ${formatBudgetBytes(bg.batchBytes)}`],
+    ["页面快照采样", `${count(c.domNodes)} 个节点；${count(bg.frames)} 个框架`],
+    ["表单 / 资源采样", `${count(c.formCount)} / ${count(c.resourceUrls)} 项`],
+    ["样式采样", `${count(c.stylesheetCount)} 份 / ${count(c.stylesheetRules)} 条规则`],
+    ["Shadow 页面采样", `${count(c.shadowHosts)} 个宿主 / ${count(c.shadowNodes)} 个节点`],
+  ];
+  return <dl className="limit-preview" aria-label="限额预览">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
+}
+
+function LimitSettings({ active, controlBusy, onAvailabilityChange }) {
+  const [saved, setSaved] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [busy, setBusy] = useState("GET_LIMIT_SETTINGS");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const request = useRef(false);
+  const mounted = useRef(true);
+  const dirty = !!saved && LIMIT_FIELDS.some(([key]) => Number(draft[key]) !== saved.settings[key]);
+  const errors = Object.fromEntries(LIMIT_FIELDS.filter(([key]) => saved &&
+    (String(draft[key] ?? "").trim() === "" || !Number.isSafeInteger(Number(draft[key])) || Number(draft[key]) < 1 || Number(draft[key]) > MAX_MULTIPLIER))
+    .map(([key]) => [key, `请输入 1–${MAX_MULTIPLIER} 之间的整数。`]));
+  const limits = saved && !Object.keys(errors).length ? deriveFlowLimits({ schemaVersion: 1, ...Object.fromEntries(LIMIT_FIELDS.map(([key]) => [key, Number(draft[key])])) }) : null;
+  const ready = !!saved && !busy && !dirty && !Object.keys(errors).length;
+
+  async function update(type) {
+    if (request.current || (type !== "GET_LIMIT_SETTINGS" && controlBusy) || (type === "SAVE_LIMIT_SETTINGS" && (!limits || !dirty))) return;
+    request.current = true;
+    onAvailabilityChange(false);
+    setBusy(type); setError(""); setNotice("");
+    try {
+      const next = await call(type, type === "SAVE_LIMIT_SETTINGS" ? { settings: limits.settings } : {});
+      validateFlowSettings(next.settings); validateFlowSettings(next.defaults);
+      if (next.maximumMultiplier !== MAX_MULTIPLIER || !next.limits?.budget) throw new Error("设置响应无效，请重试");
+      if (!mounted.current) return;
+      setSaved(next); setDraft(next.settings);
+      if (type !== "GET_LIMIT_SETTINGS") setNotice(type === "RESET_LIMIT_SETTINGS" ? "已恢复默认 20 倍并保存到本机；仅下一批生效。" : "已保存到本机；仅下一批生效。");
+    } catch (reason) {
+      if (mounted.current) setError(`${type === "GET_LIMIT_SETTINGS" ? "读取" : "保存"}设置失败：${reason.message}`);
+    } finally {
+      request.current = false;
+      if (mounted.current) setBusy("");
+    }
+  }
+  useEffect(() => { mounted.current = true; update("GET_LIMIT_SETTINGS"); return () => { mounted.current = false; }; }, []);
+  useEffect(() => { onAvailabilityChange(ready); }, [ready, draft, onAvailabilityChange]);
+
+  return <details className="limit-settings">
+    <summary>录制限额设置<span>{!saved ? busy ? "正在读取…" : "读取失败" : dirty ? "未保存" : "已保存"}</span></summary>
+    <form noValidate onSubmit={(event) => { event.preventDefault(); update("SAVE_LIMIT_SETTINGS"); }} aria-busy={!!busy}>
+      <p className="disclosure">三项倍率均为 1–{MAX_MULTIPLIER} 的整数，默认 20 倍。设置保存在本机，{active ? "正在录制时保存仅下一批生效，当前批次保持原限额。" : "仅下一批生效。"}</p>
+      {LIMIT_FIELDS.map(([key, label]) => <div className="limit-field" key={key}>
+        <label htmlFor={`limit-${key}`}>{label}</label>
+        <input id={`limit-${key}`} name={key} type="number" min="1" max={MAX_MULTIPLIER} step="1" value={draft[key] ?? ""}
+          disabled={!saved || !!busy || controlBusy} aria-invalid={!!errors[key]} aria-describedby={`limit-${key}-hint${errors[key] ? ` limit-${key}-error` : ""}`}
+          onChange={(event) => { onAvailabilityChange(false); setDraft((previous) => ({ ...previous, [key]: event.target.value })); setNotice(""); }} />
+        <small id={`limit-${key}-hint`}>{saved ? `当前已保存 ${saved.settings[key]} 倍 · 默认 ${saved.defaults[key]} 倍` : "等待读取本机设置"}</small>
+        {errors[key] && <p className="field-error" id={`limit-${key}-error`} role="alert">{errors[key]}</p>}
+      </div>)}
+      {error && <p className="error" role="alert">{error}</p>}
+      {!saved && !busy && <button className="settings-button" type="button" onClick={() => update("GET_LIMIT_SETTINGS")}>重新读取设置</button>}
+      <div className="settings-actions">
+        <button className="settings-button save" type="submit" disabled={!limits || !dirty || !!busy || controlBusy}>{busy === "SAVE_LIMIT_SETTINGS" ? "正在保存…" : "保存到本机"}</button>
+        <button className="settings-button" type="button" disabled={!saved || !!busy || controlBusy} onClick={() => update("RESET_LIMIT_SETTINGS")}>恢复默认 20 倍</button>
+      </div>
+      {busy && <p className="disclosure" role="status">{busy === "GET_LIMIT_SETTINGS" ? "正在读取本机设置…" : "正在保存本机设置…"}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
+      {dirty && <p className="disclosure" role="status">草稿尚未保存；开始录制使用已保存设置，请先保存草稿再开始。</p>}
+      {limits && <><p className="preview-label">{dirty ? "草稿限额预览" : "当前已保存限额"}</p><LimitPreview limits={limits} /></>}
+      <p className="disclosure">以上是采集策略上限，不代表磁盘可用空间或浏览器保证。空间不足或浏览器限制会显示错误；倍率不会扩大录制页面范围。</p>
+    </form>
+  </details>;
+}
+
 function App() {
   const [state, setState] = useState({ active: null, sessions: [] });
   const [selectedId, setSelectedId] = useState("");
+  const [settingsReady, setSettingsReady] = useState(false);
+  const settingsAvailable = useRef(false);
+  const updateSettingsAvailability = useCallback((ready) => { settingsAvailable.current = ready; setSettingsReady(ready); }, []);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [statusError, setStatusError] = useState("");
@@ -109,7 +198,7 @@ function App() {
   }, []);
 
   async function start() {
-    if (!canStartRecording(state.active, operation.current, exportOperation.current)) return;
+    if (!canStartRecording(state.active, operation.current, exportOperation.current, settingsAvailable.current)) return;
     const currentOperation = { type: "starting" };
     operation.current = currentOperation;
     uncertainStop.current = "";
@@ -173,6 +262,7 @@ function App() {
     setExportProgress(null);
     setExportElapsed(0);
     const elapsedTimer = setInterval(() => setExportElapsed(Date.now() - currentExport.startedAt), 1000);
+    let archiveResult;
     try {
       // A second panel may have started recording since the last poll. Do not
       // open a new historical export in that state; an already running export
@@ -181,12 +271,13 @@ function App() {
       if (!next.applied) throw new Error("录制状态已更新，请确认后重试导出");
       if (next.active) throw new Error("请先停止当前录制，再导出记录包");
       setExportPhase("events");
-      const { blob, importIssues = [] } = await createArchive(currentExport.id, (progress) => {
+      archiveResult = await createArchive(currentExport.id, (progress) => {
         if (exportOperation.current !== currentExport) return;
         setExportPhase(exportProgressPhase(progress));
         setExportProgress(progress);
       }, { signal: currentExport.controller.signal });
-      if (exportOperation.current !== currentExport) return;
+      if (exportOperation.current !== currentExport || currentExport.controller.signal.aborted) return;
+      const { blob, importIssues = [] } = archiveResult;
       setExportPhase("download");
       await downloadBlob(blob, `逻辑记录-${currentExport.id.slice(0, 8)}.zip`);
       if (exportOperation.current === currentExport) {
@@ -198,6 +289,9 @@ function App() {
       if (exportOperation.current === currentExport) setError(reason.message);
     } finally {
       clearInterval(elapsedTimer);
+      try { await archiveResult?.cleanup?.(); } catch {
+        if (exportOperation.current === currentExport) setError((previous) => previous || "临时导出文件未能清理，请重新打开侧栏后重试。");
+      }
       if (exportOperation.current === currentExport) {
         exportOperation.current = null;
         setExportPhase("");
@@ -226,16 +320,18 @@ function App() {
             <Square size={16} fill="currentColor" />{busy === "stopping" || !["preparing", "recording"].includes(active.status) ? "正在结束…" : "停止录制"}
           </button>
         ) : (
-          <button className="primary" disabled={!canStartRecording(active, busy ? { type: busy } : null, exporting)} onClick={start}>
+          <button className="primary" disabled={!canStartRecording(active, busy ? { type: busy } : null, exporting, settingsReady)} onClick={start}>
             <Circle size={16} fill="currentColor" />{busy === "starting" ? "正在准备…" : "开始录制"}
           </button>
         )}
+        {!active && !settingsReady && <p className="disclosure" role="status">请先在“录制限额设置”中完成读取并保存草稿，再开始录制。</p>}
         <p className="disclosure">只记录开始时的业务标签、必要框架及可明确归属的一个流程子页；切换到其它已开页面不会扩大范围。</p>
         <p className="disclosure">保留已采集的输入、接口样本和未遮挡截图，可能含认证头及业务原值；ZIP 未加密。关闭侧边栏不会停止录制。</p>
-        {active?.budget && <p className="disclosure" role="status">已保存 {(active.budget.usedBytes / 1048576).toFixed(1)} / 64 MiB{active.budget.warning ? " · 接近容量上限" : ""}</p>}
+        {active?.budget && <p className="disclosure" role="status">已保存 {formatBudgetBytes(active.budget.usedBytes)} / {formatBudgetBytes(active.budget.limitBytes)}{active.budget.warning ? " · 接近容量上限" : ""}</p>}
       </section>
       {activeNotice && <div className="notice" role="status">{activeNotice}</div>}
       {visibleError && <div className="error" role="alert"><AlertTriangle size={16} /><span>{visibleError}</span></div>}
+      <LimitSettings active={active} controlBusy={!!busy} onAvailabilityChange={updateSettingsAvailability} />
       <section className="batches" aria-label="录制批次">
         <h2>录制批次</h2>
         {sessions.length ? (
@@ -256,7 +352,7 @@ function App() {
         {exporting && <p className="disclosure" role="status" aria-live="polite">{exportProgressDetail(exportProgress, exportElapsed)}。较大批次需要更长时间；无进展时会结束等待，本地批次不删除。</p>}
         {active && <p className="disclosure">请先停止当前录制，再导出记录包。</p>}
         {exportNotice && <p className="notice" role="status">{exportNotice}</p>}
-        <p className="disclosure">单批容量上限 64 MiB，48 MiB 提醒；达到预算会停止采集并保留可导出部分。新版本不迁移或显示旧版批次，也不会删除旧数据。</p>
+        <p className="disclosure">默认三项倍率均为 {DEFAULT_FLOW_SETTINGS.budgetMultiplier} 倍，可在“录制限额设置”中调整；达到本批预算会停止采集并保留可导出部分。新版本不迁移或显示旧版批次，也不会删除旧数据。</p>
       </section>
     </main>
   );
