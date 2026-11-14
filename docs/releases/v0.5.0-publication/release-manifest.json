@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "format": "formal-code-release",
+  "tag": "v0.5.0",
+  "sourceCommit": "d7467f37f8615c27eda53435db913b34fff07982",
+  "extensionVersion": "0.5.0",
+  "readerSkillVersion": "0.5.0",
+  "artifacts": [
+    {
+      "path": "logic-recorder-chrome-v0.5.0.zip",
+      "kind": "chrome-extension",
+      "size": 100955,
+      "sha256": "e0a9a7332208c1a90c974948973a1ba0108503784b4b2f1fa27845d44bc7b594",
+      "entries": [
+        {
+          "path": "assets/flow-store-Owo5AMgP.js",
+          "size": 30755,
+          "sha256": "9cdbc69e906e43d2d324a05a07b120d49eda9228695d484ff852a75c4e7b7a70"
+        },
+        {
+          "path": "assets/sidepanel-4Eo5PAj8.css",
+          "size": 4208,
+          "sha256": "b169a221e9653780f8567e08f59b1df3942f52bf87796f28149b3d13994e3b1d"
+        },
+        {
+          "path": "assets/sidepanel-BWt2dNK5.js",
+          "size": 184569,
+          "sha256": "b9e8e0a1184fc0e327e89319d624f2d4591125650369d97207d723485a57818b"
+        },
+        {
+          "path": "background.js",
+          "size": 34232,
+          "sha256": "b79e8fe770a3bb7450ea732cd6e77fc07627b938a0dc316a4afabba2160a429e"
+        },
+        {
+          "path": "content.js",
+          "size": 18544,
+          "sha256": "3eb38dce48c506adbc907467c58f9174d9bacc871325c5f8c22201ff634498dc"
+        },
+        {
+          "path": "icons/icon-128.png",
+          "size": 1488,
+          "sha256": "a348c3f1a918b50c7d665ed85930cc41b2161ab01064043cff183bed518cb5b1"
+        },
+        {
+          "path": "icons/icon-16.png",
+          "size": 305,
+          "sha256": "4294f4a3d734879fd5e9406df16eef30a9f927e3cbf67e9e882f0b0b133f6173"
+        },
+        {
+          "path": "icons/icon-32.png",
+          "size": 500,
+          "sha256": "24e1210105687e3604cbe88fa674982438cee50de0ebd3210801beb79775e131"
+        },
+        {
+          "path": "icons/icon-48.png",
+          "size": 654,
+          "sha256": "a565a282ba3618f96b9bcfcef84a61f92a7bbb892a074d21f3aebf07a7bc8501"
+        },
+        {
+          "path": "manifest.json",
+          "size": 959,
+          "sha256": "8f4452d03fdbb40c0797e0a6f079edfd5be9e5c69f55f2929cc45749efcf6c68"
+        },
+        {
+          "path": "sidepanel.html",
+          "size": 775,
+          "sha256": "72b3ba0e476865274c4cc1891a86bb29f002c4abf5f6c95a85a240fbad63a305"
+        }
+      ]
+    },
+    {
+      "path": "extension-logic-clone-v0.5.0.zip",
+      "kind": "standalone-skill",
+      "size": 41998,
+      "sha256": "00159da993821c993b98d4ac59c564f9647ff50d6812c8bb563b5be4d1368dd0",
+      "entries": [
+        {
+          "path": "extension-logic-clone/SKILL.md",
+          "size": 5570,
+          "sha256": "c805254a73c578655f1a61aeb51ec9314a2a5a66f23c49b8581782dd8adbccce"
+        },
+        {
+          "path": "extension-logic-clone/agents/openai.yaml",
+          "size": 362,
+          "sha256": "2aa2c24dde7c4eb838712fb59f2202a020f537bae2921e1c2d67adaaf1cc2756"
+        },
+        {
+          "path": "extension-logic-clone/references/archive-format.md",
+          "size": 8489,
+          "sha256": "81a3e7d607993aecf837954612ff03cdc38e83f903f7ac08d0f6f8a1e9ea0acb"
+        },
+        {
+          "path": "extension-logic-clone/references/business-flow-v3.md",
+          "size": 6250,
+          "sha256": "7ce7579f9bb5bfe081fc77d3aff12fe3e2a4c3193dc2950e31a2c298fe698ec5"
+        },
+        {
+          "path": "extension-logic-clone/references/legacy-v1-v2.md",
+          "size": 25083,
+          "sha256": "11f99039ff20b3774d2fba4ea47788e6fd4c9b03978a5f75f1cff5e7211f9a90"
+        },
+        {
+          "path": "extension-logic-clone/references/reconstruction.md",
+          "size": 4704,
+          "sha256": "930eff143d9b466796f6879929d4fc546794ec3f9dbed41653d3f9419b409016"
+        },
+        {
+          "path": "extension-logic-clone/scripts/decode_computed_style.py",
+          "size": 2948,
+          "sha256": "c6ec3f355ac2a471a2a3ae0f23643a827cfdcab94405349c7294d02ec4b7cbc9"
+        },
+        {
+          "path": "extension-logic-clone/scripts/index_archive.py",
+          "size": 29726,
+          "sha256": "01b0ab0a95548b6a4fe4fd9d7c8f137e058856981156a6ae197a2d5bbbf4193c"
+        },
+        {
+          "path": "extension-logic-clone/scripts/read_content.py",
+          "size": 9744,
+          "sha256": "87b54a93c30cf26ef68210d980f1f51b7344d0224ddf07b2a53253dea513ddf4"
+        },
+        {
+          "path": "extension-logic-clone/scripts/reconstruct_payload.py",
+          "size": 6184,
+          "sha256": "b4c839be70bb6ec30caf59c653f4dd4d638aad8fba35afa6cbfe243533cb22b7"
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "path": "INSTALL.md",
+      "size": 3166,
+      "sha256": "e9ef397e4a3b9825e98481389438a1428ab15032d32203db0308fabe918eb087"
+    },
+    {
+      "path": "RELEASE-NOTES.md",
+      "size": 3946,
+      "sha256": "304f4cbc67195b2629ab4b278c6099fdbe060bed3827c8f78175cd85956d8531"
+    },
+    {
+      "path": "VERIFICATION.json",
+      "size": 2922,
+      "sha256": "77be96408436e93d167672902502c9bb6f5fb71763687a7af2aa4b880dbef861"
+    },
+    {
+      "path": "RELEASE-REPORT.md",
+      "size": 1855,
+      "sha256": "5d2a8db23c1f58b31c3645786c5998fe50b487514d59d2c8fa188387e84c602b"
+    }
+  ],
+  "provenance": {
+    "verifiedComponentZipsUnchanged": true,
+    "codeArtifactsRebuilt": false
+  }
+}

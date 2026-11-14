@@ -1,0 +1,27 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+import {promisify} from "node:util";
+import {execFile} from "node:child_process";
+import {unzipSync} from "fflate";
+import {sha256,validateArchivePath} from "./package-release.mjs";
+import {launchExtension,removeTestProfile} from "../tests/chrome-harness.mjs";
+const app=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),repo=path.dirname(app),docs=path.join(repo,"docs/releases/v0.5.0-publication"),run=promisify(execFile);
+const plan=JSON.parse(await fs.readFile(path.join(docs,"publication-plan.json"),"utf8")),out=path.join(repo,plan.formalDirectory),must=(x,m)=>{if(!x)throw Error(m);};
+const report={schemaVersion:1,status:"running",tag:plan.tag,sourceCommit:plan.sourceCommit,assets:[],checks:[],startedAt:new Date().toISOString()};let browser,profile,temporary;
+try{
+ for(const asset of plan.assets){const b=await fs.readFile(path.join(out,asset.name));must(b.length===asset.size&&sha256(b)===asset.sha256,"Formal asset changed");report.assets.push({name:asset.name,size:b.length,sha256:sha256(b)});}
+ const sums=(await fs.readFile(path.join(out,"SHA256SUMS.txt"),"utf8")).trim().split(/\r?\n/);must(sums.length===plan.assets.length-1,"Asset checksum list incomplete");
+ for(const line of sums){const m=/^([a-f0-9]{64})  ([A-Za-z0-9._-]+)$/.exec(line);must(m&&plan.assets.some(a=>a.name===m[2]&&a.sha256===m[1]),"Formal checksum mismatch");}
+ const bundle=unzipSync(await fs.readFile(path.join(out,"logic-recorder-release-v0.5.0.zip"))),prefix="logic-recorder-v0.5.0/";
+ for(const line of Buffer.from(bundle[prefix+"SHA256SUMS.txt"]).toString("utf8").trim().split(/\r?\n/)){const[digest,name]=line.split("  ");must(bundle[prefix+name]&&sha256(bundle[prefix+name])===digest&&sha256(await fs.readFile(path.join(out,name)))===digest,"Bundled/public attachment mismatch");}
+ const manifest=JSON.parse(await fs.readFile(path.join(out,"release-manifest.json"),"utf8"));
+ temporary=await fs.mkdtemp(path.join(app,"test-formal-release-"));profile=path.join(temporary,"profile");const destinations={"chrome-extension":path.join(temporary,"extension"),"standalone-skill":path.join(temporary,"skill")};
+ for(const asset of manifest.artifacts){const b=await fs.readFile(path.join(out,asset.path));must(sha256(b)===asset.sha256,"Code ZIP changed");const entries=unzipSync(b),prefix="";must(Object.keys(entries).length===asset.entries.length,"Code ZIP entry count mismatch");for(const file of asset.entries){const p=prefix+file.path;validateArchivePath(p);must(entries[p]&&entries[p].length===file.size&&sha256(entries[p])===file.sha256,"Code entry mismatch");const target=path.join(destinations[asset.kind],...p.split("/"));await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,entries[p],{flag:"wx"});}}
+ report.checks.push("All ten assets, complete-bundle entries, and extension/reader bytes match checksum plans");
+ browser=await launchExtension(profile,destinations["chrome-extension"]);const panel=await browser.context.newPage(),errors=[];panel.on("pageerror",e=>errors.push(e.message));await panel.goto("chrome-extension://"+browser.id+"/sidepanel.html");await panel.getByRole("button",{name:"开始录制"}).waitFor();const state=await panel.evaluate(async()=>({version:chrome.runtime.getManifest().version,state:await chrome.runtime.sendMessage({type:"GET_STATE"}),css:document.styleSheets.length,icons:[...document.images].every(i=>i.complete&&i.naturalWidth>0)}));must(state.version==="0.5.0"&&state.state.ok&&state.css>0&&state.icons&&!errors.length,"Exact formal extension runtime check failed");
+ report.browser={version:state.version,userAgent:await panel.evaluate(()=>navigator.userAgent),pageErrors:errors.length,manifestUnmodified:true};report.checks.push("Exact extension ZIP loaded without modifying permissions or manifest; idle state/UI/assets work");
+ const reader=path.join(destinations["standalone-skill"],"extension-logic-clone");const validation=await run("python",["C:/Users/carzy/.codex/skills/.system/skill-creator/scripts/quick_validate.py",reader],{cwd:app,env:{...process.env,PYTHONUTF8:"1",PYTHONDONTWRITEBYTECODE:"1"},timeout:30000});must(validation.stdout.includes("Skill is valid"),"Formal reader skill invalid");
+ const actual=await run("python",[path.join(app,"scripts/verify-settings-reading-skill.py"),"--skill",reader,"--report",path.join(temporary,"reader-verification.json")],{cwd:app,env:{...process.env,PYTHONUTF8:"1",PYTHONDONTWRITEBYTECODE:"1"},timeout:60000});report.reader=JSON.parse(actual.stdout);must(report.reader.status==="passed","Formal reader actual v3 check failed");report.reader.skill="extracted formal reader ZIP";report.checks.push("Formal reader validates actual synthetic v3 recording and exact DOM/CSS/PNG/request/response content");report.status="passed";
+}catch(error){report.status="failed";report.failure=error.message;process.exitCode=1;}
+finally{try{if(browser){await browser.close();report.browserClosed=true;}if(profile){const result=await removeTestProfile(profile,()=>fs.rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:100}));report.profileCleanup=result.status;if(result.status!=="removed"){report.status="failed";process.exitCode=1;}}}catch(error){report.status="failed";report.cleanupError=error.message;process.exitCode=1;}report.finishedAt=new Date().toISOString();await fs.writeFile(path.join(docs,"package-verification.json"),JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report));}

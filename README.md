@@ -4,12 +4,15 @@
 
 [English](<README.en.md>) · [安装与使用](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [实际验收](<docs/设置/2026-11-14-v0.5.0/REPORT.md>) · [需求合同](<docs/设置/2026-11-14-v0.5.0/CONTRACT.md>) · [更新说明](<docs/CHANGELOG.md>)
 
-## 最新本地交付 v0.5.0
+## 最新正式版 v0.5.0
 
-- [完整交付包](<app/release/logic-recorder-release-v0.5.0.zip>) · [Chrome插件](<app/release/v0.5.0/logic-recorder-chrome-v0.5.0.zip>) · [读取skill0.5.0](<app/release/v0.5.0/extension-logic-clone-v0.5.0.zip>)
+已正式发布并设为Latest：[GitHub Release v0.5.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.5.0>)。
+
+- **[完整正式交付包](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.5.0/logic-recorder-release-v0.5.0.zip>)** · [Chrome插件](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.5.0/logic-recorder-chrome-v0.5.0.zip>) · [读取skill0.5.0](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.5.0/extension-logic-clone-v0.5.0.zip>)
+- [全部附件SHA256](<https://github.com/copypasteltd/data-collect-extension/releases/download/v0.5.0/SHA256SUMS.txt>) · [公开发布回执](<docs/releases/v0.5.0-publication/GITHUB-RELEASE.json>)。10附件公开下载字节均已核对；正式包仅代码/公开说明，不含本机回执或录制。
 - 侧栏新增“录制限额设置”：容量、队列、采样倍率均可保存1–20整数，默认及最大20。修改仅下一批生效，当前及旧批快照不重写。
 - 默认总1280MiB（1.25GiB）、提醒960MiB、单正文40MiB；原生设置与长内容传输、72MiB磁盘导出已验。最大1.25GiB满载未实测。
-- [安装说明](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [最终验证](<docs/设置/2026-11-14-v0.5.0/REPORT.md>)。当前原程序目录已备份更新，需刷新原扩展生效；本轮未自动发布v0.5.0到GitHub。
+- [安装说明](<docs/设置/2026-11-14-v0.5.0/INSTALL.md>) · [最终验证](<docs/设置/2026-11-14-v0.5.0/REPORT.md>)。当前原程序目录已备份更新，需刷新原扩展生效。正式标签指向已验证源提交d7467f37f8615c27eda53435db913b34fff07982；旧v0.4.0不变。
 
 ## 已公开正式版 v0.4.0（保留历史）
 

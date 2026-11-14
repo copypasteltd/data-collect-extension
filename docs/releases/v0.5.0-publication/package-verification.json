@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "tag": "v0.5.0",
+  "sourceCommit": "d7467f37f8615c27eda53435db913b34fff07982",
+  "assets": [
+    {
+      "name": "logic-recorder-chrome-v0.5.0.zip",
+      "size": 100955,
+      "sha256": "e0a9a7332208c1a90c974948973a1ba0108503784b4b2f1fa27845d44bc7b594"
+    },
+    {
+      "name": "extension-logic-clone-v0.5.0.zip",
+      "size": 41998,
+      "sha256": "00159da993821c993b98d4ac59c564f9647ff50d6812c8bb563b5be4d1368dd0"
+    },
+    {
+      "name": "INSTALL.md",
+      "size": 3166,
+      "sha256": "e9ef397e4a3b9825e98481389438a1428ab15032d32203db0308fabe918eb087"
+    },
+    {
+      "name": "RELEASE-NOTES.md",
+      "size": 3946,
+      "sha256": "304f4cbc67195b2629ab4b278c6099fdbe060bed3827c8f78175cd85956d8531"
+    },
+    {
+      "name": "VERIFICATION.json",
+      "size": 2922,
+      "sha256": "77be96408436e93d167672902502c9bb6f5fb71763687a7af2aa4b880dbef861"
+    },
+    {
+      "name": "RELEASE-REPORT.md",
+      "size": 1855,
+      "sha256": "5d2a8db23c1f58b31c3645786c5998fe50b487514d59d2c8fa188387e84c602b"
+    },
+    {
+      "name": "release-manifest.json",
+      "size": 5308,
+      "sha256": "64c38acaa0f7b2e0315eec67eb56d9775770ef292cec1f181a64460c23418871"
+    },
+    {
+      "name": "logic-recorder-release-v0.5.0.zip",
+      "size": 152077,
+      "sha256": "0d231cdce81f4b0a7ebd5f7fcacd2f3e5e72e32c1a1edd8a8ba6b641d44e78a7"
+    },
+    {
+      "name": "logic-recorder-release-v0.5.0.zip.sha256",
+      "size": 100,
+      "sha256": "b415e629004ffe7bc279b99effde067fcb7c98ae57768809e31da742ab039358"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 821,
+      "sha256": "f71aadaaf5c86de6b7843c5ba47f2173e87b8b9575b5fa8c21ca3b8505829e69"
+    }
+  ],
+  "checks": [
+    "All ten assets, complete-bundle entries, and extension/reader bytes match checksum plans",
+    "Exact extension ZIP loaded without modifying permissions or manifest; idle state/UI/assets work",
+    "Formal reader validates actual synthetic v3 recording and exact DOM/CSS/PNG/request/response content"
+  ],
+  "startedAt": "2026-11-14T13:39:35.821Z",
+  "browser": {
+    "version": "0.5.0",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+    "pageErrors": 0,
+    "manifestUnmodified": true
+  },
+  "reader": {
+    "status": "passed",
+    "skill": "extracted formal reader ZIP",
+    "version": 3,
+    "events": 18,
+    "contents": 9,
+    "rawKindsVerified": [
+      "PNG",
+      "DOM",
+      "CSS",
+      "request-body",
+      "response-body"
+    ]
+  },
+  "browserClosed": true,
+  "profileCleanup": "removed",
+  "finishedAt": "2026-11-14T13:39:48.747Z"
+}

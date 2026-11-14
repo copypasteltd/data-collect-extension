@@ -3,6 +3,12 @@
 所有日期采用 `YYYY-MM-DD`。行为变更应同时更新中英文 README、相关文档及可能受影响的演示素材。<br>
 Dates use `YYYY-MM-DD`. Update both READMEs, relevant documentation, and affected demo media whenever behavior changes.
 
+## 0.5.0 正式发布 - 2026-11-14 / Official stable publication
+
+- 经用户明确授权，正式发布并设为Latest：[v0.5.0](<https://github.com/copypasteltd/data-collect-extension/releases/tag/v0.5.0>)，插件/读取skill均0.5.0，标签指向已验证源码d7467f37f8615c27eda53435db913b34fff07982。 / Publish the authorized latest stable release.
+- 两个组件ZIP保持原验证字节，正式完整包仅重组公开说明/统计，不含录制、profile、索引、凭据或本机安装回执。10附件经无登录公开路径重新下载，size/SHA256全部一致，旧v0.4.0不变。 / Verify all public downloads without rebuilding code or changing the previous release.
+- [正式发布回执](<releases/v0.5.0-publication/GITHUB-RELEASE.json>)、[安装说明](<releases/v0.5.0-publication/INSTALL.md>)。最大1.25GiB整批仍未满载实测；正式发布不扩大已有验证边界。 / Publication does not imply full-capacity stress certification.
+
 ## 0.5.0 - 2026-11-14（可设置20倍限额 / Configurable limits）
 
 - 用户最终修正20倍，侧栏新增容量/队列/采样1–20倍率设置，默认及最大20；1280MiB总、960MiB提醒、40MiB单正文。 / Add persisted user settings with twentyfold defaults and maxima.

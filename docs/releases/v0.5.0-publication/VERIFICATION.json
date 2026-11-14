@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "status": "verified-before-publication",
+  "releaseTag": "v0.5.0",
+  "extensionVersion": "0.5.0",
+  "readerSkillVersion": "0.5.0",
+  "sourceCommit": "d7467f37f8615c27eda53435db913b34fff07982",
+  "codeArtifactsRebuilt": false,
+  "recordingFormat": {
+    "version": 3,
+    "profile": "business-flow-v1"
+  },
+  "settings": {
+    "schemaVersion": 1,
+    "minimumMultiplier": 1,
+    "maximumMultiplier": 20,
+    "budgetMultiplier": 20,
+    "queueMultiplier": 20,
+    "samplingMultiplier": 20,
+    "changesAffectNextBatchOnly": true,
+    "legacyMissingSettingsMultiplier": 1
+  },
+  "limits": {
+    "totalBytes": 1342177280,
+    "warningBytes": 1006632960,
+    "normalBytes": 1321205760,
+    "reserveBytes": 20971520,
+    "singleBodyBytes": 41943040,
+    "bodyBytes": 503316480,
+    "domBytes": 335544320,
+    "resourceBytes": 167772160,
+    "screenshotBytes": 251658240,
+    "metadataBytes": 83886080
+  },
+  "tests": {
+    "javascript": 500,
+    "flowTargeted": 127,
+    "readerPython": 58,
+    "nativeSettings": {
+      "passed": true,
+      "defaultAndInvalidInputs": true,
+      "persistence": true,
+      "activeBatchSnapshot": true,
+      "nextBatch20x": true,
+      "longUnicodeAnd3MiBBodyAndDom": true,
+      "parts": 130,
+      "maxPartJsonBytes": 327997,
+      "surrogateSplits": 0,
+      "narrowViewportPx": 320
+    },
+    "nativeLargeExport": {
+      "storedBytes": 75499309,
+      "contentBytes": 75497472,
+      "zipBytes": 75511309,
+      "storageMode": "opfs",
+      "fileBacked": true,
+      "elapsedMs": 4909,
+      "readerVerified": true
+    },
+    "independentFindingsClosed": [
+      "matching content-part sizes",
+      "reader enforces derived event/reference limits"
+    ],
+    "exactPackages": {
+      "extensionFiles": 11,
+      "skillFiles": 10,
+      "manifestUnmodifiedChromeLoad": true,
+      "readerActualV3Passed": true
+    }
+  },
+  "environment": {
+    "platform": "Windows native x64",
+    "chrome": "157.0.8103.40",
+    "node": "24.22.1",
+    "python": "3.13.1",
+    "syntheticOnly": true,
+    "noVirtualizationEnvironment": true
+  },
+  "limitations": [
+    "Full1.25GiB payload was not stress tested",
+    "ZIP64 high-word checks and small actual ZIP64 parsing do not establish real>4GiB export",
+    "Large input setup used synthetic DOM events; ordinary small inputs/business buttons used browser input",
+    "Native permission dialog, minimumChrome125, macOS and real customer sites not automatically tested",
+    "Policy caps do not guarantee process memory or available disk",
+    "Streaming STORE may create larger ZIPs than prior deflate",
+    "Integrity does not establish authenticity or complete capture"
+  ],
+  "privacy": {
+    "realRecordingsIncluded": false,
+    "browserProfilesIncluded": false,
+    "indexesIncluded": false,
+    "credentialsIncluded": false,
+    "localInstallationReceiptsIncluded": false
+  },
+  "previousReleaseUnchanged": "v0.4.0"
+}
